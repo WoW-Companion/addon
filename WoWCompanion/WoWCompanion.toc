@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: WoW Companion
+## Notes: Read-only panel that shows the advice the WoW Companion writes for you.
+## Version: 0.0.1
+## SavedVariables: WoWCompanionDB
+
+Core.lua
+Panel.lua
