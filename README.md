@@ -2,12 +2,13 @@
 
 A small in-game panel for World of Warcraft: Forever that shows the advice the
 WoW Companion writes for you. Type `/wowc` to open or close it; drag it to move
-it, and it remembers where you left it. For now it only says that no advice has
-been written yet.
+it, and it remembers where you left it. It shows the digest the companion writes into the data-only
+`WoWCompanion_Digest` addon (format: `docs/digest-format.md`), or says that no
+advice has been written yet.
 
 ## Install
 
-Copy the `WoWCompanion` folder into `_forever_\Interface\AddOns`, then restart
+Copy the `WoWCompanion` and `WoWCompanion_Digest` folders into `_forever_\Interface\AddOns`, then restart
 the game or type `/reload`. `make package` builds `dist/WoWCompanion-<version>.zip`
 if you prefer a zip.
 

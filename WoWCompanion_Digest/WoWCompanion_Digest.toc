@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: WoW Companion Digest
+## Notes: Data only. The WoW Companion writes your advice digest into this folder.
+## Version: 0.0.1
+## Dependencies: WoWCompanion
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+
+Digest.lua

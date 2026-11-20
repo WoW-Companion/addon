@@ -15,6 +15,11 @@ loader:SetScript("OnEvent", function(_, _, name)
     WC.CreatePanel()
 end)
 
+-- The slot addon loads after us, so redraw once everything is in.
+local late = CreateFrame("Frame")
+late:RegisterEvent("PLAYER_LOGIN")
+late:SetScript("OnEvent", function() WC.Refresh() end)
+
 SLASH_WOWC1 = "/wowc"
 SlashCmdList["WOWC"] = function()
     WC.TogglePanel()

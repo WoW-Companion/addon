@@ -24,6 +24,19 @@ local function fresh_client(savedvars)
     Stub.fire(frames, "ADDON_LOADED", "WoWCompanion")
 end
 
+-- Loads the slot file the way the game does: after WoWCompanion, then redraws.
+local function load_digest(file)
+    WoWCompanionDigest = nil
+    assert(loadfile(file))()
+    Stub.fire(frames, "PLAYER_LOGIN")
+end
+
+local function digest_client(name)
+    fresh_client(nil)
+    load_digest("tests/fixtures/digest_" .. name .. ".lua")
+    return WoWCompanion.panel
+end
+
 local function slash() SlashCmdList.WOWC("") end
 
 local cases = {
@@ -60,7 +73,72 @@ local cases = {
         fresh_client(nil)
         assert(WoWCompanionPanel:GetPoint() == "CENTER")
     end },
+    { "empty digest shows no-advice text", function()
+        local p = digest_client("empty")
+        assert(p.text:GetText():find("No advice yet", 1, true))
+        assert(p.header:GetText() == "")
+    end },
+    { "full digest shows header and every section", function()
+        local p = digest_client("full")
+        local h, t = p.header:GetText(), p.text:GetText()
+        assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true) and not h:find("stale"))
+        local last = 0
+        for _, want in ipairs({ "Next quests", "[quest 1234]", "Upgrades", "[item 5678]", "Keep materials", "Notes" }) do
+            local at = t:find(want, last + 1, true)
+            assert(at, "missing " .. want)
+            last = at
+        end
+    end },
+    { "digest over 24 hours old is marked stale", function()
+        local p = digest_client("stale")
+        assert(p.header:GetText():find("(stale)", 1, true))
+        assert(p.header:GetText():find("1 d ago", 1, true))
+    end },
+    { "digest for another character is refused", function()
+        local p = digest_client("wrongchar")
+        assert(p.text:GetText():find("written for Jaina, not Thrall", 1, true))
+        assert(not p.text:GetText():find("Next quests", 1, true))
+    end },
+    { "unknown schema version is refused", function()
+        local p = digest_client("badschema")
+        assert(p.text:GetText():find("unknown format (schema 99)", 1, true))
+        assert(not p.text:GetText():find("Next quests", 1, true))
+    end },
+    { "long digest scrolls", function()
+        local p = digest_client("long")
+        assert(p.text:GetText():find("Quest line number 60", 1, true))
+        assert(p.content:GetHeight() > p.scroll:GetHeight())
+        assert(p.scrollRange > 0)
+        local short = digest_client("full")
+        assert(short.scrollRange == 0)
+    end },
+    { "digest text cannot inject color codes", function()
+        local _, t = WoWCompanion.RenderDigest(
+            { schema = 1, character = "Thrall", generated = NOW,
+              sections = { { id = "notes", lines = { { text = "|cffff0000red" } } } } }, NOW, "Thrall")
+        assert(t:find("||cffff0000red", 1, true))
+    end },
 }
+
+-- Slot file safety: small table of sources through the static checker.
+local Slot = dofile("tests/slotcheck.lua")
+local slot_rows = {
+    { true,  'WoWCompanionDigest = {}' },
+    { true,  '-- c\nWoWCompanionDigest = { a = 1, b = { "x", true, { c = "y(" } } }' },
+    { false, 'WoWCompanionDigest = {}\nprint("x")' },
+    { false, 'WoWCompanionDigest = { f = function() end }' },
+    { false, 'WoWCompanionDigest = { a = os.time() }' },
+    { false, 'WoWCompanionDigest = { a = x }' },
+    { false, 'WoWCompanionDigest = {}\nWoWCompanionDigest2 = {}' },
+    { false, 'WoWCompanionDigest = { a = f"x" }' },
+    { false, 'WoWCompanionDigest = { a = f{} }' },
+    { false, 'x = 1\nWoWCompanionDigest = {}' },
+}
+cases[#cases + 1] = { "slot checker accepts data and rejects code", function()
+    for i, row in ipairs(slot_rows) do
+        assert(Slot.check(row[2]) == row[1], "row " .. i)
+    end
+end }
 
 local failed = 0
 for _, c in ipairs(cases) do
