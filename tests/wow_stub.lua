@@ -37,6 +37,15 @@ local function new_region(kind)
     function r:SetPropagateKeyboardInput(v) self.propagate = v end
     function r:IsMouseOver() return self.mouseOver == true end
     function r:IsShown() return self.shown end
+    -- Visible only when shown itself and every ancestor is; a frame with no parent counts as top level.
+    function r:IsVisible()
+        local f = self
+        while f do
+            if not f.shown then return false end
+            f = f.parent
+        end
+        return true
+    end
     function r:SetText(t) self.text = t end
     function r:GetText() return self.text end
     function r:SetHeight(h) self.h = h end
@@ -114,8 +123,12 @@ function Stub.install(env)
         assert(loadfile(file))()
         return true
     end }
-    env.CreateFrame = function(kind, name)
+    env.CreateFrame = function(kind, name, parent)
+        -- Strict like the client's argument order: the name is a string, the parent a frame.
+        assert(name == nil or type(name) == "string", "CreateFrame name must be nil or a string")
+        assert(parent == nil or (type(parent) == "table" and parent.kind), "CreateFrame parent must be nil or a frame")
         local f = new_region(kind)
+        f.parent = parent
         if kind == "ScrollFrame" then f.h = 200 end
         if name then env[name] = f end
         return f

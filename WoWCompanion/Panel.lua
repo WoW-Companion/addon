@@ -102,7 +102,7 @@ function WC.CreatePanel()
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionPanelScroll", f, "UIPanelScrollFrameTemplate")
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -104)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 12)
-    f.content = CreateFrame("Frame", f.scroll)
+    f.content = CreateFrame("Frame", nil, f.scroll)
     f.content:SetSize(290, 1)
     f.scroll:SetScrollChild(f.content)
 
@@ -156,7 +156,7 @@ end
 local function get_row(f, i)
     local row = f.rows[i]
     if row then return row end
-    row = CreateFrame("Button", f.content)
+    row = CreateFrame("Button", nil, f.content)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
