@@ -42,7 +42,7 @@ local function ask(text)
 end
 
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_HISTORY, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_HISTORY, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
@@ -58,6 +58,8 @@ SlashCmdList["WOWC"] = function(msg)
         if sub == "clear" then WC.RequestClearHistory() else WC.ShowHistory(true, false) end
     elseif cmd == "settings" or cmd == "options" then
         WC.OpenSettings()
+    elseif cmd == "status" then
+        WC.PrintStatus()
     elseif cmd == "reset" then
         WC.ResetPanel()
     else
