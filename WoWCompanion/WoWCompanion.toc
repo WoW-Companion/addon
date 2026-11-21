@@ -13,6 +13,7 @@ History.lua
 Panel.lua
 Settings.lua
 Tracker.lua
+Combat.lua
 WhatsNew.lua
 Status.lua
 Button.lua

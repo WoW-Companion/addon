@@ -88,6 +88,8 @@ local L = {
     FONT_normal = "Normal",
     FONT_large = "Large",
     COMPACT_PANEL = "Compact panel (first line of each section)",
+    HIDE_TRACKER_COMBAT = "Hide the Next up line in combat",
+    HIDE_PANEL_COMBAT = "Hide the panel in combat",
     SHOW_TRACKER = "Show the Next up line",
 
     -- Tracker
