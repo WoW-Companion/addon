@@ -19,6 +19,7 @@ function WC.TooltipLines(info)
     local d = WC.EntryFor(info.digest, info.player)
     local gen = type(d) == "table" and tonumber(d.generated)
     out[#out + 1] = gen and string.format(L.TIP_DIGEST, WC.FormatAge(math.max(0, info.now - gen))) or L.TIP_DIGEST_NONE
+    if type(d) == "table" and gen and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = L.TIP_OUT_OF_DATE end
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))
     local last = WC.LastAnswer(info.db, info.player)
     out[#out + 1] = last and string.format(L.TIP_ANSWER, WC.FormatAge(math.max(0, info.now - last))) or L.TIP_ANSWER_NONE
@@ -28,7 +29,8 @@ end
 
 -- Display only: fills the game tooltip next to the button.
 local function show_tooltip(owner)
-    local lines = WC.TooltipLines({ digest = WoWCompanionDigest, db = WC.db or {}, player = UnitName("player"), now = time() })
+    local lines = WC.TooltipLines({ digest = WoWCompanionDigest, db = WC.db or {}, player = UnitName("player"), now = time(),
+        captured = WC.OwnCapturedAt(UnitName("player")) })
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     for _, line in ipairs(lines) do GameTooltip:AddLine(line) end
     GameTooltip:Show()

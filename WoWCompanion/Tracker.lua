@@ -9,7 +9,8 @@ local function plain(s)
 end
 
 -- The tracker's text for a digest: its first next_quests line and how many steps follow it.
-function WC.TrackerText(d, player)
+-- now and captured (optional) add the out-of-date marker, see WC.DigestOutdated.
+function WC.TrackerText(d, player, now, captured)
     if type(d) ~= "table" or next(d) == nil then return L.TRACKER_EMPTY end
     local e = WC.EntryFor(d, player)
     if not e then return string.format(L.TRACKER_NONE, plain(player)) end
@@ -20,6 +21,7 @@ function WC.TrackerText(d, player)
         if type(lines) == "table" and type(lines[1]) == "table" and lines[1].text then
             local text = string.format(L.TRACKER_NEXT, plain(lines[1].text))
             if #lines > 1 then text = text .. string.format(L.TRACKER_MORE, #lines - 1) end
+            if now and WC.DigestOutdated(d, now, captured) then text = text .. " (" .. L.OUT_OF_DATE_SHORT:lower() .. ")" end
             return text
         end
     end
@@ -70,7 +72,7 @@ function WC.RefreshTracker()
     end
     WC.StyleText(f.label)
     local who = UnitName("player")
-    f.label:SetText(WC.TrackerText(WoWCompanionDigest, who))
+    f.label:SetText(WC.TrackerText(WoWCompanionDigest, who, time(), WC.OwnCapturedAt(who)))
     if WC.CombatHides("tracker") then
         -- Held hidden by combat: remember to bring it back when combat ends.
         WC.combatShown.tracker = true

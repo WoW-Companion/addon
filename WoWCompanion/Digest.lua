@@ -8,7 +8,7 @@ WC.SCHEMA = 1
 WC.MAX_EXTRA = 3 -- dungeons and talents show at most this many entries
 WC.STALE_SECONDS = 12 * 60 * 60
 WC.LINE_HEIGHT = 14
-WC.CAPTURE_GRACE = 5 * 60 -- a capture this much newer than the digest makes it out of date
+WC.CAPTURE_GRACE = 15 * 60 -- a capture this much newer than the digest makes it out of date (a /reload right after a fresh digest re-saves the capture)
 
 WC.STALE_NOTE = L.STALE_NOTE
 
@@ -156,6 +156,20 @@ function WC.CapturedAt(fs, player, realm)
     end
     local snap = rec and rec.snapshot
     return type(snap) == "table" and tonumber(snap.capturedAt) or nil
+end
+
+-- True when advice from digest entry d may be out of date: the capture is more than CAPTURE_GRACE
+-- newer than the digest, or the digest is older than STALE_SECONDS. The digest carries no level
+-- field, so there is no level-up rule. captured may be nil.
+function WC.DigestOutdated(d, now, captured)
+    local gen = tonumber(d.generated) or 0
+    if captured and captured - gen > WC.CAPTURE_GRACE then return true end
+    return math.max(0, now - gen) > WC.STALE_SECONDS
+end
+
+-- The current character's last capture time, or nil.
+function WC.OwnCapturedAt(player)
+    return WC.CapturedAt(ForeverScribeDB, player, GetRealmName and GetRealmName())
 end
 
 -- Returns the header text and a list of rows for a digest.

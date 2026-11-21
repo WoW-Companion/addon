@@ -45,10 +45,12 @@ local L = {
     dungeons = "Dungeons",
     talents = "Talents",
     DUNGEON_NAME = "%s: ",
-    OLDER_THAN_CAPTURE = "Your digest is older than your last capture; ask your AI client to refresh it.",
+    OLDER_THAN_CAPTURE = "Advice may be out of date: run `wowc-advisor digest`, then /reload.",
+    OUT_OF_DATE_SHORT = "Advice may be out of date",
 
     -- Button tooltip
     TIP_DIGEST = "Digest: updated %s",
+    TIP_OUT_OF_DATE = "Advice may be out of date",
     TIP_DIGEST_NONE = "Digest: none yet",
     TIP_QUEUED = "Questions waiting: %d",
     TIP_ANSWER = "Last answer: %s",
