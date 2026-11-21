@@ -51,7 +51,8 @@ end
 
 -- Returns the header text and a list of rows for a digest.
 -- Row kinds: "text", "header" (has id) and "line" (may carry item, the item id for a tooltip).
-function WC.RenderDigest(d, now, player, collapsed)
+-- show (optional) maps a settings section id to false to hide that digest section.
+function WC.RenderDigest(d, now, player, collapsed, show)
     if is_empty(d) then return "", text_rows(WC.NO_ADVICE) end
     if d.schema ~= WC.SCHEMA then
         return "", text_rows("This digest uses an unknown format (schema " .. plain(d.schema) .. "); update the addon.")
@@ -65,7 +66,8 @@ function WC.RenderDigest(d, now, player, collapsed)
     local out = {}
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
         local title = TITLES[section.id]
-        if title and type(section.lines) == "table" and #section.lines > 0 then
+        local hidden = show and show[WC.SECTION_OF[section.id]] == false
+        if title and not hidden and type(section.lines) == "table" and #section.lines > 0 then
             local lines = {}
             for _, line in ipairs(section.lines) do
                 local text = "  - " .. plain(line.text)

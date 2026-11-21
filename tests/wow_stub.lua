@@ -12,6 +12,8 @@ local function new_region(kind)
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:SetPoint(point, rel, relPoint, x, y)
         self.points = { { point, rel, relPoint, x or 0, y or 0 } }
+        self.anchors = self.anchors or {}
+        self.anchors[point] = self.points[1] -- the latest anchor per point name
     end
     function r:GetPoint()
         local p = self.points[1]
@@ -40,6 +42,19 @@ local function new_region(kind)
     function r:SetScrollChild(c) self.child = c end
     function r:UpdateScrollChildRect() end
     function r:CreateFontString() return new_region("FontString") end
+    function r:CreateTexture() return new_region("Texture") end
+    function r:SetTexture(t) self.texture = t end
+    function r:SetScale(v) self.scale = v end
+    function r:SetFrameLevel() end
+    function r:RegisterForClicks() end
+    function r:SetChecked(v) self.checked = v and true or false end
+    function r:GetChecked() return self.checked end
+    function r:SetMinMaxValues(lo, hi) self.min, self.max = lo, hi end
+    function r:SetValueStep(v) self.step = v end
+    function r:SetValue(v) self.value = v end
+    function r:GetValue() return self.value end
+    function r:GetCenter() return 0, 0 end
+    function r:GetEffectiveScale() return 1 end
     return r
 end
 
@@ -56,6 +71,21 @@ function Stub.install(env)
     env.GameTooltip = { calls = {} }
     for _, m in ipairs({ "SetOwner", "SetHyperlink", "Show", "Hide" }) do
         env.GameTooltip[m] = function(self, ...) self.calls[#self.calls + 1] = { m, ... } end
+    end
+    env.Minimap = new_region("Frame")
+    env.CURSOR = { 0, 0 }
+    env.GetCursorPosition = function() return env.CURSOR[1], env.CURSOR[2] end
+    -- Optional client features, off unless a test sets the flag before loading the addon.
+    env.AddonCompartmentFrame, env.Settings = nil, nil
+    if env.WITH_COMPARTMENT then
+        env.AddonCompartmentFrame = { registered = {} }
+        function env.AddonCompartmentFrame:RegisterAddon(info) self.registered[#self.registered + 1] = info end
+    end
+    if env.WITH_SETTINGS_API then
+        env.Settings = { opened = {} }
+        function env.Settings.RegisterCanvasLayoutCategory(frame, name) return { ID = 42, frame = frame, name = name } end
+        function env.Settings.RegisterAddOnCategory(c) env.Settings.registered = c end
+        function env.Settings.OpenToCategory(id) env.Settings.opened[#env.Settings.opened + 1] = id end
     end
     env.UnitName = function() return "Thrall" end
     -- Load-on-demand addons: tests map an addon name to the file it would run.

@@ -5,10 +5,13 @@ local WC = WoWCompanion
 function WC.CreatePanel()
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BasicFrameTemplateWithInset")
     f:SetSize(340, 320)
+    f:SetScale(WC.db.settings.scale)
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStart", function(self)
+        if not WC.db.settings.locked then self:StartMoving() end
+    end)
     f:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         local point, _, relPoint, x, y = self:GetPoint()
@@ -149,18 +152,32 @@ local function toggle_section(id)
     WC.Refresh()
 end
 
+local function set_shown(b, v) if v then b:Show() else b:Hide() end end
+
 -- Shows the history controls only in the history view; entry is the selected one, if any.
+-- Hidden sections (settings) free their space: the rows below move up.
 function WC.UpdateHistoryUI(f, entry)
     local on, confirming = WC.view.history, WC.view.confirming
-    local function set(b, v) if v then b:Show() else b:Hide() end end
-    set(f.prevButton, on and entry and not confirming)
-    set(f.nextButton, on and entry and not confirming)
-    set(f.clearButton, on and entry and not confirming)
-    set(f.confirmButton, on and confirming)
-    set(f.cancelButton, on and confirming)
-    set(f.copyBox, on and entry)
+    local ask, hist = WC.SectionShown("ask"), WC.SectionShown("history")
+    set_shown(f.askBox, ask)
+    set_shown(f.askButton, ask)
+    set_shown(f.askHint, ask)
+    set_shown(f.histButton, hist)
+    f.histButton:SetPoint("TOPLEFT", f, "TOPLEFT", 264, ask and -70 or -46)
+    local rowY = ask and -98 or -46
+    local top = ask and (on and -126 or -104) or (hist and (on and -74 or -72) or -50)
+    for _, b in ipairs({ { f.prevButton, 14 }, { f.nextButton, 68 }, { f.clearButton, 122 },
+                         { f.confirmButton, 14 }, { f.cancelButton, 82 } }) do
+        b[1]:SetPoint("TOPLEFT", f, "TOPLEFT", b[2], rowY)
+    end
+    set_shown(f.prevButton, on and entry and not confirming)
+    set_shown(f.nextButton, on and entry and not confirming)
+    set_shown(f.clearButton, on and entry and not confirming)
+    set_shown(f.confirmButton, on and confirming)
+    set_shown(f.cancelButton, on and confirming)
+    set_shown(f.copyBox, on and entry)
     f.histButton:SetText(on and "Back" or "History")
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, on and -126 or -104)
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, top)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, (on and entry) and 40 or 12)
     f.copyBox.copyText = entry and WC.HistoryCopyText(entry) or ""
     f.copyBox:SetText(f.copyBox.copyText)
@@ -172,7 +189,9 @@ function WC.Refresh()
     if not f then return end
     local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
     local player = UnitName("player")
-    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed)
+    local show = WC.db.settings.show
+    if not WC.SectionShown("history") then WC.view.history = false end
+    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed, show)
     f.header:SetText(header)
     local items, note = WC.MatchAnswers(WC.db, WoWCompanionAnswers)
     if WC.view.history then
@@ -182,7 +201,9 @@ function WC.Refresh()
         rows = WC.RenderHistory(list, index, time(), WC.view.confirming)
         WC.UpdateHistoryUI(f, list[index])
     else
-        for _, r in ipairs(WC.RenderAsks(items, note, time(), collapsed)) do rows[#rows + 1] = r end
+        if WC.SectionShown("ask") then
+            for _, r in ipairs(WC.RenderAsks(items, note, time(), collapsed)) do rows[#rows + 1] = r end
+        end
         WC.UpdateHistoryUI(f, nil)
     end
 

@@ -1,0 +1,138 @@
+-- WoW Companion: settings (scale, lock, section visibility, open on login) and their page.
+-- Everything here is saved in WoWCompanionDB.settings and only changes how the panel looks.
+
+local WC = WoWCompanion
+
+WC.SCALE_MIN, WC.SCALE_MAX, WC.SCALE_STEP = 0.7, 1.3, 0.05
+local STEPS_PER_UNIT = 20 -- 1 / SCALE_STEP, kept whole so the rounded value is exact
+
+-- Settings section ids, in display order, and the digest section ids they control.
+WC.SECTIONS = {
+    { "quests", "Next quests" }, { "upgrades", "Upgrades" }, { "materials", "Keep materials" },
+    { "notes", "Notes" }, { "ask", "Ask box and answers" }, { "history", "History" },
+}
+WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials = "materials", notes = "notes" }
+
+function WC.ClampScale(v)
+    v = tonumber(v) or 1
+    v = math.floor(v * STEPS_PER_UNIT + 0.5) / STEPS_PER_UNIT
+    return math.max(WC.SCALE_MIN, math.min(WC.SCALE_MAX, v))
+end
+
+-- Fills in defaults and repairs anything a hand-edited saved file got wrong.
+function WC.InitSettings(db)
+    local s = type(db.settings) == "table" and db.settings or {}
+    db.settings = s
+    s.scale = WC.ClampScale(s.scale)
+    s.locked = s.locked == true
+    s.openOnLogin = s.openOnLogin == true
+    s.show = type(s.show) == "table" and s.show or {}
+    for _, sec in ipairs(WC.SECTIONS) do s.show[sec[1]] = s.show[sec[1]] ~= false end
+    s.minimap = type(s.minimap) == "table" and s.minimap or {}
+    s.minimap.angle = tonumber(s.minimap.angle) or 215
+end
+
+function WC.SectionShown(id)
+    return WC.db.settings.show[id] ~= false
+end
+
+-- Applies the saved settings to the panel and redraws it.
+function WC.ApplySettings()
+    if WC.panel then WC.panel:SetScale(WC.db.settings.scale) end
+    WC.Refresh()
+end
+
+local function sync(f)
+    local s = WC.db.settings
+    f.scale:SetValue(s.scale)
+    f.scaleText:SetText(string.format("Panel scale: %.2f", s.scale))
+    for _, c in ipairs(f.checks) do c:SetChecked(c.get()) end
+end
+
+function WC.CreateSettings()
+    local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
+        or (InterfaceOptions_AddCategory and "interface") or "frame"
+    local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
+    f:SetSize(320, 330)
+    f.name = "WoW Companion"
+    f.checks = {}
+
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, mode == "frame" and -6 or -16)
+    f.title:SetText("WoW Companion")
+
+    f.scaleText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    f.scaleText:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -40)
+    f.scale = CreateFrame("Slider", "WoWCompanionOptionScale", f, "OptionsSliderTemplate")
+    f.scale:SetSize(180, 16)
+    f.scale:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -62)
+    f.scale:SetMinMaxValues(WC.SCALE_MIN, WC.SCALE_MAX)
+    f.scale:SetValueStep(WC.SCALE_STEP)
+    f.scale:SetScript("OnValueChanged", function(_, v)
+        local scale = WC.ClampScale(v)
+        if scale == WC.db.settings.scale then return end
+        WC.db.settings.scale = scale
+        f.scaleText:SetText(string.format("Panel scale: %.2f", scale))
+        WC.ApplySettings()
+    end)
+
+    local y = -88
+    local function check(name, label, get, set)
+        local c = CreateFrame("CheckButton", "WoWCompanionOption" .. name, f, "UICheckButtonTemplate")
+        c:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+        y = y - 26
+        c.label = c:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        c.label:SetPoint("LEFT", c, "RIGHT", 4, 0)
+        c.label:SetText(label)
+        c.get = get
+        c:SetScript("OnClick", function(self)
+            set(self:GetChecked() and true or false)
+            WC.ApplySettings()
+        end)
+        f.checks[#f.checks + 1] = c
+    end
+    local s = WC.db.settings
+    check("Lock", "Lock panel position", function() return s.locked end, function(v) s.locked = v end)
+    check("Login", "Open the panel on login", function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
+    for _, sec in ipairs(WC.SECTIONS) do
+        local id = sec[1]
+        check("Show" .. id, "Show " .. sec[2], function() return s.show[id] end, function(v) s.show[id] = v end)
+    end
+
+    f:SetScript("OnShow", function() sync(f) end)
+    sync(f)
+    WC.settingsFrame, WC.settingsMode = f, mode
+
+    if mode == "settings" then
+        local category = Settings.RegisterCanvasLayoutCategory(f, f.name)
+        Settings.RegisterAddOnCategory(category)
+        WC.settingsCategory = category
+    elseif mode == "interface" then
+        InterfaceOptions_AddCategory(f)
+    else
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        f:SetMovable(true)
+        f:EnableMouse(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", f.StopMovingOrSizing)
+        f:Hide()
+    end
+end
+
+function WC.OpenSettings()
+    local f, mode = WC.settingsFrame, WC.settingsMode
+    if not f then return end
+    if mode == "settings" then
+        local c = WC.settingsCategory
+        Settings.OpenToCategory(c.GetID and c:GetID() or c.ID)
+    elseif mode == "interface" then
+        -- Called twice on purpose: the first call can land on the wrong tab in older clients.
+        InterfaceOptionsFrame_OpenToCategory(f)
+        InterfaceOptionsFrame_OpenToCategory(f)
+    elseif f:IsShown() then
+        f:Hide()
+    else
+        f:Show()
+    end
+end

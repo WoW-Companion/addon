@@ -8,6 +8,7 @@ local frames = {}
 local function fresh_client(savedvars)
     for k in pairs(WoWCompanion or {}) do WoWCompanion[k] = nil end
     WoWCompanion, WoWCompanionDB, SLASH_WOWC1, WoWCompanionAnswers = nil, savedvars, nil, nil
+    WoWCompanionMinimapButton = nil
     Stub.install(_G)
     frames = {}
     local create = CreateFrame
@@ -391,6 +392,160 @@ local history_cases = {
     end },
 }
 for _, c in ipairs(history_cases) do cases[#cases + 1] = c end
+
+-- Settings and the panel button.
+local function scroll_top(p)
+    return p.scroll.anchors.TOPLEFT[5]
+end
+local function settings() return WoWCompanion.db.settings end
+-- Clicks like the client does: a check button flips before its handler runs.
+local function click(b)
+    if b.get then b.checked = not b.checked end
+    b.scripts.OnClick(b)
+end
+
+local DEFAULT_SHOW = { quests = true, upgrades = true, materials = true, notes = true, ask = true, history = true }
+local settings_cases = {
+    { "settings take defaults on first run", function()
+        fresh_client(nil)
+        local s = settings()
+        assert(s.scale == 1 and s.locked == false and s.openOnLogin == false and s.minimap.angle == 215)
+        for id, v in pairs(DEFAULT_SHOW) do assert(s.show[id] == v, id) end
+        assert(WoWCompanionPanel.scale == 1)
+    end },
+    { "settings repair bad saved values", function()
+        local rows = {
+            { { scale = 9 }, 1.3 }, { { scale = 0.1 }, 0.7 }, { { scale = "x" }, 1 },
+            { { scale = 0.82 }, 0.8 }, { "junk", 1 },
+        }
+        for i, r in ipairs(rows) do
+            fresh_client({ settings = r[1] })
+            assert(settings().scale == r[2] and type(settings().show) == "table", "row " .. i)
+        end
+        fresh_client({ settings = { show = { notes = false, ask = "no" } } })
+        assert(settings().show.notes == false and settings().show.ask == true)
+    end },
+    { "settings persist through WoWCompanionDB", function()
+        fresh_client(nil)
+        click(WoWCompanionOptionLock)
+        click(WoWCompanionOptionLogin)
+        click(WoWCompanionOptionShownotes)
+        WoWCompanionOptionScale.scripts.OnValueChanged(WoWCompanionOptionScale, 1.2)
+        local saved = WoWCompanionDB
+        fresh_client(saved)
+        local s = settings()
+        assert(s.locked and s.openOnLogin and s.show.notes == false and s.scale == 1.2)
+        assert(WoWCompanionPanel.scale == 1.2 and WoWCompanionOptionLock.checked == true)
+    end },
+    { "locked panel does not start moving", function()
+        fresh_client(nil)
+        local p = WoWCompanionPanel
+        p.scripts.OnDragStart(p)
+        assert(p.moving == true)
+        p.moving = false
+        click(WoWCompanionOptionLock)
+        p.scripts.OnDragStart(p)
+        assert(not p.moving)
+    end },
+    { "open on login shows the panel", function()
+        fresh_client({ settings = { openOnLogin = true } })
+        load_digest("tests/fixtures/digest_full.lua")
+        assert(WoWCompanionPanel:IsShown())
+        fresh_client(nil)
+        load_digest("tests/fixtures/digest_full.lua")
+        assert(not WoWCompanionPanel:IsShown())
+    end },
+    { "section visibility changes the panel layout", function()
+        local rows = {
+            { "quests", "Next quests" }, { "upgrades", "Upgrades" },
+            { "materials", "Keep materials" }, { "notes", "Notes" },
+        }
+        for _, r in ipairs(rows) do
+            local p = digest_client("full")
+            assert(p.plain:find(r[2], 1, true), r[2])
+            click(_G["WoWCompanionOptionShow" .. r[1]])
+            assert(not p.plain:find(r[2], 1, true), "still shows " .. r[2])
+            click(_G["WoWCompanionOptionShow" .. r[1]])
+            assert(p.plain:find(r[2], 1, true), "not restored " .. r[2])
+        end
+        local p = ask_client("full")
+        assert(p.plain:find("Questions", 1, true) and p.askBox:IsShown() and p.histButton:IsShown())
+        local top = scroll_top(p)
+        click(WoWCompanionOptionShowask)
+        assert(not p.plain:find("Questions", 1, true) and not p.askBox:IsShown() and not p.askButton:IsShown())
+        assert(scroll_top(p) > top and p.histButton:IsShown())
+        click(WoWCompanionOptionShowhistory)
+        assert(not p.histButton:IsShown() and scroll_top(p) == -50)
+    end },
+    { "hiding history leaves the history view", function()
+        local p = digest_client("full")
+        SlashCmdList.WOWC("history")
+        assert(WoWCompanion.view.history)
+        click(WoWCompanionOptionShowhistory)
+        assert(not WoWCompanion.view.history and not p.histButton:IsShown())
+    end },
+    { "compartment button toggles the panel", function()
+        WITH_COMPARTMENT = true
+        fresh_client(nil)
+        WITH_COMPARTMENT = nil
+        local reg = AddonCompartmentFrame.registered
+        assert(#reg == 1 and reg[1].text == "WoW Companion" and WoWCompanion.buttonMode == "compartment")
+        assert(WoWCompanionMinimapButton == nil)
+        reg[1].func()
+        assert(WoWCompanionPanel:IsShown())
+        reg[1].func()
+        assert(not WoWCompanionPanel:IsShown())
+    end },
+    { "minimap button is the fallback and toggles the panel", function()
+        fresh_client(nil)
+        local b = WoWCompanionMinimapButton
+        assert(AddonCompartmentFrame == nil and WoWCompanion.buttonMode == "minimap" and b)
+        click(b)
+        assert(WoWCompanionPanel:IsShown())
+        click(b)
+        assert(not WoWCompanionPanel:IsShown())
+    end },
+    { "minimap button drags around the edge and saves its angle", function()
+        fresh_client(nil)
+        local b = WoWCompanionMinimapButton
+        local _, _, _, x, y = b:GetPoint()
+        assert(math.abs(x - math.cos(math.rad(215)) * 80) < 1e-6 and math.abs(y - math.sin(math.rad(215)) * 80) < 1e-6)
+        b.scripts.OnDragStart(b)
+        CURSOR[1], CURSOR[2] = 0, 300
+        b.scripts.OnUpdate(b)
+        b.scripts.OnDragStop(b)
+        assert(b.scripts.OnUpdate == nil and settings().minimap.angle == 90)
+        _, _, _, x, y = b:GetPoint()
+        assert(math.abs(x) < 1e-6 and math.abs(y - 80) < 1e-6)
+        local saved = WoWCompanionDB
+        fresh_client(saved)
+        assert(settings().minimap.angle == 90)
+    end },
+    { "minimap angle from cursor", function()
+        local rows = { { 10, 0, 0, 0, 1, 0 }, { 0, 10, 0, 0, 1, 90 }, { -10, 0, 0, 0, 1, 180 },
+                       { 0, -10, 0, 0, 1, -90 }, { 20, 20, 10, 10, 1, 45 }, { 20, 20, 5, 5, 2, 45 } }
+        for i, r in ipairs(rows) do
+            assert(math.abs(WoWCompanion.MinimapAngle(r[1], r[2], r[3], r[4], r[5]) - r[6]) < 1e-6, "row " .. i)
+        end
+    end },
+    { "settings page: plain frame fallback", function()
+        fresh_client(nil)
+        assert(WoWCompanion.settingsMode == "frame" and not WoWCompanionSettings:IsShown())
+        SlashCmdList.WOWC("settings")
+        assert(WoWCompanionSettings:IsShown())
+        SlashCmdList.WOWC("settings")
+        assert(not WoWCompanionSettings:IsShown())
+    end },
+    { "settings page: client Settings API", function()
+        WITH_SETTINGS_API = true
+        fresh_client(nil)
+        WITH_SETTINGS_API = nil
+        assert(WoWCompanion.settingsMode == "settings" and Settings.registered.frame == WoWCompanionSettings)
+        SlashCmdList.WOWC("settings")
+        assert(Settings.opened[1] == 42)
+    end },
+}
+for _, c in ipairs(settings_cases) do cases[#cases + 1] = c end
 
 -- Slot file safety: small table of sources through the static checker.
 local Slot = dofile("tests/slotcheck.lua")
