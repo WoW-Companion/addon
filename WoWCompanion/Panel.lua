@@ -43,10 +43,19 @@ function WC.CreatePanel()
     f.text:SetWidth(290)
     f.text:SetJustifyH("LEFT")
 
-    f:SetScript("OnShow", WC.Refresh)
+    f:SetScript("OnShow", function()
+        WC.LoadAnswers()
+        WC.Refresh()
+    end)
     WC.panel = f
     WC.Refresh()
     f:Hide()
+end
+
+function WC.ShowPanel()
+    local f = WC.panel
+    if not f then return end
+    if f:IsShown() then WC.Refresh() else f:Show() end
 end
 
 function WC.TogglePanel()
@@ -61,6 +70,9 @@ function WC.Refresh()
     if not f then return end
     local header, body = WC.RenderDigest(WoWCompanionDigest, time(), UnitName("player"))
     f.header:SetText(header)
+    local items, note = WC.MatchAnswers(WC.db, WoWCompanionAnswers)
+    local asks = WC.RenderAsks(items, note, time())
+    if asks ~= "" then body = body .. "\n\n" .. asks end
     f.text:SetText(body)
     local lines = 1
     for _ in body:gmatch("\n") do lines = lines + 1 end

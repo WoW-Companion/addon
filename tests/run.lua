@@ -6,7 +6,7 @@ local frames = {}
 
 local function fresh_client(savedvars)
     for k in pairs(WoWCompanion or {}) do WoWCompanion[k] = nil end
-    WoWCompanion, WoWCompanionDB, SLASH_WOWC1 = nil, savedvars, nil
+    WoWCompanion, WoWCompanionDB, SLASH_WOWC1, WoWCompanionAnswers = nil, savedvars, nil, nil
     Stub.install(_G)
     frames = {}
     local create = CreateFrame
@@ -38,6 +38,15 @@ local function digest_client(name)
 end
 
 local function slash() SlashCmdList.WOWC("") end
+
+-- A client whose queue holds one question (id 1799999000-1); answers come from a fixture or none.
+local function ask_client(answers_fixture)
+    fresh_client({ asks = { { id = "1799999000-1", asked_at = 1799999000, character = "Thrall", text = "What next?" } } })
+    if answers_fixture then LOD_FILES.WoWCompanion_Answers = "tests/fixtures/answers_" .. answers_fixture .. ".lua" end
+    WoWCompanionPanel:Hide()
+    WoWCompanionPanel:Show()
+    return WoWCompanion.panel
+end
 
 local cases = {
     { "slash command is /wowc", function()
@@ -120,6 +129,69 @@ local cases = {
     end },
 }
 
+local ask_cases = {
+    { "/ask queues a question and shows it as queued", function()
+        fresh_client(nil)
+        NOW = 1800000100
+        SlashCmdList.WOWCASK("  What should I do next?  ")
+        local a = WoWCompanionDB.asks[1]
+        assert(a.text == "What should I do next?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
+        assert(SLASH_WOWCASK1 == "/ask" and WoWCompanionPanel:IsShown())
+        assert(WoWCompanionPanel.text:GetText():find("queued; /reload to send", 1, true))
+    end },
+    { "/wowc ask queues; bare /wowc ask and empty /ask do not", function()
+        fresh_client(nil)
+        SlashCmdList.WOWC("ask hello there")
+        SlashCmdList.WOWC("ask")
+        SlashCmdList.WOWCASK("   ")
+        assert(#WoWCompanionDB.asks == 1 and WoWCompanionDB.asks[1].text == "hello there")
+    end },
+    { "queue is capped at 10 (oldest dropped) and text at 500", function()
+        fresh_client(nil)
+        for i = 1, 12 do SlashCmdList.WOWCASK("q" .. i) end
+        assert(#WoWCompanionDB.asks == 10)
+        assert(WoWCompanionDB.asks[1].text == "q3" and WoWCompanionDB.asks[10].text == "q12")
+        SlashCmdList.WOWCASK(string.rep("x", 800))
+        assert(#WoWCompanionDB.asks[10].text == 500)
+        local ids = {}
+        for _, a in ipairs(WoWCompanionDB.asks) do assert(not ids[a.id]); ids[a.id] = true end
+    end },
+    { "question text is shown as data, color codes escaped", function()
+        fresh_client(nil)
+        SlashCmdList.WOWCASK("|cffff0000red")
+        assert(WoWCompanionPanel.text:GetText():find("||cffff0000red", 1, true))
+    end },
+    { "opening the panel loads the answers addon", function()
+        local p = ask_client("full")
+        assert(LOADED_ADDONS[#LOADED_ADDONS] == "WoWCompanion_Answers")
+        assert(p.text:GetText():find("A: Do the Hungry Ettin", 1, true))
+    end },
+    { "answer shows under its question with time and sources; ask marked answered", function()
+        local p = ask_client("full")
+        local t = p.text:GetText()
+        local q, a, s = t:find("Q: What next?", 1, true), t:find("A: Do the", 1, true), t:find("sources: Quest 1234, Item 5678", 1, true)
+        assert(q and a and s and q < a and a < s)
+        assert(t:find("(1 min ago)", 1, true) and not t:find("queued;", 1, true))
+        local ask = WoWCompanionDB.asks[1]
+        assert(ask.answered == true and ask.answered_at == 1799999900)
+    end },
+    { "unanswered question stays queued when answers are absent", function()
+        local p = ask_client(nil)
+        assert(p.text:GetText():find("queued; /reload to send", 1, true))
+        assert(not WoWCompanionDB.asks[1].answered)
+    end },
+    { "malformed answer files are ignored with a panel note", function()
+        for _, name in ipairs({ "badschema", "malformed" }) do
+            local p = ask_client(name)
+            local t = p.text:GetText()
+            assert(t:find("queued; /reload to send", 1, true), name)
+            assert(t:find("ignored", 1, true), name)
+            assert(not WoWCompanionDB.asks[1].answered, name)
+        end
+    end },
+}
+for _, c in ipairs(ask_cases) do cases[#cases + 1] = c end
+
 -- Slot file safety: small table of sources through the static checker.
 local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {
@@ -133,11 +205,14 @@ local slot_rows = {
     { false, 'WoWCompanionDigest = { a = f"x" }' },
     { false, 'WoWCompanionDigest = { a = f{} }' },
     { false, 'x = 1\nWoWCompanionDigest = {}' },
+    { false, 'WoWCompanionAnswers = {}' },
 }
 cases[#cases + 1] = { "slot checker accepts data and rejects code", function()
     for i, row in ipairs(slot_rows) do
         assert(Slot.check(row[2]) == row[1], "row " .. i)
     end
+    assert(Slot.check('WoWCompanionAnswers = { answers = { ["a-1"] = { text = "x" } } }', "WoWCompanionAnswers"))
+    assert(not Slot.check('WoWCompanionAnswers = { a = os.time() }', "WoWCompanionAnswers"))
 end }
 
 local failed = 0
