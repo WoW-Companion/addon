@@ -14,7 +14,7 @@ local STEPS_PER_UNIT = 20 -- 1 / SCALE_STEP, kept whole so the rounded value is 
 WC.SECTIONS = {
     { "quests", L.SECTION_quests }, { "upgrades", L.SECTION_upgrades }, { "materials", L.SECTION_materials },
     { "notes", L.SECTION_notes }, { "dungeons", L.SECTION_dungeons },
-    { "talents", L.SECTION_talents }, { "ask", L.SECTION_ask }, { "history", L.SECTION_history },
+    { "talents", L.SECTION_talents },
 }
 WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials = "materials", notes = "notes", dungeons = "dungeons", talents = "talents" }
 
@@ -34,6 +34,7 @@ function WC.InitSettings(db)
     s.fontSize = WC.FONT_SIZES[s.fontSize] and s.fontSize or "normal"
     s.tracker = s.tracker == true
     s.compact = s.compact == true
+    s.tooltips = s.tooltips ~= false
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
     s.hideInCombat = { tracker = h.tracker ~= false, panel = h.panel == true }
     s.show = type(s.show) == "table" and s.show or {}
@@ -132,6 +133,7 @@ function WC.CreateSettings()
     check("Lock", L.LOCK_PANEL, function() return s.locked end, function(v) s.locked = v end)
     check("Login", L.OPEN_ON_LOGIN, function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
     check("Tracker", L.SHOW_TRACKER, function() return s.tracker end, function(v) s.tracker = v end)
+    check("Tooltips", L.SHOW_TOOLTIPS, function() return s.tooltips end, function(v) s.tooltips = v end)
     check("Compact", L.COMPACT_PANEL, function() return s.compact end, function(v) s.compact = v; WC.view.expanded = {} end)
     for _, sec in ipairs(WC.SECTIONS) do
         local id = sec[1]

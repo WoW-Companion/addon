@@ -1,4 +1,4 @@
--- Static check: a slot file is one `WoWCompanion<Digest|Answers> = { ... }` assignment of literals.
+-- Static check: a slot file is one `WoWCompanionDigest = { ... }` assignment of literals.
 -- Usage: luajit tests/slotcheck.lua <file>...   (or require it and call check(src))
 local M = {}
 
@@ -65,8 +65,7 @@ if arg and arg[0] and arg[0]:find("slotcheck%.lua$") then
         local f = assert(io.open(file, "rb"))
         local src = f:read("*a")
         f:close()
-        local name = file:find("[Aa]nswers[^/]*$") and "WoWCompanionAnswers" or "WoWCompanionDigest"
-        local ok, err = M.check(src, name)
+        local ok, err = M.check(src, "WoWCompanionDigest")
         if not ok then bad = bad + 1; print(file .. ": " .. err) end
     end
     if bad > 0 then os.exit(1) end

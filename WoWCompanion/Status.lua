@@ -4,7 +4,7 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local SLOTS = { "WoWCompanion_Digest", "WoWCompanion_Answers" }
+local SLOTS = { "WoWCompanion_Digest" }
 
 local function installed(name)
     if C_AddOns and C_AddOns.DoesAddOnExist then return C_AddOns.DoesAddOnExist(name) and true or false end
@@ -12,19 +12,6 @@ local function installed(name)
     if not info then return false end
     local found, _, _, _, reason = info(name)
     return found ~= nil and reason ~= "MISSING"
-end
-
--- The newest answered_at across the asks queue and this character's history, or nil.
-function WC.LastAnswer(db, player)
-    local newest
-    local function see(t)
-        local n = type(t) == "table" and tonumber(t.answered_at)
-        if n and (not newest or n > newest) then newest = n end
-    end
-    for _, a in ipairs(type(db.asks) == "table" and db.asks or {}) do see(a) end
-    local h = type(db.history) == "table" and db.history[player]
-    for _, e in ipairs(type(h) == "table" and h or {}) do see(e) end
-    return newest
 end
 
 function WC.Unanswered(db)
@@ -50,8 +37,6 @@ function WC.StatusLines(info)
     end
     if d and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = "  " .. L.OUT_OF_DATE_SHORT end
     out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))
-    local last = WC.LastAnswer(info.db, info.player)
-    out[#out + 1] = last and string.format(L.STATUS_ANSWER, WC.FormatAge(math.max(0, info.now - last))) or L.STATUS_ANSWER_NONE
     for _, name in ipairs(SLOTS) do
         out[#out + 1] = string.format(L.STATUS_SLOT, name, info.installed[name] and L.STATUS_INSTALLED or L.STATUS_MISSING)
     end

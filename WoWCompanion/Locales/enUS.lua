@@ -8,18 +8,8 @@ local L = {
     ADDON_NAME = "WoW Companion",
 
     -- Panel
-    ASK = "Ask",
-    HISTORY = "History",
-    BACK = "Back",
-    PREV = "Prev",
-    NEXT = "Next",
-    CLEAR = "Clear",
-    REASK = "Re-ask",
-    CONFIRM = "Confirm",
-    CANCEL = "Cancel",
     COMPACT = "Compact",
     FULL = "Full",
-    ASK_HINT = "Your AI client answers after /reload; /reload again to see the answer.",
 
     -- Digest
     NO_ADVICE = "No advice yet \226\128\148 the companion hasn't written a digest.",
@@ -45,42 +35,24 @@ local L = {
     dungeons = "Dungeons",
     talents = "Talents",
     DUNGEON_NAME = "%s: ",
-    OLDER_THAN_CAPTURE = "Advice may be out of date: run `wowc-advisor digest`, then /reload.",
+    OLDER_THAN_CAPTURE = "Advice may be out of date: /reload (the overlay refreshes it) or run wowc-advisor digest.",
     OUT_OF_DATE_SHORT = "Advice may be out of date",
 
     -- Button tooltip
     TIP_DIGEST = "Digest: updated %s",
     TIP_OUT_OF_DATE = "Advice may be out of date",
     TIP_DIGEST_NONE = "Digest: none yet",
-    TIP_QUEUED = "Questions waiting: %d",
-    TIP_ANSWER = "Last answer: %s",
-    TIP_ANSWER_NONE = "Last answer: none yet",
+    TIP_QUEUED = "Questions queued: %d",
     TIP_CLICK = "Click to open",
 
-    -- Questions and answers
-    QUESTIONS = "Questions",
-    ASK_LINE_Q = "  Q: %s",
-    ASK_LINE_A = "  A: %s (%s)",
-    ASK_SOURCES = "  sources: %s",
-    ASK_QUEUED = "  queued; /reload to send",
-    ANSWERS_UNREADABLE = "The answers file is unreadable and was ignored.",
-    ANSWERS_MALFORMED = "%d malformed answer(s) were ignored.",
-
-    -- Ask about this (right-click a digest line)
+    -- Ask about this (right-click a digest line) and /ask
+    ASK_QUEUED = "Queued for WoW Companion. /reload and the overlay will answer it.",
     ASK_ITEM_SUBJECT = "%s (item %d)",
     ASK_ABOUT_quest = "Where do I go for %s, and what's the fastest route?",
     ASK_ABOUT_upgrade = "Where does %s drop, and is it worth farming?",
     ASK_ABOUT_material = "What should I make with %s?",
     ASK_ABOUT_dungeon = "Should I run %s now, and what should I bring?",
     ASK_ABOUT_talent = "Why %s next for my spec?",
-
-    -- History
-    NO_HISTORY = "No saved answers yet.",
-    HISTORY_ENTRY = "History: entry %d of %d (Prev = older)",
-    HISTORY_ANSWER = "  A: %s",
-    HISTORY_ASKED = "  asked %s",
-    HISTORY_CLEAR_ASK = "Clear all %d saved answers for this character?",
-    COPY_SOURCES = "sources: %s",
 
     -- Settings
     SCALE_LABEL = "Panel scale: %.2f",
@@ -93,8 +65,6 @@ local L = {
     SECTION_notes = "Notes",
     SECTION_dungeons = "Dungeons",
     SECTION_talents = "Talents",
-    SECTION_ask = "Ask box and answers",
-    SECTION_history = "History",
 
     FONT_LABEL = "Text size: %s",
     FONT_small = "Small",
@@ -103,7 +73,13 @@ local L = {
     COMPACT_PANEL = "Compact panel (first line of each section)",
     HIDE_TRACKER_COMBAT = "Hide the Next up line in combat",
     HIDE_PANEL_COMBAT = "Hide the panel in combat",
+    SHOW_TOOLTIPS = "Add WoW Companion lines to item and quest tooltips",
     SHOW_TRACKER = "Show the Next up line",
+
+    -- Game tooltips
+    TOOLTIP_UPGRADE = "WoW Companion: upgrade for %s",
+    TOOLTIP_UPGRADE_ANY = "WoW Companion: upgrade for your gear",
+    TOOLTIP_NEXT_STEP = "WoW Companion: next step #%d",
 
     -- Tracker
     TRACKER_NONE = "No digest for %s",
@@ -114,11 +90,10 @@ local L = {
     -- Slash command help
     HELP_TITLE = "WoW Companion commands:",
     HELP_PANEL = "  /wowc - show or hide the panel",
-    HELP_ASK = "  /wowc ask <question> (or /ask <question>) - queue a question; it is sent on /reload",
-    HELP_HISTORY = "  /wowc history - browse past answers; /wowc history clear - clear them (asks first)",
+    HELP_ASK = "  /wowc ask <question> (or /ask <question>) - queue a question; the overlay answers it after /reload",
     HELP_SETTINGS = "  /wowc settings - open the settings page",
     HELP_RESET = "  /wowc reset - restore the panel position and expand all sections",
-    HELP_STATUS = "  /wowc status - show versions, digest age, queued questions and installed slots",
+    HELP_STATUS = "  /wowc status - show versions, digest age, queued questions and the digest slot",
     HELP_HELP = "  /wowc help - show this list",
 
     -- Status
@@ -127,9 +102,7 @@ local L = {
     STATUS_UNKNOWN = "unknown",
     STATUS_DIGEST = "  Digest: updated %s, schema %s",
     STATUS_DIGEST_NONE = "  Digest: none yet",
-    STATUS_QUEUED = "  Questions waiting for an answer: %d",
-    STATUS_ANSWER = "  Last answer: %s",
-    STATUS_ANSWER_NONE = "  Last answer: none yet",
+    STATUS_QUEUED = "  Questions queued: %d",
     STATUS_SLOT = "  %s: %s",
     STATUS_INSTALLED = "installed",
     STATUS_MISSING = "not installed",
@@ -144,6 +117,10 @@ local L = {
     WHATS_NEW_0_1_1_1 = "The addon now comes as a ready-to-install zip on its GitHub Releases page.",
     WHATS_NEW_0_1_1_2 = "The zip leaves out your digest and answers files, so updating never overwrites them.",
     WHATS_NEW_0_1_1_3 = "After adding a new addon folder, restart the game fully; /reload is not enough.",
+    WHATS_NEW_0_2_0_1 = "The in-game Ask box, History and Answers folder are gone; the overlay answers questions now.",
+    WHATS_NEW_0_2_0_2 = "Right-click a panel line (or type /ask) to queue a question, then /reload for the overlay to answer it.",
+    WHATS_NEW_0_2_0_3 = "Item and quest tooltips now note upgrades and next steps from your digest (can be turned off in settings).",
+    WHATS_NEW_0_2_0_4 = "You can delete the leftover WoWCompanion_Answers folder.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
