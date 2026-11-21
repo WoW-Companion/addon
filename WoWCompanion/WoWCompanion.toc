@@ -12,5 +12,6 @@ Asks.lua
 History.lua
 Panel.lua
 Settings.lua
+Tracker.lua
 WhatsNew.lua
 Button.lua

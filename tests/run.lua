@@ -613,6 +613,81 @@ cases[#cases + 1] = { "what's new is skipped on a fresh install and without a ch
 end }
 
 -- Slot file safety: small table of sources through the static checker.
+-- Tracker line and font size.
+local tracker_rows = {
+    { nil, "Next up: No digest yet" },
+    { {}, "Next up: No digest yet" },
+    { { schema = 2, character = "Thrall" }, "Next up: No digest yet" },
+    { { schema = 1, character = "Jaina", sections = {} }, "Next up: No digest yet" },
+    { { schema = 1, character = "Thrall", sections = { { id = "notes", lines = { { text = "n" } } } } }, "Next up: No digest yet" },
+    { { schema = 1, character = "Thrall", sections = { { id = "next_quests", lines = { { text = "A|r" } } } } }, "Next up: A||r" },
+    { { schema = 1, character = "Thrall", sections = { { id = "next_quests", lines = { { text = "A" }, { text = "B" }, { text = "C" } } } } }, "Next up: A (+2 more)" },
+}
+local tracker_cases = {
+    { "tracker text rows", function()
+        fresh_client(nil)
+        for i, r in ipairs(tracker_rows) do
+            assert(WoWCompanion.TrackerText(r[1], "Thrall") == r[2], "row " .. i)
+        end
+    end },
+    { "tracker is hidden by default", function()
+        digest_client("full")
+        assert(settings().tracker == false and WoWCompanionTracker:IsShown() == false)
+    end },
+    { "enabling the tracker shows the first step", function()
+        digest_client("full")
+        click(WoWCompanionSettings.checks[3])
+        assert(settings().tracker == true and WoWCompanionTracker:IsShown())
+        assert(WoWCompanionTracker.label:GetText() == "Next up: Turn in The Hungry Ettin (+1 more)")
+    end },
+    { "clicking the tracker opens the panel", function()
+        digest_client("full")
+        settings().tracker = true
+        WoWCompanion.ApplySettings()
+        assert(not WoWCompanionPanel:IsShown())
+        WoWCompanionTracker.scripts.OnClick(WoWCompanionTracker)
+        assert(WoWCompanionPanel:IsShown())
+    end },
+    { "tracker without a digest says no digest yet", function()
+        fresh_client({ settings = { tracker = true } })
+        WoWCompanionDigest = nil
+        WoWCompanion.Refresh()
+        assert(WoWCompanionTracker:IsShown() and WoWCompanionTracker.label:GetText() == "Next up: No digest yet")
+    end },
+    { "tracker position is saved and restored", function()
+        fresh_client({ settings = { tracker = true } })
+        local t = WoWCompanionTracker
+        t:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 30, -60)
+        t.scripts.OnDragStop(t)
+        fresh_client(WoWCompanionDB)
+        local point, _, _, x, y = WoWCompanionTracker:GetPoint()
+        assert(point == "TOPLEFT" and x == 30 and y == -60)
+    end },
+    { "font size applies to the panel and the tracker", function()
+        digest_client("full")
+        settings().tracker = true
+        local sizes = {}
+        for _, id in ipairs({ "small", "normal", "large" }) do
+            settings().fontSize = id
+            WoWCompanion.ApplySettings()
+            sizes[id] = { WoWCompanionPanel.header.fontSize, WoWCompanionPanel.rows[1].label.fontSize, WoWCompanionTracker.label.fontSize }
+        end
+        assert(sizes.small[1] == 10 and sizes.small[2] == 10 and sizes.small[3] == 10)
+        assert(sizes.normal[1] == 12 and sizes.large[1] == 15 and sizes.large[2] == 15 and sizes.large[3] == 15)
+    end },
+    { "font size button cycles and bad values repair", function()
+        digest_client("full")
+        local b = WoWCompanionOptionFont
+        local seen = {}
+        for i = 1, 3 do b.scripts.OnClick(b); seen[i] = settings().fontSize end
+        assert(seen[1] == "large" and seen[2] == "small" and seen[3] == "normal")
+        assert(b:GetText() == "Text size: Normal")
+        fresh_client({ settings = { fontSize = "huge", tracker = "yes" } })
+        assert(settings().fontSize == "normal" and settings().tracker == false)
+    end },
+}
+for _, c in ipairs(tracker_cases) do cases[#cases + 1] = c end
+
 local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {
     { true,  'WoWCompanionDigest = {}' },

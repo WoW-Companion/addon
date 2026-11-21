@@ -5,6 +5,9 @@ local WC = WoWCompanion
 local L = WC.L
 
 WC.SCALE_MIN, WC.SCALE_MAX, WC.SCALE_STEP = 0.7, 1.3, 0.05
+-- Text sizes in points: the setting's id, and what each id means for body text.
+WC.FONT_SIZES = { small = 10, normal = 12, large = 15 }
+WC.FONT_ORDER = { "small", "normal", "large" }
 local STEPS_PER_UNIT = 20 -- 1 / SCALE_STEP, kept whole so the rounded value is exact
 
 -- Settings section ids, in display order, and the digest section ids they control.
@@ -27,6 +30,8 @@ function WC.InitSettings(db)
     s.scale = WC.ClampScale(s.scale)
     s.locked = s.locked == true
     s.openOnLogin = s.openOnLogin == true
+    s.fontSize = WC.FONT_SIZES[s.fontSize] and s.fontSize or "normal"
+    s.tracker = s.tracker == true
     s.show = type(s.show) == "table" and s.show or {}
     for _, sec in ipairs(WC.SECTIONS) do s.show[sec[1]] = s.show[sec[1]] ~= false end
     s.minimap = type(s.minimap) == "table" and s.minimap or {}
@@ -35,6 +40,11 @@ end
 
 function WC.SectionShown(id)
     return WC.db.settings.show[id] ~= false
+end
+
+-- Sets a font string to the chosen text size; delta shifts it (the hint line is a little smaller).
+function WC.StyleText(fs, delta)
+    if fs.SetFont then fs:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", WC.FONT_SIZES[WC.db.settings.fontSize] + (delta or 0)) end
 end
 
 -- Applies the saved settings to the panel and redraws it.
@@ -47,6 +57,8 @@ local function sync(f)
     local s = WC.db.settings
     f.scale:SetValue(s.scale)
     f.scaleText:SetText(string.format(L.SCALE_LABEL, s.scale))
+    local size = L["FONT_" .. s.fontSize]
+    f.fontButton:SetText(string.format(L.FONT_LABEL, size))
     for _, c in ipairs(f.checks) do c:SetChecked(c.get()) end
 end
 
@@ -54,7 +66,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 330)
+    f:SetSize(320, 380)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -77,7 +89,19 @@ function WC.CreateSettings()
         WC.ApplySettings()
     end)
 
-    local y = -88
+    f.fontButton = CreateFrame("Button", "WoWCompanionOptionFont", f, "UIPanelButtonTemplate")
+    f.fontButton:SetSize(180, 22)
+    f.fontButton:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -88)
+    f.fontButton:SetScript("OnClick", function()
+        local cur = WC.db.settings.fontSize
+        for i, id in ipairs(WC.FONT_ORDER) do
+            if id == cur then WC.db.settings.fontSize = WC.FONT_ORDER[i % #WC.FONT_ORDER + 1]; break end
+        end
+        sync(f)
+        WC.ApplySettings()
+    end)
+
+    local y = -118
     local function check(name, label, get, set)
         local c = CreateFrame("CheckButton", "WoWCompanionOption" .. name, f, "UICheckButtonTemplate")
         c:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
@@ -95,6 +119,7 @@ function WC.CreateSettings()
     local s = WC.db.settings
     check("Lock", L.LOCK_PANEL, function() return s.locked end, function(v) s.locked = v end)
     check("Login", L.OPEN_ON_LOGIN, function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
+    check("Tracker", L.SHOW_TRACKER, function() return s.tracker end, function(v) s.tracker = v end)
     for _, sec in ipairs(WC.SECTIONS) do
         local id = sec[1]
         check("Show" .. id, string.format(L.SHOW_SECTION, sec[2]), function() return s.show[id] end, function(v) s.show[id] = v end)

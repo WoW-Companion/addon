@@ -67,6 +67,17 @@ local L = {
     SECTION_ask = "Ask box and answers",
     SECTION_history = "History",
 
+    FONT_LABEL = "Text size: %s",
+    FONT_small = "Small",
+    FONT_normal = "Normal",
+    FONT_large = "Large",
+    SHOW_TRACKER = "Show the Next up line",
+
+    -- Tracker
+    TRACKER_EMPTY = "Next up: No digest yet",
+    TRACKER_NEXT = "Next up: %s",
+    TRACKER_MORE = " (+%d more)",
+
     -- Slash command help
     HELP_TITLE = "WoW Companion commands:",
     HELP_PANEL = "  /wowc - show or hide the panel",
