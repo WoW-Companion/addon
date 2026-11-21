@@ -31,6 +31,13 @@ function WC.QueueAsk(db, text, character, now)
     return entry
 end
 
+-- The one entry point for /ask and the panel box: queues for the current
+-- character; returns the entry, or nil when there was nothing to queue.
+function WC.SubmitAsk(text)
+    if not WC.db then return nil end
+    return WC.QueueAsk(WC.db, text, UnitName("player"), time())
+end
+
 -- Loads the load-on-demand answers addon; the client's API name differs by build.
 function WC.LoadAnswers()
     local addon_loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn

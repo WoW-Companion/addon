@@ -4,7 +4,7 @@ local WC = WoWCompanion
 
 function WC.CreatePanel()
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(340, 260)
+    f:SetSize(340, 320)
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
@@ -31,8 +31,29 @@ function WC.CreatePanel()
     f.header:SetWidth(300)
     f.header:SetJustifyH("LEFT")
 
+    -- Ask box: text goes only into the SavedVariables queue (see WC.SubmitAsk).
+    f.askBox = CreateFrame("EditBox", "WoWCompanionAskBox", f, "InputBoxTemplate")
+    f.askBox:SetSize(236, 20)
+    f.askBox:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -50)
+    f.askBox:SetAutoFocus(false)
+    f.askBox:SetMaxLetters(WC.MAX_ASK_LEN)
+    f.askBox:SetScript("OnEnterPressed", function() WC.SubmitFromBox() end)
+    f.askBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    f.askButton = CreateFrame("Button", "WoWCompanionAskButton", f, "UIPanelButtonTemplate")
+    f.askButton:SetSize(54, 22)
+    f.askButton:SetPoint("LEFT", f.askBox, "RIGHT", 6, 0)
+    f.askButton:SetText("Ask")
+    f.askButton:SetScript("OnClick", function() WC.SubmitFromBox() end)
+
+    f.askHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.askHint:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -74)
+    f.askHint:SetWidth(310)
+    f.askHint:SetJustifyH("LEFT")
+    f.askHint:SetText(WC.ASK_HINT)
+
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionPanelScroll", f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -48)
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -104)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 12)
     f.content = CreateFrame("Frame", nil, f.scroll)
     f.content:SetSize(290, 1)
@@ -47,6 +68,18 @@ function WC.CreatePanel()
     WC.panel = f
     WC.Refresh()
     f:Hide()
+end
+
+WC.ASK_HINT = "Your AI client answers after /reload; /reload again to see the answer."
+
+-- Queues the box's text exactly like /ask, then clears the box. Empty input is ignored.
+function WC.SubmitFromBox()
+    local f = WC.panel
+    if not f then return end
+    if WC.SubmitAsk(f.askBox:GetText()) then
+        f.askBox:SetText("")
+        WC.Refresh()
+    end
 end
 
 function WC.ShowPanel()

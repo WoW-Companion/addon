@@ -24,7 +24,7 @@ SLASH_WOWC1 = "/wowc"
 SLASH_WOWCASK1 = "/ask"
 
 local function ask(text)
-    if WC.db and WC.QueueAsk(WC.db, text, UnitName("player"), time()) then
+    if WC.SubmitAsk(text) then
         WC.ShowPanel()
     else
         WC.TogglePanel()
