@@ -16,13 +16,15 @@ choice is remembered. The panel shows how old the digest is and, past 12 hours, 
 
 ## Install
 
-1. Build the zip with `make package`, or download a release once published.
+1. Download `WoWCompanion-<version>.zip` from the latest [release](../../releases).
 2. Unzip it into `_forever_\Interface\AddOns` so that `WoWCompanion`, `WoWCompanion_Digest` and
    `WoWCompanion_Answers` sit side by side there.
 3. Restart the game, or type `/reload`.
 
 `/wowc status` prints the addon version, client build, digest age, queued questions, the age of the
-last answer and whether the two slot addons are installed. `make package` writes `dist/WoWCompanion-<version>.zip`.
+last answer and whether the two slot addons are installed. Building from a checkout: `make package`
+writes `dist/WoWCompanion-<version>.zip`. A release is made by pushing a tag `v<version>` that matches
+the `## Version` in `WoWCompanion/WoWCompanion.toc`.
 
 ## Read-only promise
 
