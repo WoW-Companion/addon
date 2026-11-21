@@ -16,6 +16,8 @@ local L = {
     CLEAR = "Clear",
     CONFIRM = "Confirm",
     CANCEL = "Cancel",
+    COMPACT = "Compact",
+    FULL = "Full",
     ASK_HINT = "Your AI client answers after /reload; /reload again to see the answer.",
 
     -- Digest
@@ -85,6 +87,7 @@ local L = {
     FONT_small = "Small",
     FONT_normal = "Normal",
     FONT_large = "Large",
+    COMPACT_PANEL = "Compact panel (first line of each section)",
     SHOW_TRACKER = "Show the Next up line",
 
     -- Tracker
