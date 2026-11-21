@@ -16,7 +16,7 @@ Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else
 | Field | Type | Meaning |
 | ----- | ---- | ------- |
 | `schema` | number | Format version. This document is `1`. The panel refuses any other value. |
-| `generated` | number | Unix time (seconds) the digest was computed. Older than 24 hours is shown as stale. |
+| `generated` | number | Unix time (seconds) the digest was computed. The panel shows its age ("updated 3 h ago"); older than 12 hours it adds a note to refresh the digest and `/reload`. |
 | `build` | string | Game build it was computed for, e.g. `"1.60.0.64000"`. |
 | `character` | string | Character name it is for. The panel refuses a digest for a different character. |
 | `sections` | list | Ordered list of sections, shown in this order. |
@@ -26,7 +26,7 @@ Each section is `{ id = "<id>", lines = { <line>, ... } }`. Known ids:
 are ignored.
 
 Each line is `{ text = "short line", item = <item id>, quest = <quest id> }`.
-`text` is required; `item` and `quest` are optional numbers.
+`text` is required; `item` and `quest` are optional numbers. A line with an `item` shows that item's tooltip on mouseover (display only). Files without `item` render as before; the format stays schema 1.
 
 ## Example
 

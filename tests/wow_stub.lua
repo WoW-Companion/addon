@@ -18,6 +18,7 @@ local function new_region(kind)
         if not p then return end
         return p[1], p[2], p[3], p[4], p[5]
     end
+    function r:ClearAllPoints() self.points = {} end
     function r:StartMoving() self.moving = true end
     function r:StopMovingOrSizing() self.moving = false end
     function r:Show()
@@ -45,6 +46,13 @@ function Stub.install(env)
     env.SlashCmdList = {}
     env.NOW = 1800000000
     env.time = function() return env.NOW end
+    env.PRINTED = {}
+    env.print = function(s) env.PRINTED[#env.PRINTED + 1] = s end
+    -- Records what the tooltip was asked to show; nothing else is modelled.
+    env.GameTooltip = { calls = {} }
+    for _, m in ipairs({ "SetOwner", "SetHyperlink", "Show", "Hide" }) do
+        env.GameTooltip[m] = function(self, ...) self.calls[#self.calls + 1] = { m, ... } end
+    end
     env.UnitName = function() return "Thrall" end
     -- Load-on-demand addons: tests map an addon name to the file it would run.
     env.LOD_FILES, env.LOADED_ADDONS = {}, {}
