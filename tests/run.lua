@@ -972,6 +972,64 @@ cases[#cases + 1] = { "slot checker accepts data and rejects code", function()
     assert(not Slot.check('WoWCompanionAnswers = { a = os.time() }', "WoWCompanionAnswers"))
 end }
 
+-- "Ask about this": right-click fills the Ask box from the line's template; nothing queues until Enter.
+local function dofile_digest(file)
+    local keep = WoWCompanionDigest
+    WoWCompanionDigest = nil
+    assert(loadfile(file))()
+    local d = WoWCompanionDigest
+    WoWCompanionDigest = keep
+    return d
+end
+local function ask_row_client()
+    fresh_client(nil)
+    load_digest("tests/fixtures/digest_full.lua")
+    local d = WoWCompanionDigest
+    local v12 = dofile_digest("tests/fixtures/digest_v12.lua")
+    d.dungeons, d.talents = v12.dungeons, v12.talents
+    WoWCompanion.Refresh()
+    return WoWCompanion.panel
+end
+local ask_rows = {
+    { "Turn in The Hungry Ettin", "Where do I go for   - Turn in The Hungry Ettin [quest 1234], and what's the fastest route?" },
+    { "Hammer of Fate", "Where does   - Equip Hammer of Fate (+12 ilvl) [item 5678] (item 5678) drop, and is it worth farming?" },
+    { "Linen Cloth", "What should I make with   - Keep Linen Cloth for tailoring [item 2589] (item 2589)?" },
+    { "Deadmines", "Should I run Deadmines now, and what should I bring?" },
+    { "Mortal Strike", "Why   - Next point: Mortal Strike next for my spec?" },
+}
+cases[#cases + 1] = { "ask about this: right-click fills each line type's template, focuses, never queues", function()
+    local p = ask_row_client()
+    for _, c in ipairs(ask_rows) do
+        p.askBox:SetText("")
+        p.askBox.focused = false
+        local row = row_with(p, c[1])
+        row.scripts.OnClick(row, "RightButton")
+        assert(p.askBox:GetText() ~= "" and p.askBox.focused, c[1])
+        assert(p.askBox:GetText():find(c[1], 1, true) and p.askBox:GetText():find("^%u"), c[1])
+        assert(WoWCompanionDB.asks == nil, c[1])
+    end
+    local notes = row_with(p, "Bank has")
+    p.askBox:SetText("")
+    notes.scripts.OnClick(notes, "RightButton")
+    assert(p.askBox:GetText() == "")
+    local h = row_with(p, "Upgrades")
+    h.scripts.OnClick(h, "RightButton")
+    assert(not WoWCompanionDB.collapsed)
+    local q = row_with(p, "Hammer of Fate")
+    q.scripts.OnClick(q, "RightButton")
+    p.askBox.scripts.OnEnterPressed(p.askBox)
+    assert(#WoWCompanionDB.asks == 1 and WoWCompanionDB.asks[1].text:find("Hammer of Fate", 1, true))
+end }
+cases[#cases + 1] = { "ask about this: AskTemplate by line type", function()
+    local T = WoWCompanion.AskTemplate
+    assert(T({ ask = { kind = "quest", subject = "Q" } }) == "Where do I go for Q, and what's the fastest route?")
+    assert(T({ ask = { kind = "upgrade", subject = "I" } }) == "Where does I drop, and is it worth farming?")
+    assert(T({ ask = { kind = "material", subject = "M" } }) == "What should I make with M?")
+    assert(T({ ask = { kind = "dungeon", subject = "D" } }) == "Should I run D now, and what should I bring?")
+    assert(T({ ask = { kind = "talent", subject = "T" } }) == "Why T next for my spec?")
+    assert(T({}) == nil and T(nil) == nil and T({ ask = { kind = "bogus", subject = "x" } }) == nil)
+end }
+
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])

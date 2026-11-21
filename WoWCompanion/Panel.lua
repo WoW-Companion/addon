@@ -157,6 +157,7 @@ local function get_row(f, i)
     local row = f.rows[i]
     if row then return row end
     row = CreateFrame("Button", f.content)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
     row.label:SetWidth(290)
@@ -221,6 +222,16 @@ function WC.UpdateHistoryUI(f, entry)
     f.questionBox:SetText(f.questionBox.copyText)
 end
 
+-- Right-click on a digest line: puts a template question in the Ask box and focuses it.
+-- Display only: nothing is queued until the player presses Enter or Ask.
+function WC.FillAsk(row)
+    local f = WC.panel
+    local q = f and WC.AskTemplate(row)
+    if not q or not f.askBox:IsShown() then return end
+    f.askBox:SetText(q:sub(1, WC.MAX_ASK_LEN))
+    f.askBox:SetFocus()
+end
+
 -- Re-reads the global digest table (data only) and redraws the panel.
 function WC.Refresh()
     WC.RefreshTracker()
@@ -268,11 +279,18 @@ function WC.Refresh()
         y = y + h
         row.link = (r.item and "item:" .. r.item) or (r.spell and "spell:" .. r.spell) or nil
         row.sectionId = r.id
-        local interactive = row.link ~= nil or r.kind == "header"
+        local interactive = row.link ~= nil or r.kind == "header" or r.ask ~= nil
         row:EnableMouse(interactive)
         row:SetScript("OnEnter", row.link and show_tooltip or nil)
         row:SetScript("OnLeave", row.link and function() GameTooltip:Hide() end or nil)
-        row:SetScript("OnClick", r.kind == "header" and function() toggle_section(r.id) end or nil)
+        row.ask = r.ask
+        row:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                WC.FillAsk(self)
+            elseif r.kind == "header" then
+                toggle_section(r.id)
+            end
+        end)
     end
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)

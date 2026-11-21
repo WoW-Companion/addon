@@ -30,6 +30,16 @@ local function plain(s)
     return (tostring(s):gsub("|", "||"))
 end
 
+-- The subject of an "ask about this" question: the line's own text, with the item id when it has one.
+-- Pipes are dropped so a digest line cannot put escape codes into the Ask box.
+local function ask_subject(text, id)
+    local s = tostring(text):gsub("|", "")
+    return id and string.format(L.ASK_ITEM_SUBJECT, s, id) or s
+end
+
+-- Which template a section's lines use, by section id.
+local ASK_KIND = { next_quests = "quest", upgrades = "upgrade", keep_materials = "material" }
+
 local function is_empty(d)
     return type(d) ~= "table" or next(d) == nil
 end
@@ -64,9 +74,9 @@ local function extra_lines(list, kind, build)
     local lines = {}
     for _, e in ipairs(type(list) == "table" and list or {}) do
         if #lines >= WC.MAX_EXTRA then break end
-        local text, id = nil, nil
-        if type(e) == "table" and e.line then text, id = build(e) end
-        if text then lines[#lines + 1] = { kind = "line", text = text, [kind] = id and item_id(id) or nil } end
+        local text, id, ask = nil, nil, nil
+        if type(e) == "table" and e.line then text, id, ask = build(e) end
+        if text then lines[#lines + 1] = { kind = "line", text = text, [kind] = id and item_id(id) or nil, ask = ask } end
     end
     return lines
 end
@@ -114,7 +124,10 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                 local text = string.format(L.LINE, plain(line.text))
                 if line.quest then text = text .. string.format(L.LINE_QUEST, plain(line.quest)) end
                 if line.item then text = text .. string.format(L.LINE_ITEM, plain(line.item)) end
-                lines[#lines + 1] = { kind = "line", text = text, item = item_id(line.item) }
+                local id = item_id(line.item)
+                local kind = ASK_KIND[section.id]
+                local ask = kind and { kind = kind, subject = ask_subject(line.text, kind ~= "quest" and id or nil) } or nil
+                lines[#lines + 1] = { kind = "line", text = text, item = id, ask = ask }
             end
             WC.SectionRows(out, section.id, title, lines, collapsed)
         end
@@ -122,9 +135,11 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     local extras = {
         { "dungeons", d.dungeons, "item", function(e)
             local name = e.name and string.format(L.DUNGEON_NAME, plain(e.name)) or ""
-            return string.format(L.LINE, name .. plain(e.line)), e.item_id
+            return string.format(L.LINE, name .. plain(e.line)), e.item_id, { kind = "dungeon", subject = ask_subject(e.name or e.line) }
         end },
-        { "talents", d.talents, "spell", function(e) return string.format(L.LINE, plain(e.line)), e.spell_id end },
+        { "talents", d.talents, "spell", function(e)
+            return string.format(L.LINE, plain(e.line)), e.spell_id, { kind = "talent", subject = ask_subject(e.line) }
+        end },
     }
     for _, x in ipairs(extras) do
         local lines = extra_lines(x[2], x[3], x[4])
@@ -169,4 +184,11 @@ function WC.RowsText(rows)
     local t = {}
     for i, r in ipairs(rows) do t[i] = r.text end
     return table.concat(t, "\n")
+end
+
+-- The question "ask about this" pre-fills for a row, or nil when the row has none.
+function WC.AskTemplate(row)
+    local a = row and row.ask
+    local tpl = a and rawget(L, "ASK_ABOUT_" .. a.kind)
+    return tpl and string.format(tpl, a.subject) or nil
 end
