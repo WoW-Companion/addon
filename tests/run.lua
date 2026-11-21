@@ -96,7 +96,7 @@ local cases = {
         local h, t = p.header:GetText(), p.plain
         assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true))
         local last = 0
-        for _, want in ipairs({ "Next quests", "[quest 1234]", "Upgrades", "[item 5678]", "Keep materials", "Notes" }) do
+        for _, want in ipairs({ "Next quests", "Turn in The Hungry Ettin", "Upgrades", "Equip Hammer of Fate", "Keep materials", "Notes" }) do
             local at = t:find(want, last + 1, true)
             assert(at, "missing " .. want)
             last = at
@@ -146,7 +146,7 @@ end
 local polish_cases = {
     { "hovering an item line shows its tooltip; leaving hides it", function()
         local p = digest_client("full")
-        local row = row_with(p, "[item 5678]")
+        local row = row_with(p, "Hammer of Fate")
         row.scripts.OnEnter(row)
         local c = GameTooltip.calls
         assert(c[1][1] == "SetOwner" and c[1][2] == row and c[2][1] == "SetHyperlink" and c[2][2] == "item:5678" and c[3][1] == "Show")
@@ -983,11 +983,11 @@ end }
 -- Schema 2.0 files: the panel picks characters[UnitName("player")] and says what to do on a miss.
 local v2_rows = {
     -- name, player, fixture, must show, must not show
-    { "2.0 hit", "Testchar", "v2", { "Next quests", "[quest 1234]" }, { "Other note", "No advice for" } },
-    { "case-insensitive hit", "TESTCHAR", "v2", { "Next quests", "[quest 1234]" }, { "No advice for" } },
+    { "2.0 hit", "Testchar", "v2", { "Next quests", "Turn in The Hungry Ettin" }, { "Other note", "No advice for" } },
+    { "case-insensitive hit", "TESTCHAR", "v2", { "Next quests", "Turn in The Hungry Ettin" }, { "No advice for" } },
     { "2.0 miss lists the others", "Missingchar", "v2", { "No advice for Missingchar yet.", "1. Type /reload so ForeverScribe", "2. Ask your AI", "wowc-advisor digest", "3. Type /reload again.", "Digests here for: Otherchar, Testchar" }, { "Next quests" } },
     { "1.2 file for another character", "Thrall", "wrongchar", { "No advice for Thrall yet.", "1. Type /reload", "3. Type /reload again." }, { "Digests here for", "Next quests" } },
-    { "1.2 file for this character", "Thrall", "full", { "Next quests", "[quest 1234]" }, { "No advice for", "1. Type /reload" } },
+    { "1.2 file for this character", "Thrall", "full", { "Next quests", "Turn in The Hungry Ettin" }, { "No advice for", "1. Type /reload" } },
     { "empty digest keeps the hint", "Thrall", "empty", { "No advice yet", "1. Type /reload", "3. Type /reload again." }, { "Digests here for" } },
     { "unknown schema", "Thrall", "badschema", { "unknown format (schema 99)" }, { "No advice for", "Next quests" } },
 }
@@ -1037,9 +1037,9 @@ local function ask_row_client()
     return WoWCompanion.panel
 end
 local ask_rows = {
-    { "Turn in The Hungry Ettin", "Where do I go for   - Turn in The Hungry Ettin [quest 1234], and what's the fastest route?" },
-    { "Hammer of Fate", "Where does   - Equip Hammer of Fate (+12 ilvl) [item 5678] (item 5678) drop, and is it worth farming?" },
-    { "Linen Cloth", "What should I make with   - Keep Linen Cloth for tailoring [item 2589] (item 2589)?" },
+    { "Turn in The Hungry Ettin", "Where do I go for   - Turn in The Hungry Ettin, and what's the fastest route?" },
+    { "Hammer of Fate", "Where does   - Equip Hammer of Fate (+12 ilvl) (item 5678) drop, and is it worth farming?" },
+    { "Linen Cloth", "What should I make with   - Keep Linen Cloth for tailoring (item 2589)?" },
     { "Deadmines", "Should I run Deadmines now, and what should I bring?" },
     { "Mortal Strike", "Why   - Next point: Mortal Strike next for my spec?" },
 }
@@ -1074,6 +1074,21 @@ cases[#cases + 1] = { "ask about this: AskTemplate by line type", function()
     assert(T({ ask = { kind = "dungeon", subject = "D" } }) == "Should I run D now, and what should I bring?")
     assert(T({ ask = { kind = "talent", subject = "T" } }) == "Why T next for my spec?")
     assert(T({}) == nil and T(nil) == nil and T({ ask = { kind = "bogus", subject = "x" } }) == nil)
+end }
+cases[#cases + 1] = { "panel content and rows follow the panel's visibility, and carry no id tags", function()
+    local p = digest_client("full")
+    assert(#p.rows > 0 and not p:IsVisible())
+    local function any_visible()
+        if p.content:IsVisible() then return true end
+        for _, r in ipairs(p.rows) do if r:IsVisible() then return true end end
+        return false
+    end
+    assert(not any_visible(), "nothing visible while the panel is closed")
+    WoWCompanion.ShowPanel()
+    assert(p.content:IsVisible() and row_with(p, "Hammer of Fate"):IsVisible())
+    WoWCompanion.TogglePanel()
+    assert(not any_visible(), "hidden again after closing")
+    assert(not p.plain:find("[item ", 1, true) and not p.plain:find("[quest ", 1, true))
 end }
 
 local failed = 0

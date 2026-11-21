@@ -181,12 +181,10 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
             local lines = {}
             for _, line in ipairs(section.lines) do
                 local text = string.format(L.LINE, plain(line.text))
-                if line.quest then text = text .. string.format(L.LINE_QUEST, plain(line.quest)) end
-                if line.item then text = text .. string.format(L.LINE_ITEM, plain(line.item)) end
                 local id = item_id(line.item)
                 local kind = ASK_KIND[section.id]
                 local ask = kind and { kind = kind, subject = ask_subject(line.text, kind ~= "quest" and id or nil) } or nil
-                lines[#lines + 1] = { kind = "line", text = text, item = id, ask = ask }
+                lines[#lines + 1] = { kind = "line", text = text, item = id, quest = item_id(line.quest), ask = ask }
             end
             WC.SectionRows(out, section.id, title, lines, collapsed)
         end
