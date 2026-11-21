@@ -85,7 +85,21 @@ local L = {
     HELP_HISTORY = "  /wowc history - browse past answers; /wowc history clear - clear them (asks first)",
     HELP_SETTINGS = "  /wowc settings - open the settings page",
     HELP_RESET = "  /wowc reset - restore the panel position and expand all sections",
+    HELP_STATUS = "  /wowc status - show versions, digest age, queued questions and installed slots",
     HELP_HELP = "  /wowc help - show this list",
+
+    -- Status
+    STATUS_TITLE = "WoW Companion status:",
+    STATUS_VERSION = "  Addon %s, client build %s",
+    STATUS_UNKNOWN = "unknown",
+    STATUS_DIGEST = "  Digest: updated %s, schema %s",
+    STATUS_DIGEST_NONE = "  Digest: none yet",
+    STATUS_QUEUED = "  Questions waiting for an answer: %d",
+    STATUS_ANSWER = "  Last answer: %s",
+    STATUS_ANSWER_NONE = "  Last answer: none yet",
+    STATUS_SLOT = "  %s: %s",
+    STATUS_INSTALLED = "installed",
+    STATUS_MISSING = "not installed",
 
     -- What's new
     WHATS_NEW_TITLE = "What's new in %s",

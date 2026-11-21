@@ -688,6 +688,40 @@ local tracker_cases = {
 }
 for _, c in ipairs(tracker_cases) do cases[#cases + 1] = c end
 
+-- /wowc status: rows through WC.StatusLines, plus one wiring case through the slash command.
+local function status_text(db, digest, installed_map)
+    fresh_client(db)
+    WoWCompanionDigest = digest
+    for k in pairs(MISSING_ADDONS) do MISSING_ADDONS[k] = nil end
+    for k, v in pairs(installed_map or {}) do MISSING_ADDONS[k] = v end
+    PRINTED = {}
+    SlashCmdList.WOWC("status")
+    return table.concat(PRINTED, "\n")
+end
+local NOW0 = 1800000000
+local status_rows = {
+    { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "waiting for an answer: 0", "Last answer: none yet", "WoWCompanion_Digest: installed", "WoWCompanion_Answers: installed" } },
+    { "digest age and schema", {}, { schema = 1, generated = NOW0 - 7200 }, {}, { "Digest: updated 2 h ago, schema 1" } },
+    { "digest with unknown schema", {}, { schema = 9, generated = NOW0 }, {}, { "schema 9" } },
+    { "queued count ignores answered", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } }, nil, {}, { "waiting for an answer: 1", "Last answer: 2 min ago" } },
+    { "last answer from history", { history = { Thrall = { { answered_at = NOW0 - 86400 * 3 } } } }, nil, {}, { "Last answer: 3 d ago" } },
+    { "missing slot addons", {}, nil, { WoWCompanion_Digest = true, WoWCompanion_Answers = true }, { "WoWCompanion_Digest: not installed", "WoWCompanion_Answers: not installed" } },
+}
+cases[#cases + 1] = { "status lines table", function()
+    for i, row in ipairs(status_rows) do
+        local text = status_text(row[2], row[3], row[4])
+        for _, want in ipairs(row[5]) do assert(text:find(want, 1, true), "row " .. i .. " (" .. row[1] .. "): " .. want .. "\n" .. text) end
+    end
+end }
+cases[#cases + 1] = { "status shows version and build and leaves the panel alone", function()
+    local text = status_text({}, nil)
+    assert(text:find("Addon 0.0.1, client build 1.15.7 (63456)", 1, true), text)
+    assert(not WoWCompanionPanel:IsShown())
+    fresh_client(nil)
+    SlashCmdList.WOWC("help")
+    assert(table.concat(PRINTED, "\n"):find("/wowc status", 1, true))
+end }
+
 local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {
     { true,  'WoWCompanionDigest = {}' },

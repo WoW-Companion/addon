@@ -91,9 +91,12 @@ function Stub.install(env)
         function env.Settings.OpenToCategory(id) env.Settings.opened[#env.Settings.opened + 1] = id end
     end
     env.UnitName = function() return "Thrall" end
+    env.GetBuildInfo = function() return "1.15.7", "63456" end
+    -- Slot addons count as installed unless a test lists names in MISSING_ADDONS.
+    env.MISSING_ADDONS = {}
     -- Load-on-demand addons: tests map an addon name to the file it would run.
     env.LOD_FILES, env.LOADED_ADDONS = {}, {}
-    env.C_AddOns = { GetAddOnMetadata = function() return env.TOC_VERSION end, LoadAddOn = function(name)
+    env.C_AddOns = { DoesAddOnExist = function(name) return not env.MISSING_ADDONS[name] end, GetAddOnMetadata = function() return env.TOC_VERSION end, LoadAddOn = function(name)
         env.LOADED_ADDONS[#env.LOADED_ADDONS + 1] = name
         local file = env.LOD_FILES[name]
         if not file then return false, "MISSING" end
