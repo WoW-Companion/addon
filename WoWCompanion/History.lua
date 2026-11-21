@@ -2,6 +2,7 @@
 -- Plain data in WoWCompanionDB.history[character], oldest first; display only.
 
 local WC = WoWCompanion
+local L = WC.L
 
 WC.MAX_HISTORY = 20
 
@@ -50,27 +51,27 @@ end
 -- The answer text and sources of one entry as the copyable plain text.
 function WC.HistoryCopyText(e)
     local t = e.answer
-    if type(e.sources) == "table" and #e.sources > 0 then t = t .. "\nsources: " .. table.concat(e.sources, ", ") end
+    if type(e.sources) == "table" and #e.sources > 0 then t = t .. "\n" .. string.format(L.COPY_SOURCES, table.concat(e.sources, ", ")) end
     return t
 end
 
 -- Returns the rows for the selected history entry (or a note when there are none).
 function WC.RenderHistory(list, index, now, confirming)
     local n = #list
-    if n == 0 then return { { kind = "text", text = "No saved answers yet." } } end
+    if n == 0 then return { { kind = "text", text = L.NO_HISTORY } } end
     local e = list[index]
     local out = {
-        { kind = "text", text = "History: entry " .. index .. " of " .. n .. " (Prev = older)" },
-        { kind = "line", text = "  Q: " .. plain(e.question) },
-        { kind = "line", text = "  asked " .. WC.FormatAge(math.max(0, now - (tonumber(e.asked_at) or now))) },
-        { kind = "line", text = "  A: " .. plain(e.answer) },
+        { kind = "text", text = string.format(L.HISTORY_ENTRY, index, n) },
+        { kind = "line", text = string.format(L.ASK_LINE_Q, plain(e.question)) },
+        { kind = "line", text = string.format(L.HISTORY_ASKED, WC.FormatAge(math.max(0, now - (tonumber(e.asked_at) or now)))) },
+        { kind = "line", text = string.format(L.HISTORY_ANSWER, plain(e.answer)) },
     }
     if type(e.sources) == "table" and #e.sources > 0 then
         local s = {}
         for i, v in ipairs(e.sources) do s[i] = plain(v) end
-        out[#out + 1] = { kind = "line", text = "  sources: " .. table.concat(s, ", ") }
+        out[#out + 1] = { kind = "line", text = string.format(L.ASK_SOURCES, table.concat(s, ", ")) }
     end
-    if confirming then out[#out + 1] = { kind = "text", text = "Clear all " .. n .. " saved answers for this character?" } end
+    if confirming then out[#out + 1] = { kind = "text", text = string.format(L.HISTORY_CLEAR_ASK, n) } end
     return out
 end
 

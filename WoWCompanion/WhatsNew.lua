@@ -1,0 +1,65 @@
+-- WoW Companion: a one-time "What's new" box after the addon version changes.
+-- The last version the player dismissed is kept in WoWCompanionDB.lastSeenVersion.
+
+local WC = WoWCompanion
+local L = WC.L
+
+-- Per version, the keys (in L) of its three main lines.
+WC.CHANGELOG = {
+    ["0.0.1"] = { "WHATS_NEW_0_0_1_1", "WHATS_NEW_0_0_1_2", "WHATS_NEW_0_0_1_3" },
+}
+
+-- The installed version, read from the TOC.
+function WC.Version()
+    local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    return get and get("WoWCompanion", "Version") or nil
+end
+
+-- Decides what to show for version. A fresh install or a version with no changelog entry is
+-- recorded as seen at once; otherwise the lines to show are returned until the box is dismissed.
+function WC.WhatsNewPending(db, version, fresh)
+    if not version or db.lastSeenVersion == version then return nil end
+    local keys = WC.CHANGELOG[version]
+    if fresh or not keys then
+        db.lastSeenVersion = version
+        return nil
+    end
+    return keys
+end
+
+function WC.DismissWhatsNew()
+    local f = WC.whatsNew
+    if not f then return end
+    WC.db.lastSeenVersion = f.version
+    f:Hide()
+end
+
+local function create_box(version, keys)
+    local f = CreateFrame("Frame", "WoWCompanionWhatsNew", WC.panel, "BasicFrameTemplateWithInset")
+    f:SetSize(340, 120)
+    f:SetPoint("TOPLEFT", WC.panel, "BOTTOMLEFT", 0, -4)
+    f.version = version
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOP", f, "TOP", 0, -5)
+    f.title:SetText(string.format(L.WHATS_NEW_TITLE, version))
+    local lines = {}
+    for i, key in ipairs(keys) do lines[i] = "- " .. L[key] end
+    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.body:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -28)
+    f.body:SetWidth(310)
+    f.body:SetJustifyH("LEFT")
+    f.body:SetText(table.concat(lines, "\n"))
+    f.button = CreateFrame("Button", "WoWCompanionWhatsNewButton", f, "UIPanelButtonTemplate")
+    f.button:SetSize(80, 22)
+    f.button:SetPoint("BOTTOM", f, "BOTTOM", 0, 8)
+    f.button:SetText(L.GOT_IT)
+    f.button:SetScript("OnClick", function() WC.DismissWhatsNew() end)
+    return f
+end
+
+-- Called once at load, after the panel exists.
+function WC.InitWhatsNew(db, fresh)
+    local version = WC.Version()
+    local keys = WC.WhatsNewPending(db, version, fresh)
+    if keys then WC.whatsNew = create_box(version, keys) end
+end

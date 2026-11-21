@@ -2,25 +2,26 @@
 -- The table is only ever read as data; see docs/digest-format.md.
 
 local WC = WoWCompanion
+local L = WC.L
 
 WC.SCHEMA = 1
 WC.STALE_SECONDS = 12 * 60 * 60
 WC.LINE_HEIGHT = 14
 
-WC.STALE_NOTE = "Ask your AI client to refresh your digest, then /reload."
+WC.STALE_NOTE = L.STALE_NOTE
 
 local TITLES = {
-    next_quests = "Next quests",
-    upgrades = "Upgrades",
-    keep_materials = "Keep materials",
-    notes = "Notes",
+    next_quests = L.next_quests,
+    upgrades = L.upgrades,
+    keep_materials = L.keep_materials,
+    notes = L.notes,
 }
 
 function WC.FormatAge(seconds)
-    if seconds < 60 then return "just now" end
-    if seconds < 3600 then return math.floor(seconds / 60) .. " min ago" end
-    if seconds < 86400 then return math.floor(seconds / 3600) .. " h ago" end
-    return math.floor(seconds / 86400) .. " d ago"
+    if seconds < 60 then return L.AGE_NOW end
+    if seconds < 3600 then return string.format(L.AGE_MINUTES, math.floor(seconds / 60)) end
+    if seconds < 86400 then return string.format(L.AGE_HOURS, math.floor(seconds / 3600)) end
+    return string.format(L.AGE_DAYS, math.floor(seconds / 86400))
 end
 
 local function plain(s)
@@ -38,7 +39,7 @@ end
 -- A collapsible section header row followed by its lines (omitted when collapsed).
 function WC.SectionRows(out, id, title, lines, collapsed)
     local closed = collapsed and collapsed[id] == true
-    out[#out + 1] = { kind = "header", id = id, text = (closed and "[+] " or "[-] ") .. title }
+    out[#out + 1] = { kind = "header", id = id, text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
     if closed then return end
     for _, line in ipairs(lines) do out[#out + 1] = line end
 end
@@ -55,13 +56,13 @@ end
 function WC.RenderDigest(d, now, player, collapsed, show)
     if is_empty(d) then return "", text_rows(WC.NO_ADVICE) end
     if d.schema ~= WC.SCHEMA then
-        return "", text_rows("This digest uses an unknown format (schema " .. plain(d.schema) .. "); update the addon.")
+        return "", text_rows(string.format(L.UNKNOWN_SCHEMA, plain(d.schema)))
     end
     if d.character ~= player then
-        return "", text_rows("This digest was written for " .. plain(d.character) .. ", not " .. plain(player) .. ".")
+        return "", text_rows(string.format(L.WRONG_CHARACTER, plain(d.character), plain(player)))
     end
     local age = math.max(0, now - (tonumber(d.generated) or 0))
-    local header = plain(d.character) .. " \226\128\148 updated " .. WC.FormatAge(age)
+    local header = string.format(L.DIGEST_HEADER, plain(d.character), WC.FormatAge(age))
 
     local out = {}
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
@@ -70,9 +71,9 @@ function WC.RenderDigest(d, now, player, collapsed, show)
         if title and not hidden and type(section.lines) == "table" and #section.lines > 0 then
             local lines = {}
             for _, line in ipairs(section.lines) do
-                local text = "  - " .. plain(line.text)
-                if line.quest then text = text .. " [quest " .. plain(line.quest) .. "]" end
-                if line.item then text = text .. " [item " .. plain(line.item) .. "]" end
+                local text = string.format(L.LINE, plain(line.text))
+                if line.quest then text = text .. string.format(L.LINE_QUEST, plain(line.quest)) end
+                if line.item then text = text .. string.format(L.LINE_ITEM, plain(line.item)) end
                 lines[#lines + 1] = { kind = "line", text = text, item = item_id(line.item) }
             end
             WC.SectionRows(out, section.id, title, lines, collapsed)

@@ -47,7 +47,7 @@ end
 function WC.CreateButton()
     if AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon then
         AddonCompartmentFrame:RegisterAddon({
-            text = "WoW Companion",
+            text = WC.L.ADDON_NAME,
             icon = WC.ICON,
             notCheckable = true,
             func = function() WC.TogglePanel() end,

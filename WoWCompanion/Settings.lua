@@ -2,14 +2,15 @@
 -- Everything here is saved in WoWCompanionDB.settings and only changes how the panel looks.
 
 local WC = WoWCompanion
+local L = WC.L
 
 WC.SCALE_MIN, WC.SCALE_MAX, WC.SCALE_STEP = 0.7, 1.3, 0.05
 local STEPS_PER_UNIT = 20 -- 1 / SCALE_STEP, kept whole so the rounded value is exact
 
 -- Settings section ids, in display order, and the digest section ids they control.
 WC.SECTIONS = {
-    { "quests", "Next quests" }, { "upgrades", "Upgrades" }, { "materials", "Keep materials" },
-    { "notes", "Notes" }, { "ask", "Ask box and answers" }, { "history", "History" },
+    { "quests", L.SECTION_quests }, { "upgrades", L.SECTION_upgrades }, { "materials", L.SECTION_materials },
+    { "notes", L.SECTION_notes }, { "ask", L.SECTION_ask }, { "history", L.SECTION_history },
 }
 WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials = "materials", notes = "notes" }
 
@@ -45,7 +46,7 @@ end
 local function sync(f)
     local s = WC.db.settings
     f.scale:SetValue(s.scale)
-    f.scaleText:SetText(string.format("Panel scale: %.2f", s.scale))
+    f.scaleText:SetText(string.format(L.SCALE_LABEL, s.scale))
     for _, c in ipairs(f.checks) do c:SetChecked(c.get()) end
 end
 
@@ -54,12 +55,12 @@ function WC.CreateSettings()
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
     f:SetSize(320, 330)
-    f.name = "WoW Companion"
+    f.name = L.ADDON_NAME
     f.checks = {}
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 16, mode == "frame" and -6 or -16)
-    f.title:SetText("WoW Companion")
+    f.title:SetText(L.ADDON_NAME)
 
     f.scaleText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.scaleText:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -40)
@@ -72,7 +73,7 @@ function WC.CreateSettings()
         local scale = WC.ClampScale(v)
         if scale == WC.db.settings.scale then return end
         WC.db.settings.scale = scale
-        f.scaleText:SetText(string.format("Panel scale: %.2f", scale))
+        f.scaleText:SetText(string.format(L.SCALE_LABEL, scale))
         WC.ApplySettings()
     end)
 
@@ -92,11 +93,11 @@ function WC.CreateSettings()
         f.checks[#f.checks + 1] = c
     end
     local s = WC.db.settings
-    check("Lock", "Lock panel position", function() return s.locked end, function(v) s.locked = v end)
-    check("Login", "Open the panel on login", function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
+    check("Lock", L.LOCK_PANEL, function() return s.locked end, function(v) s.locked = v end)
+    check("Login", L.OPEN_ON_LOGIN, function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
     for _, sec in ipairs(WC.SECTIONS) do
         local id = sec[1]
-        check("Show" .. id, "Show " .. sec[2], function() return s.show[id] end, function(v) s.show[id] = v end)
+        check("Show" .. id, string.format(L.SHOW_SECTION, sec[2]), function() return s.show[id] end, function(v) s.show[id] = v end)
     end
 
     f:SetScript("OnShow", function() sync(f) end)

@@ -90,7 +90,7 @@ function Stub.install(env)
     env.UnitName = function() return "Thrall" end
     -- Load-on-demand addons: tests map an addon name to the file it would run.
     env.LOD_FILES, env.LOADED_ADDONS = {}, {}
-    env.C_AddOns = { LoadAddOn = function(name)
+    env.C_AddOns = { GetAddOnMetadata = function() return env.TOC_VERSION end, LoadAddOn = function(name)
         env.LOADED_ADDONS[#env.LOADED_ADDONS + 1] = name
         local file = env.LOD_FILES[name]
         if not file then return false, "MISSING" end
