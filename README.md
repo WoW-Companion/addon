@@ -16,14 +16,28 @@ choice is remembered. The panel shows how old the digest is and, past 12 hours, 
 
 ## Install
 
-1. Build the zip with `make package`, or download a release once published.
-2. Unzip it into `_forever_\Interface\AddOns` so that `WoWCompanion`, `WoWCompanion_Digest` and
-   `WoWCompanion_Answers` sit side by side there.
-3. Restart the game, or type `/reload`.
+1. Get the three folders. `make package` builds `dist/WoWCompanion-<version>.zip` (it needs `zip` and a
+   checkout of this repo, so it is a developer route). GitHub's "Download ZIP" of this repo also works,
+   but it holds the whole repo: copy only the three folders out of it. There is no player-friendly
+   release download yet.
+2. Put `WoWCompanion`, `WoWCompanion_Digest` and `WoWCompanion_Answers` side by side in
+   `_forever_\Interface\AddOns`.
+3. Fully quit and restart the game. Do this the first time, and whenever a new folder is added:
+   the game only discovers a new addon folder at startup, so `/reload` is not enough.
+
+To update, replace the contents of the `WoWCompanion` folder, then `/reload`. Never overwrite
+`WoWCompanion_Digest/Digest.lua` or `WoWCompanion_Answers/Answers.lua`: they hold your data. Delete any
+old `WoWCompanion` folder first rather than merging over it; a leftover one from early versions
+breaks schema 2.0 digests.
+
+The digest holds every character (schema 2.0, see `docs/digest-format.md`). If the character you are
+logged in on has no entry, the panel shows a short hint with the steps to get one.
+
+For the rest of setup (connecting your AI client and writing the digest), see `docs/quickstart.md` in
+the advisor repo.
 
 `/wowc status` prints the addon version, client build, digest age, queued questions, the age of the
-last answer and whether the two slot addons are installed. `make package` writes `dist/WoWCompanion-<version>.zip`.
-
+last answer and whether the two slot addons are installed. 
 ## Read-only promise
 
 This addon only reads game state and displays it. It never casts spells, uses
