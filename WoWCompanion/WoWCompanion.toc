@@ -14,4 +14,5 @@ Panel.lua
 Settings.lua
 Tracker.lua
 WhatsNew.lua
+Status.lua
 Button.lua
