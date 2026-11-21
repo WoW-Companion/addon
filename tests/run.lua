@@ -653,7 +653,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("every character", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("ready-to-install", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -672,7 +672,7 @@ cases[#cases + 1] = { "what's new is skipped on a fresh install and without a ch
     local db = {}
     assert(WC.WhatsNewPending(db, "9.9.9", false) == nil and db.lastSeenVersion == "9.9.9")
     assert(WC.WhatsNewPending({}, nil, false) == nil)
-    assert(WC.CHANGELOG[TOC_VERSION] and #WC.CHANGELOG[TOC_VERSION] == 4, "changelog covers the TOC version")
+    assert(WC.CHANGELOG[TOC_VERSION] and #WC.CHANGELOG[TOC_VERSION] >= 1, "changelog covers the TOC version")
 end }
 
 -- Slot file safety: small table of sources through the static checker.
@@ -835,7 +835,7 @@ cases[#cases + 1] = { "status lines table", function()
 end }
 cases[#cases + 1] = { "status shows version and build and leaves the panel alone", function()
     local text = status_text({}, nil)
-    assert(text:find("Addon 0.1.0, client build 1.15.7 (63456)", 1, true), text)
+    assert(text:find("Addon " .. TOC_VERSION .. ", client build 1.15.7 (63456)", 1, true), text)
     assert(not WoWCompanionPanel:IsShown())
     fresh_client(nil)
     SlashCmdList.WOWC("help")

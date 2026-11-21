@@ -1,0 +1,62 @@
+name: release
+
+# Publishes WoWCompanion-<version>.zip (plus SHA256SUMS) to GitHub Releases when the ## Version in
+# WoWCompanion/WoWCompanion.toc changes on main. Re-running skips a version that already has a tag.
+on:
+  push:
+    branches: [main]
+    paths: [WoWCompanion/WoWCompanion.toc]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Read version and check the tag
+        id: v
+        run: |
+          version=$(sed -n 's/^## Version: *//p' WoWCompanion/WoWCompanion.toc | tr -d '\r')
+          [ -n "$version" ] || { echo "no ## Version in the TOC" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "tag v$version exists; nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the zip and checksums
+        if: steps.v.outputs.publish == 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends luajit
+          zip=$(scripts/package.sh)
+          luajit tests/layout.lua "$zip"
+          (cd dist && sha256sum "$(basename "$zip")" > SHA256SUMS)
+      - name: Write release notes
+        if: steps.v.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          key=$(echo "$VERSION" | tr . _)
+          {
+            echo "What's new in $VERSION:"
+            echo
+            grep "WHATS_NEW_${key}_[0-9]* *=" WoWCompanion/Locales/enUS.lua \
+              | sed 's/^[^"]*"\(.*\)",$/- \1/'
+            echo
+            echo "Unzip into \`_forever_\\Interface\\AddOns\` and restart the game fully the first time."
+            echo "The zip holds no digest or answers file, so unzipping over an install keeps your data."
+          } > dist/notes.md
+      - name: Create the release
+        if: steps.v.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          gh release create "v$VERSION" "dist/WoWCompanion-$VERSION.zip" dist/SHA256SUMS \
+            --title "WoW Companion $VERSION" --notes-file dist/notes.md --target "$GITHUB_SHA"
