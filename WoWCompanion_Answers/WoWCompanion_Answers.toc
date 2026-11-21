@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: WoW Companion Answers
 ## Notes: Data only. The WoW Companion writes answers to your questions into this folder.
-## Version: 0.0.1
+## Version: 0.1.0
 ## Dependencies: WoWCompanion
 ## LoadOnDemand: 1
 ## IconTexture: Interface\Icons\INV_Misc_Book_09

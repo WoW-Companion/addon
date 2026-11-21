@@ -137,9 +137,10 @@ local L = {
     -- What's new
     WHATS_NEW_TITLE = "What's new in %s",
     GOT_IT = "Got it",
-    WHATS_NEW_0_0_1_1 = "Localization: every string now lives in a locale table, ready for translations.",
-    WHATS_NEW_0_0_1_2 = "A short note like this one appears once after each update.",
-    WHATS_NEW_0_0_1_3 = "Settings, history and the ask box are all in the panel.",
+    WHATS_NEW_0_1_0_1 = "One digest now holds every character; a character with no entry gets a three-step hint.",
+    WHATS_NEW_0_1_0_2 = "The stale-digest warning shows only when your character has moved on since the digest.",
+    WHATS_NEW_0_1_0_3 = "Panel rows no longer draw without text, and raw id tags are hidden.",
+    WHATS_NEW_0_1_0_4 = "After adding a new addon folder, restart the game fully; /reload is not enough.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
