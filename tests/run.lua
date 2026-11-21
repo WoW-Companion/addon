@@ -8,7 +8,7 @@ local frames = {}
 local function fresh_client(savedvars)
     for k in pairs(WoWCompanion or {}) do WoWCompanion[k] = nil end
     WoWCompanion, WoWCompanionDB, SLASH_WOWC1, WoWCompanionAnswers = nil, savedvars, nil, nil
-    WoWCompanionMinimapButton = nil
+    WoWCompanionMinimapButton, ForeverScribeDB = nil, nil
     Stub.install(_G)
     frames = {}
     local create = CreateFrame
@@ -762,6 +762,68 @@ cases[#cases + 1] = { "status shows version and build and leaves the panel alone
     fresh_client(nil)
     SlashCmdList.WOWC("help")
     assert(table.concat(PRINTED, "\n"):find("/wowc status", 1, true))
+end }
+
+-- Staleness against ForeverScribe's capture time, and the button tooltip.
+local GEN = 1799996400 -- digest_full's generated
+local function fs_db(captured) return { chars = { ["Testrealm:Thrall"] = { snapshot = { capturedAt = captured } } } } end
+local function panel_text(fs)
+    fresh_client(nil)
+    ForeverScribeDB = fs
+    load_digest("tests/fixtures/digest_full.lua")
+    return WoWCompanion.panel.plain
+end
+local HINT = "older than your last capture"
+local capture_rows = {
+    { "capture well after digest", fs_db(GEN + 301), true },
+    { "capture within five minutes", fs_db(GEN + 300), false },
+    { "capture before digest", fs_db(GEN - 50), false },
+    { "ForeverScribe absent", nil, false },
+    { "no record for this character", { chars = { ["Testrealm:Other"] = { snapshot = { capturedAt = GEN + 9999 } } } }, false },
+    { "malformed global", { chars = "x" }, false },
+    { "found by identity name", { chars = { ["k"] = { snapshot = { identity = { name = "Thrall" }, capturedAt = GEN + 9999 } } } }, true },
+}
+cases[#cases + 1] = { "stale vs fresh digest against the capture time", function()
+    for i, row in ipairs(capture_rows) do
+        assert((panel_text(row[2]):find(HINT, 1, true) ~= nil) == row[3], "row " .. i .. " (" .. row[1] .. ")")
+    end
+    local before = fs_db(GEN + 301)
+    panel_text(before)
+    assert(before.chars["Testrealm:Thrall"].snapshot.capturedAt == GEN + 301 and next(before) == "chars")
+end }
+local tip_rows = {
+    { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions waiting: 0", "Last answer: none yet", "Click to open" } },
+    { "digest, queue and answer", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } },
+      { generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions waiting: 1", "Last answer: 2 min ago", "Click to open" } },
+}
+cases[#cases + 1] = { "tooltip lines table", function()
+    for i, row in ipairs(tip_rows) do
+        fresh_client(nil)
+        local text = table.concat(WoWCompanion.TooltipLines({ digest = row[3], db = row[2], player = "Thrall", now = NOW0 }), "\n")
+        for _, want in ipairs(row[4]) do assert(text:find(want, 1, true), "row " .. i .. ": " .. want .. "\n" .. text) end
+    end
+end }
+cases[#cases + 1] = { "button hover fills and hides the tooltip on both button kinds", function()
+    local function hover(enter, leave, owner)
+        GameTooltip.calls = {}
+        enter(owner)
+        local lines = {}
+        for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then lines[#lines + 1] = c[2] end end
+        assert(GameTooltip.calls[1][1] == "SetOwner" and GameTooltip.calls[#GameTooltip.calls][1] == "Show")
+        assert(lines[#lines] == "Click to open" and lines[2] == "Digest: none yet")
+        leave(owner)
+        assert(GameTooltip.calls[#GameTooltip.calls][1] == "Hide")
+    end
+    WoWCompanionDigest = nil
+    fresh_client(nil)
+    local b = WoWCompanionMinimapButton
+    hover(b.scripts.OnEnter, b.scripts.OnLeave, b)
+    WITH_COMPARTMENT = true
+    fresh_client(nil)
+    WITH_COMPARTMENT = nil
+    WoWCompanionDigest = nil
+    local reg = AddonCompartmentFrame.registered[1]
+    hover(reg.funcOnEnter, reg.funcOnLeave, {})
 end }
 
 local Slot = dofile("tests/slotcheck.lua")
