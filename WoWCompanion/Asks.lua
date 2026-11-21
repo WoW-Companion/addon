@@ -69,24 +69,24 @@ function WC.MatchAnswers(db, answers)
     return out, note
 end
 
--- Returns the text block for the asks section ("" when there is nothing to show).
-function WC.RenderAsks(items, note, now)
-    local out = {}
-    if #items > 0 then out[#out + 1] = "Questions" end
+-- Returns the rows for the asks section (empty when there is nothing to show).
+function WC.RenderAsks(items, note, now, collapsed)
+    local out, lines = {}, {}
     for _, item in ipairs(items) do
-        out[#out + 1] = "  Q: " .. plain(item.ask.text)
+        lines[#lines + 1] = { kind = "line", text = "  Q: " .. plain(item.ask.text) }
         local a = item.answer
         if a then
-            out[#out + 1] = "  A: " .. plain(a.text) .. " (" .. WC.FormatAge(math.max(0, now - a.answered_at)) .. ")"
+            lines[#lines + 1] = { kind = "line", text = "  A: " .. plain(a.text) .. " (" .. WC.FormatAge(math.max(0, now - a.answered_at)) .. ")" }
             if type(a.sources) == "table" and #a.sources > 0 then
                 local s = {}
                 for i, v in ipairs(a.sources) do s[i] = plain(v) end
-                out[#out + 1] = "  sources: " .. table.concat(s, ", ")
+                lines[#lines + 1] = { kind = "line", text = "  sources: " .. table.concat(s, ", ") }
             end
         else
-            out[#out + 1] = "  queued; /reload to send"
+            lines[#lines + 1] = { kind = "line", text = "  queued; /reload to send" }
         end
     end
-    if note then out[#out + 1] = note end
-    return table.concat(out, "\n")
+    if #items > 0 then WC.SectionRows(out, "ask", "Questions", lines, collapsed) end
+    if note then out[#out + 1] = { kind = "text", text = note } end
+    return out
 end

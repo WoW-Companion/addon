@@ -1,5 +1,6 @@
 -- Tiny test runner: loads the TOC's Lua files in order against the stub.
 local root = (arg and arg[1]) or "WoWCompanion"
+local report = print
 local Stub = dofile("tests/wow_stub.lua")
 
 local frames = {}
@@ -65,7 +66,7 @@ local cases = {
     end },
     { "panel shows the no-advice text", function()
         fresh_client(nil)
-        assert(WoWCompanion.panel.text:GetText():find("No advice yet", 1, true))
+        assert(WoWCompanion.panel.plain:find("No advice yet", 1, true))
         assert(WoWCompanion.panel.title:GetText() == "WoW Companion")
     end },
     { "position round-trips through WoWCompanionDB", function()
@@ -84,13 +85,13 @@ local cases = {
     end },
     { "empty digest shows no-advice text", function()
         local p = digest_client("empty")
-        assert(p.text:GetText():find("No advice yet", 1, true))
+        assert(p.plain:find("No advice yet", 1, true))
         assert(p.header:GetText() == "")
     end },
     { "full digest shows header and every section", function()
         local p = digest_client("full")
-        local h, t = p.header:GetText(), p.text:GetText()
-        assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true) and not h:find("stale"))
+        local h, t = p.header:GetText(), p.plain
+        assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true))
         local last = 0
         for _, want in ipairs({ "Next quests", "[quest 1234]", "Upgrades", "[item 5678]", "Keep materials", "Notes" }) do
             local at = t:find(want, last + 1, true)
@@ -98,36 +99,105 @@ local cases = {
             last = at
         end
     end },
-    { "digest over 24 hours old is marked stale", function()
+    { "digest over 12 hours old shows its age and the refresh note", function()
         local p = digest_client("stale")
-        assert(p.header:GetText():find("(stale)", 1, true))
-        assert(p.header:GetText():find("1 d ago", 1, true))
+        assert(p.header:GetText():find("updated 1 d ago", 1, true))
+        assert(p.plain:find("Ask your AI client to refresh your digest, then /reload.", 1, true))
+        local fresh = digest_client("full")
+        assert(fresh.header:GetText():find("updated 1 h ago", 1, true) and not fresh.plain:find("refresh your digest", 1, true))
     end },
     { "digest for another character is refused", function()
         local p = digest_client("wrongchar")
-        assert(p.text:GetText():find("written for Jaina, not Thrall", 1, true))
-        assert(not p.text:GetText():find("Next quests", 1, true))
+        assert(p.plain:find("written for Jaina, not Thrall", 1, true))
+        assert(not p.plain:find("Next quests", 1, true))
     end },
     { "unknown schema version is refused", function()
         local p = digest_client("badschema")
-        assert(p.text:GetText():find("unknown format (schema 99)", 1, true))
-        assert(not p.text:GetText():find("Next quests", 1, true))
+        assert(p.plain:find("unknown format (schema 99)", 1, true))
+        assert(not p.plain:find("Next quests", 1, true))
     end },
     { "long digest scrolls", function()
         local p = digest_client("long")
-        assert(p.text:GetText():find("Quest line number 60", 1, true))
+        assert(p.plain:find("Quest line number 60", 1, true))
         assert(p.content:GetHeight() > p.scroll:GetHeight())
         assert(p.scrollRange > 0)
         local short = digest_client("full")
         assert(short.scrollRange == 0)
     end },
     { "digest text cannot inject color codes", function()
-        local _, t = WoWCompanion.RenderDigest(
+        local _, rows = WoWCompanion.RenderDigest(
             { schema = 1, character = "Thrall", generated = NOW,
               sections = { { id = "notes", lines = { { text = "|cffff0000red" } } } } }, NOW, "Thrall")
+        local t = WoWCompanion.RowsText(rows)
         assert(t:find("||cffff0000red", 1, true))
     end },
 }
+
+local function row_with(p, text)
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() and r.label:GetText():find(text, 1, true) then return r end
+    end
+    error("no row " .. text)
+end
+
+local polish_cases = {
+    { "hovering an item line shows its tooltip; leaving hides it", function()
+        local p = digest_client("full")
+        local row = row_with(p, "[item 5678]")
+        row.scripts.OnEnter(row)
+        local c = GameTooltip.calls
+        assert(c[1][1] == "SetOwner" and c[1][2] == row and c[2][1] == "SetHyperlink" and c[2][2] == "item:5678" and c[3][1] == "Show")
+        row.scripts.OnLeave(row)
+        assert(c[4][1] == "Hide")
+        assert(row_with(p, "Pick up the next").scripts.OnEnter == nil)
+    end },
+    { "bad item ids get no tooltip", function()
+        local _, rows = WoWCompanion.RenderDigest(
+            { schema = 1, character = "Thrall", generated = NOW, sections = { { id = "notes", lines = {
+                { text = "a", item = "x|r" }, { text = "b", item = -3 }, { text = "c", item = 1.5 } } } } }, NOW, "Thrall")
+        for i = 2, 4 do assert(rows[i].item == nil, i) end
+    end },
+    { "collapse state persists in WoWCompanionDB and survives a reload", function()
+        local p = digest_client("full")
+        local h = row_with(p, "Upgrades")
+        assert(h.label:GetText():find("[-]", 1, true) and p.plain:find("Hammer of Fate", 1, true))
+        h.scripts.OnClick(h)
+        assert(WoWCompanionDB.collapsed.upgrades == true)
+        assert(not p.plain:find("Hammer of Fate", 1, true) and p.plain:find("Linen Cloth", 1, true))
+        assert(row_with(p, "Upgrades").label:GetText():find("[+]", 1, true))
+        local saved = WoWCompanionDB
+        fresh_client(saved)
+        load_digest("tests/fixtures/digest_full.lua")
+        assert(not WoWCompanion.panel.plain:find("Hammer of Fate", 1, true))
+        local again = row_with(WoWCompanion.panel, "Upgrades")
+        again.scripts.OnClick(again)
+        assert(WoWCompanionDB.collapsed.upgrades == nil and WoWCompanion.panel.plain:find("Hammer of Fate", 1, true))
+    end },
+    { "the questions section collapses too", function()
+        local p = ask_client(nil)
+        local h = row_with(p, "Questions")
+        h.scripts.OnClick(h)
+        assert(WoWCompanionDB.collapsed.ask and not p.plain:find("What next?", 1, true))
+    end },
+    { "/wowc help lists the commands", function()
+        fresh_client(nil)
+        SlashCmdList.WOWC("help")
+        local all = table.concat(PRINTED, "\n")
+        for _, want in ipairs({ "/wowc ask", "/wowc reset", "/wowc help", "/ask" }) do assert(all:find(want, 1, true), want) end
+        assert(not WoWCompanionPanel:IsShown())
+    end },
+    { "/wowc reset restores position and collapse state", function()
+        local p = digest_client("full")
+        p:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 40, -75)
+        p.scripts.OnDragStop(p)
+        local h = row_with(p, "Notes")
+        h.scripts.OnClick(h)
+        SlashCmdList.WOWC("reset")
+        assert(WoWCompanionDB.position == nil and WoWCompanionDB.collapsed == nil)
+        assert(p:GetPoint() == "CENTER" and p.plain:find("Bank has 3", 1, true))
+    end },
+}
+for _, c in ipairs(polish_cases) do cases[#cases + 1] = c end
 
 local ask_cases = {
     { "/ask queues a question and shows it as queued", function()
@@ -137,7 +207,7 @@ local ask_cases = {
         local a = WoWCompanionDB.asks[1]
         assert(a.text == "What should I do next?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
         assert(SLASH_WOWCASK1 == "/ask" and WoWCompanionPanel:IsShown())
-        assert(WoWCompanionPanel.text:GetText():find("queued; /reload to send", 1, true))
+        assert(WoWCompanionPanel.plain:find("queued; /reload to send", 1, true))
     end },
     { "/wowc ask queues; bare /wowc ask and empty /ask do not", function()
         fresh_client(nil)
@@ -159,16 +229,16 @@ local ask_cases = {
     { "question text is shown as data, color codes escaped", function()
         fresh_client(nil)
         SlashCmdList.WOWCASK("|cffff0000red")
-        assert(WoWCompanionPanel.text:GetText():find("||cffff0000red", 1, true))
+        assert(WoWCompanionPanel.plain:find("||cffff0000red", 1, true))
     end },
     { "opening the panel loads the answers addon", function()
         local p = ask_client("full")
         assert(LOADED_ADDONS[#LOADED_ADDONS] == "WoWCompanion_Answers")
-        assert(p.text:GetText():find("A: Do the Hungry Ettin", 1, true))
+        assert(p.plain:find("A: Do the Hungry Ettin", 1, true))
     end },
     { "answer shows under its question with time and sources; ask marked answered", function()
         local p = ask_client("full")
-        local t = p.text:GetText()
+        local t = p.plain
         local q, a, s = t:find("Q: What next?", 1, true), t:find("A: Do the", 1, true), t:find("sources: Quest 1234, Item 5678", 1, true)
         assert(q and a and s and q < a and a < s)
         assert(t:find("(1 min ago)", 1, true) and not t:find("queued;", 1, true))
@@ -177,13 +247,13 @@ local ask_cases = {
     end },
     { "unanswered question stays queued when answers are absent", function()
         local p = ask_client(nil)
-        assert(p.text:GetText():find("queued; /reload to send", 1, true))
+        assert(p.plain:find("queued; /reload to send", 1, true))
         assert(not WoWCompanionDB.asks[1].answered)
     end },
     { "malformed answer files are ignored with a panel note", function()
         for _, name in ipairs({ "badschema", "malformed" }) do
             local p = ask_client(name)
-            local t = p.text:GetText()
+            local t = p.plain
             assert(t:find("queued; /reload to send", 1, true), name)
             assert(t:find("ignored", 1, true), name)
             assert(not WoWCompanionDB.asks[1].answered, name)
@@ -218,8 +288,8 @@ end }
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])
-    print((ok and "ok   " or "FAIL ") .. c[1] .. (ok and "" or (": " .. tostring(err))))
+    report((ok and "ok   " or "FAIL ") .. c[1] .. (ok and "" or (": " .. tostring(err))))
     if not ok then failed = failed + 1 end
 end
-print(string.format("%d/%d passed", #cases - failed, #cases))
+report(string.format("%d/%d passed", #cases - failed, #cases))
 os.exit(failed == 0 and 0 or 1)

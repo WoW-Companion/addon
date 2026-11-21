@@ -38,10 +38,7 @@ function WC.CreatePanel()
     f.content:SetSize(290, 1)
     f.scroll:SetScrollChild(f.content)
 
-    f.text = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.text:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, 0)
-    f.text:SetWidth(290)
-    f.text:SetJustifyH("LEFT")
+    f.rows = {}
 
     f:SetScript("OnShow", function()
         WC.LoadAnswers()
@@ -64,20 +61,74 @@ function WC.TogglePanel()
     if f:IsShown() then f:Hide() else f:Show() end
 end
 
+-- Returns the pooled row button at index i, creating it on first use.
+local function get_row(f, i)
+    local row = f.rows[i]
+    if row then return row end
+    row = CreateFrame("Button", nil, f.content)
+    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    row.label:SetWidth(290)
+    row.label:SetJustifyH("LEFT")
+    f.rows[i] = row
+    return row
+end
+
+-- Display only: shows the item's tooltip while the mouse is over the row.
+local function show_item_tooltip(row)
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    GameTooltip:SetHyperlink("item:" .. row.itemId)
+    GameTooltip:Show()
+end
+
+local function toggle_section(id)
+    WC.db.collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
+    WC.db.collapsed[id] = (not WC.db.collapsed[id]) or nil
+    WC.Refresh()
+end
+
 -- Re-reads the global digest table (data only) and redraws the panel.
 function WC.Refresh()
     local f = WC.panel
     if not f then return end
-    local header, body = WC.RenderDigest(WoWCompanionDigest, time(), UnitName("player"))
+    local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
+    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), UnitName("player"), collapsed)
     f.header:SetText(header)
     local items, note = WC.MatchAnswers(WC.db, WoWCompanionAnswers)
-    local asks = WC.RenderAsks(items, note, time())
-    if asks ~= "" then body = body .. "\n\n" .. asks end
-    f.text:SetText(body)
-    local lines = 1
-    for _ in body:gmatch("\n") do lines = lines + 1 end
-    local height = lines * WC.LINE_HEIGHT
-    f.content:SetHeight(height)
-    f.scrollRange = math.max(0, height - f.scroll:GetHeight())
+    for _, r in ipairs(WC.RenderAsks(items, note, time(), collapsed)) do rows[#rows + 1] = r end
+
+    local y = 0
+    for i, r in ipairs(rows) do
+        local row = get_row(f, i)
+        row:Show()
+        row.label:SetText(r.text)
+        local h = (row.label.GetStringHeight and row.label:GetStringHeight()) or WC.LINE_HEIGHT
+        h = math.max(WC.LINE_HEIGHT, h)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
+        row:SetSize(290, h)
+        y = y + h
+        row.itemId = r.item
+        row.sectionId = r.id
+        local interactive = r.item ~= nil or r.kind == "header"
+        row:EnableMouse(interactive)
+        row:SetScript("OnEnter", r.item and show_item_tooltip or nil)
+        row:SetScript("OnLeave", r.item and function() GameTooltip:Hide() end or nil)
+        row:SetScript("OnClick", r.kind == "header" and function() toggle_section(r.id) end or nil)
+    end
+    for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
+    f.plain = WC.RowsText(rows)
+    f.content:SetHeight(y)
+    f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
+end
+
+-- Restores the default position and expands every section.
+function WC.ResetPanel()
+    local f = WC.panel
+    if not f then return end
+    WC.db.position, WC.db.collapsed = nil, nil
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    WC.Refresh()
 end

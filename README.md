@@ -10,6 +10,10 @@ Type `/ask <question>` (or `/wowc ask <question>`) to queue a question. It is sa
 SavedVariables and goes out on `/reload` or logout; answers appear under the question once the
 companion writes them into `WoWCompanion_Answers` (format: `docs/ask-format.md`).
 
+Hover a line that has an item to see its tooltip. Click a section header to collapse or expand it; the
+choice is remembered. The panel shows how old the digest is and, past 12 hours, reminds you to refresh it.
+`/wowc help` lists the commands; `/wowc reset` restores the panel position and expands all sections.
+
 ## Install
 
 Copy the `WoWCompanion`, `WoWCompanion_Digest` and `WoWCompanion_Answers` folders into `_forever_\Interface\AddOns`, then restart

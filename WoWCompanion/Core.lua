@@ -31,9 +31,27 @@ local function ask(text)
     end
 end
 
+WC.HELP = {
+    "WoW Companion commands:",
+    "  /wowc - show or hide the panel",
+    "  /wowc ask <question> (or /ask <question>) - queue a question; it is sent on /reload",
+    "  /wowc reset - restore the panel position and expand all sections",
+    "  /wowc help - show this list",
+}
+
 SlashCmdList["WOWC"] = function(msg)
-    local text = (msg or ""):match("^%s*ask%s+(.*)$")
-    if text then ask(text) else WC.TogglePanel() end
+    msg = msg or ""
+    local text = msg:match("^%s*ask%s+(.*)$")
+    local cmd = (msg:match("^%s*(%S+)") or ""):lower()
+    if text then
+        ask(text)
+    elseif cmd == "" or cmd == "ask" then
+        WC.TogglePanel()
+    elseif cmd == "reset" then
+        WC.ResetPanel()
+    else
+        for _, line in ipairs(WC.HELP) do print(line) end
+    end
 end
 
 SlashCmdList["WOWCASK"] = ask
