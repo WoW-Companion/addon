@@ -3,9 +3,11 @@
 local WC = WoWCompanion
 local L = WC.L
 
+local FULL_HEIGHT, COMPACT_MIN = 320, 150
+
 function WC.CreatePanel()
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(340, 320)
+    f:SetSize(340, FULL_HEIGHT)
     f:SetScale(WC.db.settings.scale)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -94,6 +96,17 @@ function WC.CreatePanel()
 
     f.rows = {}
 
+    f.compactButton = button("WoWCompanionCompactButton", L.COMPACT, 60, 8, -3, function()
+        WC.SetCompact(not WC.db.settings.compact)
+    end)
+    f.compactButton:SetHeight(18)
+
+    -- Keyboard handling exists only in the history view, and a key we do not use is passed on.
+    f:SetScript("OnKeyDown", function(self, key)
+        self:SetPropagateKeyboardInput(not WC.HistoryKey(key))
+    end)
+    f:SetScript("OnHide", function() WC.view.expanded = {} end)
+
     f:SetScript("OnShow", function()
         WC.LoadAnswers()
         WC.Refresh()
@@ -149,6 +162,11 @@ local function show_tooltip(row)
 end
 
 local function toggle_section(id)
+    if WC.db.settings.compact and not WC.view.history then
+        WC.view.expanded[id] = (not WC.view.expanded[id]) or nil
+        WC.Refresh()
+        return
+    end
     WC.db.collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
     WC.db.collapsed[id] = (not WC.db.collapsed[id]) or nil
     WC.Refresh()
@@ -179,8 +197,10 @@ function WC.UpdateHistoryUI(f, entry)
     set_shown(f.cancelButton, on and confirming)
     set_shown(f.copyBox, on and entry)
     f.histButton:SetText(on and L.BACK or L.HISTORY)
+    f.scrollTop, f.scrollBottom = -top, (on and entry) and 40 or 12
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, top)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, (on and entry) and 40 or 12)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, f.scrollBottom)
+    f:EnableKeyboard(on and true or false)
     f.copyBox.copyText = entry and WC.HistoryCopyText(entry) or ""
     f.copyBox:SetText(f.copyBox.copyText)
 end
@@ -214,6 +234,10 @@ function WC.Refresh()
         WC.UpdateHistoryUI(f, nil)
     end
 
+    local compact = WC.db.settings.compact
+    if compact and not WC.view.history then rows = WC.CompactRows(rows, WC.view.expanded) end
+    f.compactButton:SetText(compact and L.FULL or L.COMPACT)
+
     local y = 0
     for i, r in ipairs(rows) do
         local row = get_row(f, i)
@@ -237,6 +261,7 @@ function WC.Refresh()
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)
     f.content:SetHeight(y)
+    f:SetSize(340, compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + f.scrollBottom + y)) or FULL_HEIGHT)
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end
@@ -245,7 +270,7 @@ end
 function WC.ResetPanel()
     local f = WC.panel
     if not f then return end
-    WC.db.position, WC.db.collapsed = nil, nil
+    WC.db.position, WC.db.collapsed, WC.view.expanded = nil, nil, {}
     f:ClearAllPoints()
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     WC.Refresh()

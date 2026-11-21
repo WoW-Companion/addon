@@ -41,7 +41,7 @@ end
 -- A collapsible section header row followed by its lines (omitted when collapsed).
 function WC.SectionRows(out, id, title, lines, collapsed)
     local closed = collapsed and collapsed[id] == true
-    out[#out + 1] = { kind = "header", id = id, text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
+    out[#out + 1] = { kind = "header", id = id, title = title, text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
     if closed then return end
     for _, line in ipairs(lines) do out[#out + 1] = line end
 end
@@ -138,6 +138,30 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     end
     if age > WC.STALE_SECONDS then table.insert(out, 1, { kind = "text", text = WC.STALE_NOTE }) end
     return header, out
+end
+
+-- Compact view: each section keeps its header and first line; a section listed in expanded
+-- (a table) keeps all its lines. A header with hidden lines shows the closed marker. Returns new rows.
+function WC.CompactRows(rows, expanded)
+    local out, head, count = {}, nil, 0
+    for _, r in ipairs(rows) do
+        if r.kind == "header" then
+            head = { kind = "header", id = r.id, title = r.title, text = r.text }
+            count = 0
+            out[#out + 1] = head
+        elseif r.kind == "line" and head then
+            count = count + 1
+            if count == 1 or expanded[head.id] then
+                out[#out + 1] = r
+            elseif count == 2 then
+                head.text = string.format(L.CLOSED_SECTION, head.title)
+            end
+        else
+            head = nil
+            out[#out + 1] = r
+        end
+    end
+    return out
 end
 
 -- Flattens rows to plain text, one row per line.

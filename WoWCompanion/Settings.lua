@@ -33,6 +33,7 @@ function WC.InitSettings(db)
     s.openOnLogin = s.openOnLogin == true
     s.fontSize = WC.FONT_SIZES[s.fontSize] and s.fontSize or "normal"
     s.tracker = s.tracker == true
+    s.compact = s.compact == true
     s.show = type(s.show) == "table" and s.show or {}
     for _, sec in ipairs(WC.SECTIONS) do s.show[sec[1]] = s.show[sec[1]] ~= false end
     s.minimap = type(s.minimap) == "table" and s.minimap or {}
@@ -51,6 +52,14 @@ end
 -- Applies the saved settings to the panel and redraws it.
 function WC.ApplySettings()
     if WC.panel then WC.panel:SetScale(WC.db.settings.scale) end
+    WC.Refresh()
+end
+
+-- Turns compact mode on or off (saved in the settings); temporary expansions are dropped.
+function WC.SetCompact(v)
+    WC.db.settings.compact = v and true or false
+    WC.view.expanded = {}
+    if WC.settingsFrame then WC.settingsFrame.sync() end
     WC.Refresh()
 end
 
@@ -121,6 +130,7 @@ function WC.CreateSettings()
     check("Lock", L.LOCK_PANEL, function() return s.locked end, function(v) s.locked = v end)
     check("Login", L.OPEN_ON_LOGIN, function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
     check("Tracker", L.SHOW_TRACKER, function() return s.tracker end, function(v) s.tracker = v end)
+    check("Compact", L.COMPACT_PANEL, function() return s.compact end, function(v) s.compact = v; WC.view.expanded = {} end)
     for _, sec in ipairs(WC.SECTIONS) do
         local id = sec[1]
         check("Show" .. id, string.format(L.SHOW_SECTION, sec[2]), function() return s.show[id] end, function(v) s.show[id] = v end)
@@ -128,6 +138,7 @@ function WC.CreateSettings()
 
     f:SetScript("OnShow", function() sync(f) end)
     sync(f)
+    f.sync = function() sync(f) end
     WC.settingsFrame, WC.settingsMode = f, mode
 
     if mode == "settings" then

@@ -11,7 +11,7 @@ local function plain(s)
 end
 
 -- Which history view the panel is in: off, paging at index (nil = newest), or confirming a clear.
-WC.view = { history = false, index = nil, confirming = false }
+WC.view = { history = false, index = nil, confirming = false, expanded = {} }
 
 -- Copies an answered ask into the character's history once (the ask is flagged, so a cleared entry stays cleared); the oldest entry is dropped past the cap.
 function WC.CaptureHistory(db, ask, answer)
@@ -89,6 +89,19 @@ function WC.ShowHistory(on, confirming)
     if on then WC.view.index = nil end
     WC.ShowPanel()
     WC.Refresh()
+end
+
+-- Keys for the history view, run only while the panel has the keyboard (see WC.CreatePanel).
+-- Returns true when the key was used; anything else is left to pass through to the game.
+function WC.HistoryKey(key)
+    local f = WC.panel
+    if not (f and WC.view.history and f:IsMouseOver()) then return false end
+    if f.askBox.focused or f.copyBox.focused then return false end
+    if key == "LEFT" then WC.HistoryPage(-1)
+    elseif key == "RIGHT" then WC.HistoryPage(1)
+    elseif key == "ESCAPE" then WC.ShowHistory(false, false)
+    else return false end
+    return true
 end
 
 -- Step one of /wowc history clear: asks for confirmation in the panel.

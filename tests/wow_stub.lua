@@ -28,7 +28,14 @@ local function new_region(kind)
         self.shown = true
         if not was and self.scripts.OnShow then self.scripts.OnShow(self) end
     end
-    function r:Hide() self.shown = false end
+    function r:Hide()
+        local was = self.shown
+        self.shown = false
+        if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
+    function r:EnableKeyboard(v) self.keyboard = v end
+    function r:SetPropagateKeyboardInput(v) self.propagate = v end
+    function r:IsMouseOver() return self.mouseOver == true end
     function r:IsShown() return self.shown end
     function r:SetText(t) self.text = t end
     function r:GetText() return self.text end

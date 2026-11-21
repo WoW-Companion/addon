@@ -826,6 +826,54 @@ cases[#cases + 1] = { "button hover fills and hides the tooltip on both button k
     hover(reg.funcOnEnter, reg.funcOnLeave, {})
 end }
 
+-- Compact mode and keyboard paging.
+local function key(p, k) p.scripts.OnKeyDown(p, k); return p.propagate end
+local compact_cases = {
+    { "compact: first line per section, frame shrinks, header click expands, mode persists", function()
+        local p = digest_client("full")
+        local full_lines, full_h = select(2, p.plain:gsub("\n", "")), p.h
+        click(WoWCompanionCompactButton)
+        assert(WoWCompanionDB.settings.compact == true and WoWCompanionCompactButton:GetText() == "Full")
+        assert(select(2, p.plain:gsub("\n", "")) < full_lines and p.h < full_h and p.h >= 150)
+        assert(p.plain:find("Turn in", 1, true) and not p.plain:find("Pick up the next", 1, true))
+        assert(select(2, p.plain:gsub("\n", "")) + 1 == 8 and full_lines + 1 == 9, "4 headers + 1 line each: 8 rows vs 9")
+        local rows = WoWCompanion.CompactRows({
+            { kind = "header", id = "a", title = "A", text = "[-] A" }, { kind = "line", text = "1" }, { kind = "line", text = "2" },
+            { kind = "header", id = "b", title = "B", text = "[-] B" }, { kind = "line", text = "3" },
+            { kind = "text", text = "note" },
+        }, {})
+        assert(#rows == 5 and rows[1].text == "[+] A" and rows[3].text == "[-] B")
+        assert(#WoWCompanion.CompactRows({ { kind = "header", id = "a", title = "A", text = "[-] A" },
+            { kind = "line" }, { kind = "line" } }, { a = true }) == 3)
+        local h = row_with(p, "[+]")
+        local before = #p.plain
+        h.scripts.OnClick(h)
+        assert(#p.plain > before and WoWCompanion.view.expanded[h.sectionId] and not WoWCompanionDB.collapsed)
+        local saved = WoWCompanionDB
+        fresh_client(saved)
+        assert(settings().compact == true and WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionOptionCompact.checked == true)
+        click(WoWCompanionOptionCompact)
+        assert(settings().compact == false and WoWCompanionPanel.h == 320)
+    end },
+    { "keys: arrows page and Escape closes only when focused in the history view; others propagate", function()
+        local p = history_client(numbered(3))
+        assert(p.keyboard == false and key(p, "LEFT") == true)
+        SlashCmdList.WOWC("history")
+        assert(p.keyboard == true)
+        assert(key(p, "LEFT") == true and p.plain:find("entry 3 of 3", 1, true), "unfocused: propagate, no paging")
+        p.mouseOver = true
+        assert(key(p, "LEFT") == false and p.plain:find("entry 2 of 3", 1, true))
+        assert(key(p, "RIGHT") == false and p.plain:find("entry 3 of 3", 1, true))
+        assert(key(p, "A") == true and key(p, "SPACE") == true and p.plain:find("entry 3 of 3", 1, true))
+        p.askBox.focused = true
+        assert(key(p, "LEFT") == true and p.plain:find("entry 3 of 3", 1, true))
+        p.askBox.focused = false
+        assert(key(p, "ESCAPE") == false and not WoWCompanion.view.history and p.keyboard == false)
+        assert(key(p, "LEFT") == true and p:IsShown())
+    end },
+}
+for _, c in ipairs(compact_cases) do cases[#cases + 1] = c end
+
 local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {
     { true,  'WoWCompanionDigest = {}' },
