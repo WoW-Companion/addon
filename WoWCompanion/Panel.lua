@@ -135,6 +135,7 @@ local function get_row(f, i)
     row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
     row.label:SetWidth(290)
+    WC.StyleText(row.label)
     row.label:SetJustifyH("LEFT")
     f.rows[i] = row
     return row
@@ -186,8 +187,12 @@ end
 
 -- Re-reads the global digest table (data only) and redraws the panel.
 function WC.Refresh()
+    WC.RefreshTracker()
     local f = WC.panel
     if not f then return end
+    WC.StyleText(f.title)
+    WC.StyleText(f.header)
+    WC.StyleText(f.askHint, -2)
     local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
     local player = UnitName("player")
     local show = WC.db.settings.show
@@ -212,9 +217,10 @@ function WC.Refresh()
     for i, r in ipairs(rows) do
         local row = get_row(f, i)
         row:Show()
+        WC.StyleText(row.label)
         row.label:SetText(r.text)
         local h = (row.label.GetStringHeight and row.label:GetStringHeight()) or WC.LINE_HEIGHT
-        h = math.max(WC.LINE_HEIGHT, h)
+        h = math.max(WC.LINE_HEIGHT * WC.FONT_SIZES[WC.db.settings.fontSize] / WC.FONT_SIZES.normal, h)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
         row:SetSize(290, h)

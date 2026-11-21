@@ -43,8 +43,11 @@ local function new_region(kind)
     function r:UpdateScrollChildRect() end
     function r:CreateFontString() return new_region("FontString") end
     function r:CreateTexture() return new_region("Texture") end
+    function r:SetAllPoints() end
+    function r:SetColorTexture() end
     function r:SetTexture(t) self.texture = t end
     function r:SetScale(v) self.scale = v end
+    function r:SetFont(path, size) self.font, self.fontSize = path, size end
     function r:SetFrameLevel() end
     function r:RegisterForClicks() end
     function r:SetChecked(v) self.checked = v and true or false end

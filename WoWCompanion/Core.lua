@@ -16,6 +16,7 @@ loader:SetScript("OnEvent", function(_, _, name)
     WC.db = WoWCompanionDB
     WC.InitSettings(WC.db)
     WC.CreatePanel()
+    WC.CreateTracker()
     WC.InitWhatsNew(WC.db, fresh)
     WC.CreateSettings()
     WC.CreateButton()
