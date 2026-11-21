@@ -5,6 +5,7 @@ local WC = WoWCompanion
 local L = WC.L
 
 WC.SCHEMA = 1
+WC.MAX_EXTRA = 3 -- dungeons and talents show at most this many entries
 WC.STALE_SECONDS = 12 * 60 * 60
 WC.LINE_HEIGHT = 14
 
@@ -50,12 +51,31 @@ local function item_id(v)
     if n and n > 0 and n == math.floor(n) and n < 2 ^ 31 then return n end
 end
 
+-- Schema 1 digests are numbered 1, or "1", "1.0", "1.1", "1.2"; any other major version is refused.
+function WC.SchemaOK(v)
+    if v == WC.SCHEMA then return true end
+    return type(v) == "string" and (v == "1" or v:match("^1%.%d+$") ~= nil)
+end
+
+-- Builds the rows of the optional schema 1.2 lists: { text, id } per entry, at most MAX_EXTRA.
+-- build(entry) returns the line text and the id to link, or nil to skip the entry.
+local function extra_lines(list, kind, build)
+    local lines = {}
+    for _, e in ipairs(type(list) == "table" and list or {}) do
+        if #lines >= WC.MAX_EXTRA then break end
+        local text, id = nil, nil
+        if type(e) == "table" and e.line then text, id = build(e) end
+        if text then lines[#lines + 1] = { kind = "line", text = text, [kind] = id and item_id(id) or nil } end
+    end
+    return lines
+end
+
 -- Returns the header text and a list of rows for a digest.
 -- Row kinds: "text", "header" (has id) and "line" (may carry item, the item id for a tooltip).
 -- show (optional) maps a settings section id to false to hide that digest section.
 function WC.RenderDigest(d, now, player, collapsed, show)
     if is_empty(d) then return "", text_rows(WC.NO_ADVICE) end
-    if d.schema ~= WC.SCHEMA then
+    if not WC.SchemaOK(d.schema) then
         return "", text_rows(string.format(L.UNKNOWN_SCHEMA, plain(d.schema)))
     end
     if d.character ~= player then
@@ -77,6 +97,19 @@ function WC.RenderDigest(d, now, player, collapsed, show)
                 lines[#lines + 1] = { kind = "line", text = text, item = item_id(line.item) }
             end
             WC.SectionRows(out, section.id, title, lines, collapsed)
+        end
+    end
+    local extras = {
+        { "dungeons", d.dungeons, "item", function(e)
+            local name = e.name and string.format(L.DUNGEON_NAME, plain(e.name)) or ""
+            return string.format(L.LINE, name .. plain(e.line)), e.item_id
+        end },
+        { "talents", d.talents, "spell", function(e) return string.format(L.LINE, plain(e.line)), e.spell_id end },
+    }
+    for _, x in ipairs(extras) do
+        local lines = extra_lines(x[2], x[3], x[4])
+        if #lines > 0 and not (show and show[x[1]] == false) then
+            WC.SectionRows(out, x[1], L[x[1]], lines, collapsed)
         end
     end
     if #out == 0 then return header, text_rows(WC.NO_ADVICE) end

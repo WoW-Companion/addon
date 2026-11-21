@@ -154,6 +154,48 @@ local polish_cases = {
         assert(c[4][1] == "Hide")
         assert(row_with(p, "Pick up the next").scripts.OnEnter == nil)
     end },
+    { "schema 1.2 renders dungeons and talents with tooltip ids", function()
+        local p = digest_client("v12")
+        assert(p.plain:find("[-] Dungeons", 1, true) and p.plain:find("[-] Talents", 1, true))
+        assert(p.plain:find("Deadmines: Level fit 15-20", 1, true) and p.plain:find("Next point: Mortal Strike", 1, true))
+        local d, t, w = row_with(p, "Deadmines"), row_with(p, "Mortal Strike"), row_with(p, "Wailing Caverns")
+        d.scripts.OnEnter(d)
+        t.scripts.OnEnter(t)
+        local c = GameTooltip.calls
+        assert(c[2][1] == "SetHyperlink" and c[2][2] == "item:5198", "item tooltip")
+        assert(c[5][1] == "SetHyperlink" and c[5][2] == "spell:12294", "spell tooltip")
+        assert(w.scripts.OnEnter == nil)
+    end },
+    { "absent dungeon and talent sections stay hidden; a 1.1 digest renders", function()
+        local p = digest_client("v11")
+        assert(p.plain:find("Bank has 3", 1, true))
+        assert(not p.plain:find("Dungeons", 1, true) and not p.plain:find("Talents", 1, true))
+        p = digest_client("full")
+        assert(not p.plain:find("Dungeons", 1, true))
+        assert(WoWCompanion.SchemaOK("1.0") and WoWCompanion.SchemaOK(1) and not WoWCompanion.SchemaOK("2.0") and not WoWCompanion.SchemaOK("1."))
+    end },
+    { "dungeons and talents collapse and the settings toggles hide them", function()
+        local p = digest_client("v12")
+        local h = row_with(p, "Dungeons")
+        h.scripts.OnClick(h)
+        assert(WoWCompanionDB.collapsed.dungeons and not p.plain:find("Deadmines", 1, true) and p.plain:find("Mortal Strike", 1, true))
+        h.scripts.OnClick(h)
+        WoWCompanionOptionShowdungeons.checked = false
+        WoWCompanionOptionShowdungeons.scripts.OnClick(WoWCompanionOptionShowdungeons)
+        assert(not p.plain:find("Deadmines", 1, true) and p.plain:find("Mortal Strike", 1, true))
+        WoWCompanionOptionShowtalents.checked = false
+        WoWCompanionOptionShowtalents.scripts.OnClick(WoWCompanionOptionShowtalents)
+        assert(not p.plain:find("Talents", 1, true))
+    end },
+    { "dungeon and talent lists are capped and sanitised", function()
+        local list = {}
+        for i = 1, 5 do list[i] = { line = "t" .. i, spell_id = "x|r" } end
+        local _, rows = WoWCompanion.RenderDigest({ schema = "1.2", character = "Thrall", generated = NOW, talents = list,
+            dungeons = { { name = "A|r", line = "b" }, "junk" } }, NOW, "Thrall")
+        local t = WoWCompanion.RowsText(rows)
+        assert(t:find("t3", 1, true) and not t:find("t4", 1, true) and t:find("A||r: b", 1, true))
+        for _, r in ipairs(rows) do assert(r.spell == nil and r.item == nil) end
+    end },
     { "bad item ids get no tooltip", function()
         local _, rows = WoWCompanion.RenderDigest(
             { schema = 1, character = "Thrall", generated = NOW, sections = { { id = "notes", lines = {

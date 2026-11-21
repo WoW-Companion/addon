@@ -37,6 +37,9 @@ local L = {
     upgrades = "Upgrades",
     keep_materials = "Keep materials",
     notes = "Notes",
+    dungeons = "Dungeons",
+    talents = "Talents",
+    DUNGEON_NAME = "%s: ",
 
     -- Questions and answers
     QUESTIONS = "Questions",
@@ -64,6 +67,8 @@ local L = {
     SECTION_upgrades = "Upgrades",
     SECTION_materials = "Keep materials",
     SECTION_notes = "Notes",
+    SECTION_dungeons = "Dungeons",
+    SECTION_talents = "Talents",
     SECTION_ask = "Ask box and answers",
     SECTION_history = "History",
 
