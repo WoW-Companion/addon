@@ -6,9 +6,13 @@ it, and it remembers where you left it. It shows the digest the companion writes
 `WoWCompanion_Digest` addon (format: `docs/digest-format.md`), or says that no
 advice has been written yet.
 
+Type `/ask <question>` (or `/wowc ask <question>`) to queue a question. It is saved to
+SavedVariables and goes out on `/reload` or logout; answers appear under the question once the
+companion writes them into `WoWCompanion_Answers` (format: `docs/ask-format.md`).
+
 ## Install
 
-Copy the `WoWCompanion` and `WoWCompanion_Digest` folders into `_forever_\Interface\AddOns`, then restart
+Copy the `WoWCompanion`, `WoWCompanion_Digest` and `WoWCompanion_Answers` folders into `_forever_\Interface\AddOns`, then restart
 the game or type `/reload`. `make package` builds `dist/WoWCompanion-<version>.zip`
 if you prefer a zip.
 

@@ -21,6 +21,19 @@ late:RegisterEvent("PLAYER_LOGIN")
 late:SetScript("OnEvent", function() WC.Refresh() end)
 
 SLASH_WOWC1 = "/wowc"
-SlashCmdList["WOWC"] = function()
-    WC.TogglePanel()
+SLASH_WOWCASK1 = "/ask"
+
+local function ask(text)
+    if WC.db and WC.QueueAsk(WC.db, text, UnitName("player"), time()) then
+        WC.ShowPanel()
+    else
+        WC.TogglePanel()
+    end
 end
+
+SlashCmdList["WOWC"] = function(msg)
+    local text = (msg or ""):match("^%s*ask%s+(.*)$")
+    if text then ask(text) else WC.TogglePanel() end
+end
+
+SlashCmdList["WOWCASK"] = ask

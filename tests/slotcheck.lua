@@ -1,4 +1,4 @@
--- Static check: a slot file is one `WoWCompanionDigest = { ... }` assignment of literals.
+-- Static check: a slot file is one `WoWCompanion<Digest|Answers> = { ... }` assignment of literals.
 -- Usage: luajit tests/slotcheck.lua <file>...   (or require it and call check(src))
 local M = {}
 
@@ -40,12 +40,13 @@ local function strip(src)
     return table.concat(out)
 end
 
-function M.check(src)
+function M.check(src, name)
+    name = name or "WoWCompanionDigest"
     local code, err = strip(src)
     if not code then return false, err end
     if code:find("[()]") then return false, "call or parenthesis" end
-    local body = code:match("^%s*WoWCompanionDigest%s*=%s*(%b{})%s*;?%s*$")
-    if not body then return false, "not a single WoWCompanionDigest = {...} assignment" end
+    local body = code:match("^%s*" .. name .. "%s*=%s*(%b{})%s*;?%s*$")
+    if not body then return false, "not a single " .. name .. " = {...} assignment" end
     for word, after in body:gmatch("([%a_][%w_]*)%s*(=?=?)") do
         if word ~= "true" and word ~= "false" and word ~= "nil" and after ~= "=" then
             return false, "identifier '" .. word .. "' is not a key"
@@ -64,7 +65,8 @@ if arg and arg[0] and arg[0]:find("slotcheck%.lua$") then
         local f = assert(io.open(file, "rb"))
         local src = f:read("*a")
         f:close()
-        local ok, err = M.check(src)
+        local name = file:find("[Aa]nswers[^/]*$") and "WoWCompanionAnswers" or "WoWCompanionDigest"
+        local ok, err = M.check(src, name)
         if not ok then bad = bad + 1; print(file .. ": " .. err) end
     end
     if bad > 0 then os.exit(1) end

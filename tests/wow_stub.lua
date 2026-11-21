@@ -20,7 +20,11 @@ local function new_region(kind)
     end
     function r:StartMoving() self.moving = true end
     function r:StopMovingOrSizing() self.moving = false end
-    function r:Show() self.shown = true end
+    function r:Show()
+        local was = self.shown
+        self.shown = true
+        if not was and self.scripts.OnShow then self.scripts.OnShow(self) end
+    end
     function r:Hide() self.shown = false end
     function r:IsShown() return self.shown end
     function r:SetText(t) self.text = t end
@@ -42,6 +46,15 @@ function Stub.install(env)
     env.NOW = 1800000000
     env.time = function() return env.NOW end
     env.UnitName = function() return "Thrall" end
+    -- Load-on-demand addons: tests map an addon name to the file it would run.
+    env.LOD_FILES, env.LOADED_ADDONS = {}, {}
+    env.C_AddOns = { LoadAddOn = function(name)
+        env.LOADED_ADDONS[#env.LOADED_ADDONS + 1] = name
+        local file = env.LOD_FILES[name]
+        if not file then return false, "MISSING" end
+        assert(loadfile(file))()
+        return true
+    end }
     env.CreateFrame = function(kind, name)
         local f = new_region(kind)
         if kind == "ScrollFrame" then f.h = 200 end
