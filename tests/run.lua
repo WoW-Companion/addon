@@ -851,10 +851,12 @@ local function panel_text(fs)
     load_digest("tests/fixtures/digest_full.lua")
     return WoWCompanion.panel.plain
 end
-local HINT = "older than your last capture"
+local HINT = "Advice may be out of date"
 local capture_rows = {
-    { "capture well after digest", fs_db(GEN + 301), true },
-    { "capture within five minutes", fs_db(GEN + 300), false },
+    { "capture 20 minutes after digest", fs_db(GEN + 1200), true },
+    { "capture just over 15 minutes after", fs_db(GEN + 901), true },
+    { "capture a few seconds after (the /reload)", fs_db(GEN + 5), false },
+    { "capture at 15 minutes", fs_db(GEN + 900), false },
     { "capture before digest", fs_db(GEN - 50), false },
     { "ForeverScribe absent", nil, false },
     { "no record for this character", { chars = { ["Testrealm:Other"] = { snapshot = { capturedAt = GEN + 9999 } } } }, false },
@@ -865,9 +867,9 @@ cases[#cases + 1] = { "stale vs fresh digest against the capture time", function
     for i, row in ipairs(capture_rows) do
         assert((panel_text(row[2]):find(HINT, 1, true) ~= nil) == row[3], "row " .. i .. " (" .. row[1] .. ")")
     end
-    local before = fs_db(GEN + 301)
+    local before = fs_db(GEN + 1200)
     panel_text(before)
-    assert(before.chars["Testrealm:Thrall"].snapshot.capturedAt == GEN + 301 and next(before) == "chars")
+    assert(before.chars["Testrealm:Thrall"].snapshot.capturedAt == GEN + 1200 and next(before) == "chars")
 end }
 local tip_rows = {
     { "2.0 file without this character", {}, { schema = "2.0", generated = NOW0, characters = {} }, { "Digest: none yet" } },
@@ -876,6 +878,27 @@ local tip_rows = {
     { "digest, queue and answer", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } },
       { character = "Thrall", generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions waiting: 1", "Last answer: 2 min ago", "Click to open" } },
 }
+local outdated_rows = {
+    { "fresh, capture seconds later", { generated = 1000 }, 1100, 1010, false },
+    { "capture 20 minutes later", { generated = 1000 }, 1100, 2200, true },
+    { "no capture, under the stale age", { generated = 1000 }, 1100, nil, false },
+    { "over the stale age", { generated = 1000 }, 1000 + 13 * 3600, nil, true },
+    { "over 24 hours", { generated = 1000 }, 1000 + 25 * 3600, nil, true },
+}
+cases[#cases + 1] = { "out-of-date rule table, tracker, tooltip and status", function()
+    fresh_client(nil)
+    for i, r in ipairs(outdated_rows) do
+        assert(WoWCompanion.DigestOutdated(r[2], r[3], r[4]) == r[5], "row " .. i .. " (" .. r[1] .. ")")
+    end
+    local d = { schema = "1.2", character = "Thrall", generated = NOW0 - 7200,
+        sections = { { id = "next_quests", lines = { { text = "Turn in X" } } } } }
+    local function tip(c) return table.concat(WoWCompanion.TooltipLines({ digest = d, db = {}, player = "Thrall", now = NOW0, captured = c }), "\n") end
+    local function stat(c) return table.concat(WoWCompanion.StatusLines({ digest = d, db = {}, player = "Thrall", now = NOW0, captured = c, installed = {} }), "\n") end
+    assert(not WoWCompanion.TrackerText(d, "Thrall", NOW0, NOW0 - 7190):find("out of date", 1, true))
+    assert(WoWCompanion.TrackerText(d, "Thrall", NOW0, NOW0 - 7200 + 1200):find("out of date", 1, true))
+    assert(not tip(NOW0 - 7190):find("out of date", 1, true) and tip(NOW0 - 7200 + 1200):find("out of date", 1, true))
+    assert(not stat(NOW0 - 7190):find("out of date", 1, true) and stat(NOW0 - 7200 + 1200):find("out of date", 1, true))
+end }
 cases[#cases + 1] = { "tooltip lines table", function()
     for i, row in ipairs(tip_rows) do
         fresh_client(nil)

@@ -48,6 +48,7 @@ function WC.StatusLines(info)
         local age = gen and WC.FormatAge(math.max(0, info.now - gen)) or L.STATUS_UNKNOWN
         out[#out + 1] = string.format(L.STATUS_DIGEST, age, tostring(file.schema))
     end
+    if d and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = "  " .. L.OUT_OF_DATE_SHORT end
     out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))
     local last = WC.LastAnswer(info.db, info.player)
     out[#out + 1] = last and string.format(L.STATUS_ANSWER, WC.FormatAge(math.max(0, info.now - last))) or L.STATUS_ANSWER_NONE
@@ -68,6 +69,7 @@ function WC.PrintStatus()
     local lines = WC.StatusLines({
         version = WC.Version(), build = build, digest = WoWCompanionDigest, db = WC.db or {},
         player = UnitName("player"), now = time(), installed = have,
+        captured = WC.OwnCapturedAt(UnitName("player")),
     })
     for _, line in ipairs(lines) do print(line) end
 end
