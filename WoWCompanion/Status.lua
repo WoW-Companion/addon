@@ -39,13 +39,14 @@ end
 function WC.StatusLines(info)
     local out = { L.STATUS_TITLE }
     out[#out + 1] = string.format(L.STATUS_VERSION, tostring(info.version or L.STATUS_UNKNOWN), tostring(info.build or L.STATUS_UNKNOWN))
-    local d = info.digest
-    if type(d) ~= "table" or next(d) == nil then
+    local file = info.digest
+    local d = WC.EntryFor(file, info.player)
+    if not d then
         out[#out + 1] = L.STATUS_DIGEST_NONE
     else
         local gen = tonumber(d.generated)
         local age = gen and WC.FormatAge(math.max(0, info.now - gen)) or L.STATUS_UNKNOWN
-        out[#out + 1] = string.format(L.STATUS_DIGEST, age, tostring(d.schema))
+        out[#out + 1] = string.format(L.STATUS_DIGEST, age, tostring(file.schema))
     end
     out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))
     local last = WC.LastAnswer(info.db, info.player)

@@ -10,9 +10,11 @@ end
 
 -- The tracker's text for a digest: its first next_quests line and how many steps follow it.
 function WC.TrackerText(d, player)
-    if type(d) ~= "table" or not WC.SchemaOK(d.schema) or d.character ~= player or type(d.sections) ~= "table" then
-        return L.TRACKER_EMPTY
-    end
+    if type(d) ~= "table" or next(d) == nil then return L.TRACKER_EMPTY end
+    local e = WC.EntryFor(d, player)
+    if not e then return string.format(L.TRACKER_NONE, plain(player)) end
+    d = e
+    if not WC.SchemaOK(d.schema) or type(d.sections) ~= "table" then return L.TRACKER_EMPTY end
     for _, section in ipairs(d.sections) do
         local lines = section.id == "next_quests" and section.lines
         if type(lines) == "table" and type(lines[1]) == "table" and lines[1].text then
