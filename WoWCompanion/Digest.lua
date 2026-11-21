@@ -8,6 +8,7 @@ WC.SCHEMA = 1
 WC.MAX_EXTRA = 3 -- dungeons and talents show at most this many entries
 WC.STALE_SECONDS = 12 * 60 * 60
 WC.LINE_HEIGHT = 14
+WC.CAPTURE_GRACE = 5 * 60 -- a capture this much newer than the digest makes it out of date
 
 WC.STALE_NOTE = L.STALE_NOTE
 
@@ -70,10 +71,29 @@ local function extra_lines(list, kind, build)
     return lines
 end
 
+-- The current character's last capture time from ForeverScribe's global (read only), or nil
+-- when it is not loaded or has no capture for this character.
+function WC.CapturedAt(fs, player, realm)
+    local chars = type(fs) == "table" and type(fs.chars) == "table" and fs.chars or nil
+    if not chars then return nil end
+    local rec = realm and chars[realm .. ":" .. player]
+    if type(rec) ~= "table" then
+        rec = nil
+        for _, c in pairs(chars) do
+            local snap = type(c) == "table" and c.snapshot
+            local id = type(snap) == "table" and snap.identity
+            if type(id) == "table" and id.name == player then rec = c break end
+        end
+    end
+    local snap = rec and rec.snapshot
+    return type(snap) == "table" and tonumber(snap.capturedAt) or nil
+end
+
 -- Returns the header text and a list of rows for a digest.
 -- Row kinds: "text", "header" (has id) and "line" (may carry item, the item id for a tooltip).
 -- show (optional) maps a settings section id to false to hide that digest section.
-function WC.RenderDigest(d, now, player, collapsed, show)
+-- captured (optional) is the character's last ForeverScribe capture time; see WC.CapturedAt.
+function WC.RenderDigest(d, now, player, collapsed, show, captured)
     if is_empty(d) then return "", text_rows(WC.NO_ADVICE) end
     if not WC.SchemaOK(d.schema) then
         return "", text_rows(string.format(L.UNKNOWN_SCHEMA, plain(d.schema)))
@@ -112,7 +132,10 @@ function WC.RenderDigest(d, now, player, collapsed, show)
             WC.SectionRows(out, x[1], L[x[1]], lines, collapsed)
         end
     end
-    if #out == 0 then return header, text_rows(WC.NO_ADVICE) end
+    if #out == 0 then out = text_rows(WC.NO_ADVICE) end
+    if captured and captured - (tonumber(d.generated) or 0) > WC.CAPTURE_GRACE then
+        table.insert(out, 1, { kind = "text", text = L.OLDER_THAN_CAPTURE })
+    end
     if age > WC.STALE_SECONDS then table.insert(out, 1, { kind = "text", text = WC.STALE_NOTE }) end
     return header, out
 end

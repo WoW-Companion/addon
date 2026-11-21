@@ -15,7 +15,7 @@ local function installed(name)
 end
 
 -- The newest answered_at across the asks queue and this character's history, or nil.
-local function last_answer(db, player)
+function WC.LastAnswer(db, player)
     local newest
     local function see(t)
         local n = type(t) == "table" and tonumber(t.answered_at)
@@ -27,7 +27,7 @@ local function last_answer(db, player)
     return newest
 end
 
-local function unanswered(db)
+function WC.Unanswered(db)
     local n = 0
     for _, a in ipairs(type(db.asks) == "table" and db.asks or {}) do
         if not a.answered then n = n + 1 end
@@ -47,8 +47,8 @@ function WC.StatusLines(info)
         local age = gen and WC.FormatAge(math.max(0, info.now - gen)) or L.STATUS_UNKNOWN
         out[#out + 1] = string.format(L.STATUS_DIGEST, age, tostring(d.schema))
     end
-    out[#out + 1] = string.format(L.STATUS_QUEUED, unanswered(info.db))
-    local last = last_answer(info.db, info.player)
+    out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))
+    local last = WC.LastAnswer(info.db, info.player)
     out[#out + 1] = last and string.format(L.STATUS_ANSWER, WC.FormatAge(math.max(0, info.now - last))) or L.STATUS_ANSWER_NONE
     for _, name in ipairs(SLOTS) do
         out[#out + 1] = string.format(L.STATUS_SLOT, name, info.installed[name] and L.STATUS_INSTALLED or L.STATUS_MISSING)

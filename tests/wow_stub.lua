@@ -72,7 +72,7 @@ function Stub.install(env)
     env.print = function(s) env.PRINTED[#env.PRINTED + 1] = s end
     -- Records what the tooltip was asked to show; nothing else is modelled.
     env.GameTooltip = { calls = {} }
-    for _, m in ipairs({ "SetOwner", "SetHyperlink", "Show", "Hide" }) do
+    for _, m in ipairs({ "SetOwner", "SetHyperlink", "AddLine", "Show", "Hide" }) do
         env.GameTooltip[m] = function(self, ...) self.calls[#self.calls + 1] = { m, ... } end
     end
     env.Minimap = new_region("Frame")
@@ -91,6 +91,7 @@ function Stub.install(env)
         function env.Settings.OpenToCategory(id) env.Settings.opened[#env.Settings.opened + 1] = id end
     end
     env.UnitName = function() return "Thrall" end
+    env.GetRealmName = function() return "Testrealm" end
     env.GetBuildInfo = function() return "1.15.7", "63456" end
     -- Slot addons count as installed unless a test lists names in MISSING_ADDONS.
     env.MISSING_ADDONS = {}

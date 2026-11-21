@@ -197,7 +197,8 @@ function WC.Refresh()
     local player = UnitName("player")
     local show = WC.db.settings.show
     if not WC.SectionShown("history") then WC.view.history = false end
-    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed, show)
+    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed, show,
+        WC.CapturedAt(ForeverScribeDB, player, GetRealmName and GetRealmName()))
     f.header:SetText(header)
     local items, note = WC.MatchAnswers(WC.db, WoWCompanionAnswers)
     if WC.view.history then
