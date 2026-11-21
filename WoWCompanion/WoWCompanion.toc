@@ -10,3 +10,5 @@ Digest.lua
 Asks.lua
 History.lua
 Panel.lua
+Settings.lua
+Button.lua

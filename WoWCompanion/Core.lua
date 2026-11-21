@@ -12,13 +12,19 @@ loader:SetScript("OnEvent", function(_, _, name)
     if name ~= "WoWCompanion" then return end
     WoWCompanionDB = WoWCompanionDB or {}
     WC.db = WoWCompanionDB
+    WC.InitSettings(WC.db)
     WC.CreatePanel()
+    WC.CreateSettings()
+    WC.CreateButton()
 end)
 
 -- The slot addon loads after us, so redraw once everything is in.
 local late = CreateFrame("Frame")
 late:RegisterEvent("PLAYER_LOGIN")
-late:SetScript("OnEvent", function() WC.Refresh() end)
+late:SetScript("OnEvent", function()
+    WC.Refresh()
+    if WC.db and WC.db.settings.openOnLogin then WC.ShowPanel() end
+end)
 
 SLASH_WOWC1 = "/wowc"
 SLASH_WOWCASK1 = "/ask"
@@ -36,6 +42,7 @@ WC.HELP = {
     "  /wowc - show or hide the panel",
     "  /wowc ask <question> (or /ask <question>) - queue a question; it is sent on /reload",
     "  /wowc history - browse past answers; /wowc history clear - clear them (asks first)",
+    "  /wowc settings - open the settings page",
     "  /wowc reset - restore the panel position and expand all sections",
     "  /wowc help - show this list",
 }
@@ -51,6 +58,8 @@ SlashCmdList["WOWC"] = function(msg)
     elseif cmd == "history" then
         local sub = (msg:match("^%s*%S+%s+(%S+)") or ""):lower()
         if sub == "clear" then WC.RequestClearHistory() else WC.ShowHistory(true, false) end
+    elseif cmd == "settings" or cmd == "options" then
+        WC.OpenSettings()
     elseif cmd == "reset" then
         WC.ResetPanel()
     else
