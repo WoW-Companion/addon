@@ -100,7 +100,7 @@ function Stub.install(env)
     end
     env.COMBAT = false
     env.InCombatLockdown = function() return env.COMBAT end
-    env.UnitName = function() return "Thrall" end
+    env.UnitName = function() return env.PLAYER_NAME or "Thrall" end
     env.GetRealmName = function() return "Testrealm" end
     env.GetBuildInfo = function() return "1.15.7", "63456" end
     -- Slot addons count as installed unless a test lists names in MISSING_ADDONS.

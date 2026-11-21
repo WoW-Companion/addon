@@ -1,4 +1,4 @@
-# Digest format (schema 1.2)
+# Digest format (schema 1.2 and 2.0)
 
 The companion writes advice into `WoWCompanion_Digest/Digest.lua`, a data-only
 Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else.
@@ -32,7 +32,28 @@ Each line is `{ text = "short line", item = <item id>, quest = <quest id> }`.
 
 The panel shows `dungeons` and `talents` as "Dungeons" and "Talents" sections, after the others and only when present. A `dungeons` entry with `item_id` shows that item's tooltip on mouseover, and a `talents` entry with `spell_id` shows that spell's tooltip (display only). Both sections collapse, and the settings page can hide them. Readers that only know schema 1.0 or 1.1 ignore the unknown keys.
 
-## Example
+## Schema 2.0: one digest per character
+
+A schema 2.0 file holds one schema 1.2 digest for each character, so alts share one file:
+
+```lua
+WoWCompanionDigest = {
+  schema = "2.0",
+  generated = 1800000000,
+  characters = {
+    ["Testchar"] = { schema = "1.2", generated = 1800000000, character = "Testchar", sections = { ... } },
+    ["Otherchar"] = { schema = "1.2", ... },
+  },
+}
+```
+
+- Keys are the character name exactly as `UnitName("player")` returns it; the realm is not part of the key.
+- Each value is a complete schema 1.2 digest (with its own `character`, `generated` and `sections`), with `schema = "1.2"` kept inside.
+- The panel, the Next up line, `/wowc status`, the stale hint and the button tooltip read `characters[UnitName("player")]`, then a case-insensitive match. The panel accepts `"2"` and `"2.x"` and refuses other major versions.
+- With no entry for the character (or a schema 1 file written for another character) the panel shows the three steps to get one, and for a 2.0 file lists up to 5 characters that do have digests. The Next up line says "No digest for <name>".
+- The data-only rules apply to the nested tables too: only literals, no calls, functions or operators. `["Name"] = {` keys are literal strings.
+
+## Example (schema 1.2)
 
 ```lua
 WoWCompanionDigest = {

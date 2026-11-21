@@ -68,6 +68,65 @@ function WC.SchemaOK(v)
     return type(v) == "string" and (v == "1" or v:match("^1%.%d+$") ~= nil)
 end
 
+-- Schema 2 digests hold one schema 1.x digest per character; "2" and "2.x" are accepted.
+function WC.Schema2OK(v)
+    return type(v) == "string" and (v == "2" or v:match("^2%.%d+$") ~= nil)
+end
+
+-- The digest table to show for player, and whether the file was schema 2. Returns nil when the file
+-- has no entry for this character: no characters[player] (or a case-insensitive match) in a schema 2
+-- file, or a schema 1 digest written for someone else. An unknown schema is returned as is, so the
+-- caller can say so.
+function WC.EntryFor(d, player)
+    if is_empty(d) then return nil end
+    if WC.Schema2OK(d.schema) then
+        local chars = type(d.characters) == "table" and d.characters or {}
+        local e = chars[player]
+        if e == nil and type(player) == "string" then
+            local want = player:lower()
+            for name, c in pairs(chars) do
+                if type(name) == "string" and name:lower() == want then e = c break end
+            end
+        end
+        return type(e) == "table" and e or nil, true
+    end
+    if WC.SchemaOK(d.schema) and d.character ~= player then return nil end
+    return d
+end
+
+-- The (up to 5) character names a schema 2 file holds digests for, sorted.
+local function digest_names(d)
+    local names = {}
+    for name, c in pairs(WC.Schema2OK(d.schema) and type(d.characters) == "table" and d.characters or {}) do
+        if type(name) == "string" and type(c) == "table" then names[#names + 1] = plain(name) end
+    end
+    table.sort(names)
+    while #names > 5 do table.remove(names) end
+    return names
+end
+
+-- The how-to-get-a-digest steps as text rows.
+local function hint_rows(out)
+    for _, key in ipairs({ "HINT_RELOAD", "HINT_ASK", "HINT_RELOAD_AGAIN" }) do
+        out[#out + 1] = { kind = "text", text = L[key] }
+    end
+    return out
+end
+
+-- Rows for a missing or empty digest file.
+local function empty_rows()
+    return hint_rows(text_rows(WC.NO_ADVICE))
+end
+
+-- Rows for a file that has no digest for player.
+local function miss_rows(d, player)
+    local out = text_rows(string.format(L.NO_ENTRY, plain(player)))
+    hint_rows(out)
+    local names = digest_names(d)
+    if #names > 0 then out[#out + 1] = { kind = "text", text = string.format(L.DIGESTS_HERE, table.concat(names, ", ")) } end
+    return out
+end
+
 -- Builds the rows of the optional schema 1.2 lists: { text, id } per entry, at most MAX_EXTRA.
 -- build(entry) returns the line text and the id to link, or nil to skip the entry.
 local function extra_lines(list, kind, build)
@@ -104,15 +163,15 @@ end
 -- show (optional) maps a settings section id to false to hide that digest section.
 -- captured (optional) is the character's last ForeverScribe capture time; see WC.CapturedAt.
 function WC.RenderDigest(d, now, player, collapsed, show, captured)
-    if is_empty(d) then return "", text_rows(WC.NO_ADVICE) end
+    if is_empty(d) then return "", empty_rows() end
+    local e = WC.EntryFor(d, player)
+    if not e then return "", miss_rows(d, player) end
+    d = e
     if not WC.SchemaOK(d.schema) then
         return "", text_rows(string.format(L.UNKNOWN_SCHEMA, plain(d.schema)))
     end
-    if d.character ~= player then
-        return "", text_rows(string.format(L.WRONG_CHARACTER, plain(d.character), plain(player)))
-    end
     local age = math.max(0, now - (tonumber(d.generated) or 0))
-    local header = string.format(L.DIGEST_HEADER, plain(d.character), WC.FormatAge(age))
+    local header = string.format(L.DIGEST_HEADER, plain(d.character or player), WC.FormatAge(age))
 
     local out = {}
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do

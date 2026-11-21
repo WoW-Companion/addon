@@ -25,7 +25,11 @@ local L = {
     NO_ADVICE = "No advice yet \226\128\148 the companion hasn't written a digest.",
     STALE_NOTE = "Ask your AI client to refresh your digest, then /reload.",
     UNKNOWN_SCHEMA = "This digest uses an unknown format (schema %s); update the addon.",
-    WRONG_CHARACTER = "This digest was written for %s, not %s.",
+    NO_ENTRY = "No advice for %s yet.",
+    HINT_RELOAD = "1. Type /reload so ForeverScribe saves this character.",
+    HINT_ASK = "2. Ask your AI to update your WoW Companion digest (or run: wowc-advisor digest).",
+    HINT_RELOAD_AGAIN = "3. Type /reload again.",
+    DIGESTS_HERE = "Digests here for: %s",
     DIGEST_HEADER = "%s \226\128\148 updated %s",
     LINE = "  - %s",
     LINE_QUEST = " [quest %s]",
@@ -102,6 +106,7 @@ local L = {
     SHOW_TRACKER = "Show the Next up line",
 
     -- Tracker
+    TRACKER_NONE = "No digest for %s",
     TRACKER_EMPTY = "Next up: No digest yet",
     TRACKER_NEXT = "Next up: %s",
     TRACKER_MORE = " (+%d more)",

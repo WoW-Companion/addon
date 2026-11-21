@@ -16,7 +16,7 @@ end
 function WC.TooltipLines(info)
     local L = WC.L
     local out = { L.ADDON_NAME }
-    local d = info.digest
+    local d = WC.EntryFor(info.digest, info.player)
     local gen = type(d) == "table" and tonumber(d.generated)
     out[#out + 1] = gen and string.format(L.TIP_DIGEST, WC.FormatAge(math.max(0, info.now - gen))) or L.TIP_DIGEST_NONE
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))

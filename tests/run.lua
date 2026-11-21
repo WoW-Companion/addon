@@ -111,7 +111,7 @@ local cases = {
     end },
     { "digest for another character is refused", function()
         local p = digest_client("wrongchar")
-        assert(p.plain:find("written for Jaina, not Thrall", 1, true))
+        assert(p.plain:find("No advice for Thrall yet.", 1, true) and p.plain:find("3. Type /reload again.", 1, true))
         assert(not p.plain:find("Next quests", 1, true))
     end },
     { "unknown schema version is refused", function()
@@ -681,7 +681,9 @@ local tracker_rows = {
     { nil, "Next up: No digest yet" },
     { {}, "Next up: No digest yet" },
     { { schema = 2, character = "Thrall" }, "Next up: No digest yet" },
-    { { schema = 1, character = "Jaina", sections = {} }, "Next up: No digest yet" },
+    { { schema = 1, character = "Jaina", sections = {} }, "No digest for Thrall" },
+    { { schema = "2.0", characters = {} }, "No digest for Thrall" },
+    { { schema = "2.0", characters = { thrall = { schema = "1.2", sections = { { id = "next_quests", lines = { { text = "Z" } } } } } } }, "Next up: Z" },
     { { schema = 1, character = "Thrall", sections = { { id = "notes", lines = { { text = "n" } } } } }, "Next up: No digest yet" },
     { { schema = 1, character = "Thrall", sections = { { id = "next_quests", lines = { { text = "A|r" } } } } }, "Next up: A||r" },
     { { schema = 1, character = "Thrall", sections = { { id = "next_quests", lines = { { text = "A" }, { text = "B" }, { text = "C" } } } } }, "Next up: A (+2 more)" },
@@ -819,7 +821,7 @@ end
 local NOW0 = 1800000000
 local status_rows = {
     { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "waiting for an answer: 0", "Last answer: none yet", "WoWCompanion_Digest: installed", "WoWCompanion_Answers: installed" } },
-    { "digest age and schema", {}, { schema = 1, generated = NOW0 - 7200 }, {}, { "Digest: updated 2 h ago, schema 1" } },
+    { "digest age and schema", {}, { schema = 1, character = "Thrall", generated = NOW0 - 7200 }, {}, { "Digest: updated 2 h ago, schema 1" } },
     { "digest with unknown schema", {}, { schema = 9, generated = NOW0 }, {}, { "schema 9" } },
     { "queued count ignores answered", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } }, nil, {}, { "waiting for an answer: 1", "Last answer: 2 min ago" } },
     { "last answer from history", { history = { Thrall = { { answered_at = NOW0 - 86400 * 3 } } } }, nil, {}, { "Last answer: 3 d ago" } },
@@ -868,9 +870,11 @@ cases[#cases + 1] = { "stale vs fresh digest against the capture time", function
     assert(before.chars["Testrealm:Thrall"].snapshot.capturedAt == GEN + 301 and next(before) == "chars")
 end }
 local tip_rows = {
+    { "2.0 file without this character", {}, { schema = "2.0", generated = NOW0, characters = {} }, { "Digest: none yet" } },
+    { "1.2 file for another character", {}, { schema = "1.2", character = "Jaina", generated = NOW0 }, { "Digest: none yet" } },
     { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions waiting: 0", "Last answer: none yet", "Click to open" } },
     { "digest, queue and answer", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } },
-      { generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions waiting: 1", "Last answer: 2 min ago", "Click to open" } },
+      { character = "Thrall", generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions waiting: 1", "Last answer: 2 min ago", "Click to open" } },
 }
 cases[#cases + 1] = { "tooltip lines table", function()
     for i, row in ipairs(tip_rows) do
@@ -954,6 +958,10 @@ local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {
     { true,  'WoWCompanionDigest = {}' },
     { true,  '-- c\nWoWCompanionDigest = { a = 1, b = { "x", true, { c = "y(" } } }' },
+    { true,  'WoWCompanionDigest = { schema = "2.0", characters = { ["Testchar"] = { schema = "1.2", sections = { { id = "notes" } } } } }' },
+    { false, 'WoWCompanionDigest = { characters = { ["Testchar"] = { f = function() end } } }' },
+    { false, 'WoWCompanionDigest = { characters = { ["Test" .. "char"] = {} } }' },
+    { false, 'WoWCompanionDigest = { characters = { [x] = {} } }' },
     { false, 'WoWCompanionDigest = {}\nprint("x")' },
     { false, 'WoWCompanionDigest = { f = function() end }' },
     { false, 'WoWCompanionDigest = { a = os.time() }' },
@@ -970,6 +978,44 @@ cases[#cases + 1] = { "slot checker accepts data and rejects code", function()
     end
     assert(Slot.check('WoWCompanionAnswers = { answers = { ["a-1"] = { text = "x" } } }', "WoWCompanionAnswers"))
     assert(not Slot.check('WoWCompanionAnswers = { a = os.time() }', "WoWCompanionAnswers"))
+end }
+
+-- Schema 2.0 files: the panel picks characters[UnitName("player")] and says what to do on a miss.
+local v2_rows = {
+    -- name, player, fixture, must show, must not show
+    { "2.0 hit", "Testchar", "v2", { "Next quests", "[quest 1234]" }, { "Other note", "No advice for" } },
+    { "case-insensitive hit", "TESTCHAR", "v2", { "Next quests", "[quest 1234]" }, { "No advice for" } },
+    { "2.0 miss lists the others", "Missingchar", "v2", { "No advice for Missingchar yet.", "1. Type /reload so ForeverScribe", "2. Ask your AI", "wowc-advisor digest", "3. Type /reload again.", "Digests here for: Otherchar, Testchar" }, { "Next quests" } },
+    { "1.2 file for another character", "Thrall", "wrongchar", { "No advice for Thrall yet.", "1. Type /reload", "3. Type /reload again." }, { "Digests here for", "Next quests" } },
+    { "1.2 file for this character", "Thrall", "full", { "Next quests", "[quest 1234]" }, { "No advice for", "1. Type /reload" } },
+    { "empty digest keeps the hint", "Thrall", "empty", { "No advice yet", "1. Type /reload", "3. Type /reload again." }, { "Digests here for" } },
+    { "unknown schema", "Thrall", "badschema", { "unknown format (schema 99)" }, { "No advice for", "Next quests" } },
+}
+cases[#cases + 1] = { "schema 2 digest rows through the panel", function()
+    for i, row in ipairs(v2_rows) do
+        PLAYER_NAME = row[2]
+        local ok, err = pcall(function()
+            local p = digest_client(row[3])
+            for _, want in ipairs(row[4]) do assert(p.plain:find(want, 1, true), "row " .. i .. " (" .. row[1] .. "): " .. want .. "\n" .. p.plain) end
+            for _, no in ipairs(row[5]) do assert(not p.plain:find(no, 1, true), "row " .. i .. " (" .. row[1] .. "): unwanted " .. no) end
+        end)
+        PLAYER_NAME = nil
+        assert(ok, err)
+    end
+end }
+cases[#cases + 1] = { "schema 2 digest drives the tracker, status and tooltip", function()
+    PLAYER_NAME = "Testchar"
+    local ok, err = pcall(function()
+        digest_client("v2")
+        local d = WoWCompanionDigest
+        assert(WoWCompanion.TrackerText(d, "Testchar") == "Next up: Turn in The Hungry Ettin (+1 more)")
+        assert(WoWCompanion.TrackerText(d, "Missingchar") == "No digest for Missingchar")
+        assert(status_text({}, d):find("Digest: updated", 1, true))
+        PLAYER_NAME = "Missingchar"
+        assert(status_text({}, d):find("Digest: none yet", 1, true))
+    end)
+    PLAYER_NAME = nil
+    assert(ok, err)
 end }
 
 -- "Ask about this": right-click fills the Ask box from the line's template; nothing queues until Enter.
