@@ -260,6 +260,43 @@ local ask_cases = {
         end
     end },
 }
+local box_cases = {
+    { "box: Enter queues like /ask, clears, shows queued; hint is shown", function()
+        fresh_client(nil)
+        local p = WoWCompanion.panel
+        assert(p.askHint.text:find("/reload again to see the answer", 1, true) and p.askBox.maxLetters == 500)
+        NOW = 1800000200
+        p.askBox:SetText("  Best gear?  ")
+        p.askBox.scripts.OnEnterPressed(p.askBox)
+        local a = WoWCompanionDB.asks[1]
+        assert(a.text == "Best gear?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
+        assert(p.askBox:GetText() == "" and p.plain:find("queued; /reload to send", 1, true))
+    end },
+    { "box: button queues; empty input ignored and kept; shares the queue with /ask", function()
+        fresh_client(nil)
+        local p = WoWCompanion.panel
+        p.askBox:SetText("   ")
+        p.askButton.scripts.OnClick(p.askButton)
+        assert(WoWCompanionDB.asks == nil)
+        SlashCmdList.WOWCASK("from slash")
+        p.askBox:SetText("from box")
+        p.askButton.scripts.OnClick(p.askButton)
+        assert(#WoWCompanionDB.asks == 2 and WoWCompanionDB.asks[1].text == "from slash" and WoWCompanionDB.asks[2].text == "from box")
+        assert(WoWCompanionDB.asks[1].id ~= WoWCompanionDB.asks[2].id)
+    end },
+    { "box: text capped at 500 like /ask; Escape clears focus and keeps text", function()
+        fresh_client(nil)
+        local p = WoWCompanion.panel
+        p.askBox:SetText(string.rep("x", 800))
+        p.askBox.scripts.OnEnterPressed(p.askBox)
+        assert(#WoWCompanionDB.asks[1].text == 500)
+        p.askBox.focused = true
+        p.askBox:SetText("keep")
+        p.askBox.scripts.OnEscapePressed(p.askBox)
+        assert(p.askBox.focused == false and p.askBox:GetText() == "keep" and #WoWCompanionDB.asks == 1)
+    end },
+}
+for _, c in ipairs(box_cases) do cases[#cases + 1] = c end
 for _, c in ipairs(ask_cases) do cases[#cases + 1] = c end
 
 -- Slot file safety: small table of sources through the static checker.
