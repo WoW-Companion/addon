@@ -97,6 +97,8 @@ function Stub.install(env)
         function env.Settings.RegisterAddOnCategory(c) env.Settings.registered = c end
         function env.Settings.OpenToCategory(id) env.Settings.opened[#env.Settings.opened + 1] = id end
     end
+    env.COMBAT = false
+    env.InCombatLockdown = function() return env.COMBAT end
     env.UnitName = function() return "Thrall" end
     env.GetRealmName = function() return "Testrealm" end
     env.GetBuildInfo = function() return "1.15.7", "63456" end

@@ -730,6 +730,61 @@ local tracker_cases = {
 }
 for _, c in ipairs(tracker_cases) do cases[#cases + 1] = c end
 
+-- Hide in combat: rows are { saved settings, panel shown, tracker shown, panel after, tracker after }.
+local function combat_client(hide, panel_on, tracker_on)
+    fresh_client({ settings = { tracker = true, hideInCombat = hide } })
+    WoWCompanionDigest = nil
+    if panel_on then WoWCompanionPanel:Show() else WoWCompanionPanel:Hide() end
+    if not tracker_on then WoWCompanionTracker:Hide() end
+end
+local combat_rows = {
+    { nil,                              true,  true,  true,  false }, -- defaults: tracker only
+    { { tracker = true, panel = true }, true,  true,  false, false },
+    { { tracker = false },              true,  true,  true,  true  }, -- option off: no change
+    { { panel = true },                 false, true,  false, false }, -- a hidden panel stays hidden
+}
+local combat_cases = {
+    { "hide in combat hides and restores only what was visible", function()
+        for i, r in ipairs(combat_rows) do
+            combat_client(r[1], r[2], r[3])
+            Stub.fire(frames, "PLAYER_REGEN_DISABLED")
+            assert(WoWCompanionPanel:IsShown() == r[4] and WoWCompanionTracker:IsShown() == (r[3] and not (r[1] == nil or r[1].tracker ~= false)), "hide row " .. i)
+            Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+            assert(WoWCompanionPanel:IsShown() == r[2] and WoWCompanionTracker:IsShown() == r[3], "restore row " .. i)
+        end
+    end },
+    { "hide in combat defaults and repair", function()
+        fresh_client(nil)
+        assert(settings().hideInCombat.tracker == true and settings().hideInCombat.panel == false)
+        fresh_client({ settings = { hideInCombat = "x" } })
+        assert(settings().hideInCombat.tracker == true and settings().hideInCombat.panel == false)
+    end },
+    { "a refresh in combat keeps the tracker hidden until combat ends", function()
+        combat_client(nil, false, true)
+        Stub.fire(frames, "PLAYER_REGEN_DISABLED")
+        WoWCompanion.Refresh()
+        assert(not WoWCompanionTracker:IsShown())
+        Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+        assert(WoWCompanionTracker:IsShown())
+    end },
+    { "a reload in combat starts hidden and restores on combat end", function()
+        fresh_client({ settings = { tracker = true, hideInCombat = { panel = true }, openOnLogin = true } })
+        COMBAT = true
+        Stub.fire(frames, "PLAYER_LOGIN")
+        assert(not WoWCompanionTracker:IsShown() and not WoWCompanionPanel:IsShown())
+        COMBAT = false
+        Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+        assert(WoWCompanionTracker:IsShown() and WoWCompanionPanel:IsShown())
+    end },
+    { "hide in combat checkboxes save the setting", function()
+        fresh_client(nil)
+        local checks = WoWCompanionSettings.checks
+        click(checks[#checks - 1]); click(checks[#checks])
+        assert(settings().hideInCombat.tracker == false and settings().hideInCombat.panel == true)
+    end },
+}
+for _, c in ipairs(combat_cases) do cases[#cases + 1] = c end
+
 -- /wowc status: rows through WC.StatusLines, plus one wiring case through the slash command.
 local function status_text(db, digest, installed_map)
     fresh_client(db)

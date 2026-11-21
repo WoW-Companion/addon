@@ -34,6 +34,8 @@ function WC.InitSettings(db)
     s.fontSize = WC.FONT_SIZES[s.fontSize] and s.fontSize or "normal"
     s.tracker = s.tracker == true
     s.compact = s.compact == true
+    local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
+    s.hideInCombat = { tracker = h.tracker ~= false, panel = h.panel == true }
     s.show = type(s.show) == "table" and s.show or {}
     for _, sec in ipairs(WC.SECTIONS) do s.show[sec[1]] = s.show[sec[1]] ~= false end
     s.minimap = type(s.minimap) == "table" and s.minimap or {}
@@ -76,7 +78,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 440)
+    f:SetSize(320, 500)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -135,6 +137,8 @@ function WC.CreateSettings()
         local id = sec[1]
         check("Show" .. id, string.format(L.SHOW_SECTION, sec[2]), function() return s.show[id] end, function(v) s.show[id] = v end)
     end
+    check("HideTracker", L.HIDE_TRACKER_COMBAT, function() return s.hideInCombat.tracker end, function(v) s.hideInCombat.tracker = v end)
+    check("HidePanel", L.HIDE_PANEL_COMBAT, function() return s.hideInCombat.panel end, function(v) s.hideInCombat.panel = v end)
 
     f:SetScript("OnShow", function() sync(f) end)
     sync(f)
