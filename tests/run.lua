@@ -422,6 +422,25 @@ local history_cases = {
         WoWCompanion.Refresh()
         assert(#hist() == 0)
     end },
+    { "history: re-ask queues the same question, respects the cap, and the question box shows it", function()
+        local p = history_client(numbered(3))
+        SlashCmdList.WOWC("history")
+        assert(p.reaskButton:IsShown() and p.questionBox:IsShown() and p.questionBox:GetText() == "Q3")
+        p.questionBox:SetText("typed")
+        p.questionBox.scripts.OnTextChanged(p.questionBox, true)
+        assert(p.questionBox:GetText() == "Q3")
+        p.prevButton.scripts.OnClick(p.prevButton)
+        assert(p.questionBox:GetText() == "Q2")
+        local before = #WoWCompanionDB.asks
+        p.reaskButton.scripts.OnClick(p.reaskButton)
+        local a = WoWCompanionDB.asks
+        assert(#a == before + 1 and a[#a].text == "Q2" and a[#a].character == "Thrall")
+        assert(p.plain:find("entry 2 of 3", 1, true))
+        for _ = 1, 15 do p.reaskButton.scripts.OnClick(p.reaskButton) end
+        assert(#WoWCompanionDB.asks == WoWCompanion.MAX_ASKS)
+        SlashCmdList.WOWC("history clear")
+        assert(not p.reaskButton:IsShown())
+    end },
     { "history: kept per character", function()
         local a1, ans1 = numbered(2, "Thrall")
         local a2 = numbered(1, "Jaina")
@@ -433,6 +452,8 @@ local history_cases = {
         SlashCmdList.WOWC("history clear")
         WoWCompanion.ConfirmClearHistory()
         assert(#hist("Thrall") == 0 and #hist("Jaina") == 1)
+        WoWCompanion.ReaskSelected()
+        assert(#WoWCompanionDB.asks == 3)
     end },
 }
 for _, c in ipairs(history_cases) do cases[#cases + 1] = c end

@@ -14,6 +14,7 @@ local L = {
     PREV = "Prev",
     NEXT = "Next",
     CLEAR = "Clear",
+    REASK = "Re-ask",
     CONFIRM = "Confirm",
     CANCEL = "Cancel",
     COMPACT = "Compact",

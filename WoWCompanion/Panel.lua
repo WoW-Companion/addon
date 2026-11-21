@@ -73,6 +73,7 @@ function WC.CreatePanel()
     f.prevButton = button("WoWCompanionHistoryPrev", L.PREV, 50, 14, -98, function() WC.HistoryPage(-1) end)
     f.nextButton = button("WoWCompanionHistoryNext", L.NEXT, 50, 68, -98, function() WC.HistoryPage(1) end)
     f.clearButton = button("WoWCompanionHistoryClear", L.CLEAR, 50, 122, -98, function() WC.RequestClearHistory() end)
+    f.reaskButton = button("WoWCompanionHistoryReask", L.REASK, 64, 176, -98, function() WC.ReaskSelected() end)
     f.confirmButton = button("WoWCompanionHistoryConfirm", L.CONFIRM, 64, 14, -98, function() WC.ConfirmClearHistory() end)
     f.cancelButton = button("WoWCompanionHistoryCancel", L.CANCEL, 64, 82, -98, function() WC.CancelClearHistory() end)
 
@@ -86,6 +87,17 @@ function WC.CreatePanel()
     end)
     f.copyBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     f.copyBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
+    -- Read-only view of the selected question, above the answer box, for copying.
+    f.questionBox = CreateFrame("EditBox", "WoWCompanionQuestionBox", f, "InputBoxTemplate")
+    f.questionBox:SetSize(300, 20)
+    f.questionBox:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 20, 38)
+    f.questionBox:SetAutoFocus(false)
+    f.questionBox:SetScript("OnTextChanged", function(self, user)
+        if user then self:SetText(self.copyText or "") end
+    end)
+    f.questionBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.questionBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
 
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionPanelScroll", f, "UIPanelScrollFrameTemplate")
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -104)
@@ -195,14 +207,18 @@ function WC.UpdateHistoryUI(f, entry)
     set_shown(f.clearButton, on and entry and not confirming)
     set_shown(f.confirmButton, on and confirming)
     set_shown(f.cancelButton, on and confirming)
+    set_shown(f.reaskButton, on and entry and not confirming)
     set_shown(f.copyBox, on and entry)
+    set_shown(f.questionBox, on and entry)
     f.histButton:SetText(on and L.BACK or L.HISTORY)
-    f.scrollTop, f.scrollBottom = -top, (on and entry) and 40 or 12
+    f.scrollTop, f.scrollBottom = -top, (on and entry) and 64 or 12
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, top)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, f.scrollBottom)
     f:EnableKeyboard(on and true or false)
     f.copyBox.copyText = entry and WC.HistoryCopyText(entry) or ""
     f.copyBox:SetText(f.copyBox.copyText)
+    f.questionBox.copyText = entry and tostring(entry.question or "") or ""
+    f.questionBox:SetText(f.questionBox.copyText)
 end
 
 -- Re-reads the global digest table (data only) and redraws the panel.

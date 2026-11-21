@@ -55,6 +55,13 @@ function WC.HistoryCopyText(e)
     return t
 end
 
+-- Queues the selected entry's question again through the same path as /ask (same trim, cap and queue limit).
+function WC.ReaskSelected()
+    local list = WC.HistoryList(WC.db, UnitName("player"))
+    local e = #list > 0 and list[WC.HistoryIndex(#list)]
+    if e and WC.SubmitAsk(e.question) then WC.Refresh() end
+end
+
 -- Returns the rows for the selected history entry (or a note when there are none).
 function WC.RenderHistory(list, index, now, confirming)
     local n = #list
@@ -96,7 +103,7 @@ end
 function WC.HistoryKey(key)
     local f = WC.panel
     if not (f and WC.view.history and f:IsMouseOver()) then return false end
-    if f.askBox.focused or f.copyBox.focused then return false end
+    if f.askBox.focused or f.copyBox.focused or f.questionBox.focused then return false end
     if key == "LEFT" then WC.HistoryPage(-1)
     elseif key == "RIGHT" then WC.HistoryPage(1)
     elseif key == "ESCAPE" then WC.ShowHistory(false, false)
