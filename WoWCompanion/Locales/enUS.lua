@@ -62,6 +62,14 @@ local L = {
     ANSWERS_UNREADABLE = "The answers file is unreadable and was ignored.",
     ANSWERS_MALFORMED = "%d malformed answer(s) were ignored.",
 
+    -- Ask about this (right-click a digest line)
+    ASK_ITEM_SUBJECT = "%s (item %d)",
+    ASK_ABOUT_quest = "Where do I go for %s, and what's the fastest route?",
+    ASK_ABOUT_upgrade = "Where does %s drop, and is it worth farming?",
+    ASK_ABOUT_material = "What should I make with %s?",
+    ASK_ABOUT_dungeon = "Should I run %s now, and what should I bring?",
+    ASK_ABOUT_talent = "Why %s next for my spec?",
+
     -- History
     NO_HISTORY = "No saved answers yet.",
     HISTORY_ENTRY = "History: entry %d of %d (Prev = older)",
