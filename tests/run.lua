@@ -7,7 +7,7 @@ local frames = {}
 
 local function fresh_client(savedvars)
     for k in pairs(WoWCompanion or {}) do WoWCompanion[k] = nil end
-    WoWCompanion, WoWCompanionDB, SLASH_WOWC1, WoWCompanionAnswers = nil, savedvars, nil, nil
+    WoWCompanion, WoWCompanionDB, SLASH_WOWC1 = nil, savedvars, nil
     WoWCompanionMinimapButton, ForeverScribeDB = nil, nil
     Stub.install(_G)
     frames = {}
@@ -42,15 +42,6 @@ local function digest_client(name)
 end
 
 local function slash() SlashCmdList.WOWC("") end
-
--- A client whose queue holds one question (id 1799999000-1); answers come from a fixture or none.
-local function ask_client(answers_fixture)
-    fresh_client({ asks = { { id = "1799999000-1", asked_at = 1799999000, character = "Thrall", text = "What next?" } } })
-    if answers_fixture then LOD_FILES.WoWCompanion_Answers = "tests/fixtures/answers_" .. answers_fixture .. ".lua" end
-    WoWCompanionPanel:Hide()
-    WoWCompanionPanel:Show()
-    return WoWCompanion.panel
-end
 
 local cases = {
     { "slash command is /wowc", function()
@@ -218,12 +209,6 @@ local polish_cases = {
         again.scripts.OnClick(again)
         assert(WoWCompanionDB.collapsed.upgrades == nil and WoWCompanion.panel.plain:find("Hammer of Fate", 1, true))
     end },
-    { "the questions section collapses too", function()
-        local p = ask_client(nil)
-        local h = row_with(p, "Questions")
-        h.scripts.OnClick(h)
-        assert(WoWCompanionDB.collapsed.ask and not p.plain:find("What next?", 1, true))
-    end },
     { "/wowc help lists the commands", function()
         fresh_client(nil)
         SlashCmdList.WOWC("help")
@@ -245,14 +230,14 @@ local polish_cases = {
 for _, c in ipairs(polish_cases) do cases[#cases + 1] = c end
 
 local ask_cases = {
-    { "/ask queues a question and shows it as queued", function()
+    { "/ask queues a question and prints the queued line", function()
         fresh_client(nil)
         NOW = 1800000100
         SlashCmdList.WOWCASK("  What should I do next?  ")
         local a = WoWCompanionDB.asks[1]
         assert(a.text == "What should I do next?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
-        assert(SLASH_WOWCASK1 == "/ask" and WoWCompanionPanel:IsShown())
-        assert(WoWCompanionPanel.plain:find("queued; /reload to send", 1, true))
+        assert(SLASH_WOWCASK1 == "/ask")
+        assert(PRINTED[#PRINTED] == "Queued for WoW Companion. /reload and the overlay will answer it.")
     end },
     { "/wowc ask queues; bare /wowc ask and empty /ask do not", function()
         fresh_client(nil)
@@ -271,192 +256,20 @@ local ask_cases = {
         local ids = {}
         for _, a in ipairs(WoWCompanionDB.asks) do assert(not ids[a.id]); ids[a.id] = true end
     end },
-    { "question text is shown as data, color codes escaped", function()
+    { "the panel has no Ask box, History or answers, and shows no queued questions", function()
         fresh_client(nil)
-        SlashCmdList.WOWCASK("|cffff0000red")
-        assert(WoWCompanionPanel.plain:find("||cffff0000red", 1, true))
-    end },
-    { "opening the panel loads the answers addon", function()
-        local p = ask_client("full")
-        assert(LOADED_ADDONS[#LOADED_ADDONS] == "WoWCompanion_Answers")
-        assert(p.plain:find("A: Do the Hungry Ettin", 1, true))
-    end },
-    { "answer shows under its question with time and sources; ask marked answered", function()
-        local p = ask_client("full")
-        local t = p.plain
-        local q, a, s = t:find("Q: What next?", 1, true), t:find("A: Do the", 1, true), t:find("sources: Quest 1234, Item 5678", 1, true)
-        assert(q and a and s and q < a and a < s)
-        assert(t:find("(1 min ago)", 1, true) and not t:find("queued;", 1, true))
-        local ask = WoWCompanionDB.asks[1]
-        assert(ask.answered == true and ask.answered_at == 1799999900)
-    end },
-    { "unanswered question stays queued when answers are absent", function()
-        local p = ask_client(nil)
-        assert(p.plain:find("queued; /reload to send", 1, true))
-        assert(not WoWCompanionDB.asks[1].answered)
-    end },
-    { "malformed answer files are ignored with a panel note", function()
-        for _, name in ipairs({ "badschema", "malformed" }) do
-            local p = ask_client(name)
-            local t = p.plain
-            assert(t:find("queued; /reload to send", 1, true), name)
-            assert(t:find("ignored", 1, true), name)
-            assert(not WoWCompanionDB.asks[1].answered, name)
-        end
+        SlashCmdList.WOWCASK("anything")
+        local p = WoWCompanion.panel
+        assert(not p.askBox and not p.histButton and not p.copyBox and not p.questionBox)
+        assert(not WoWCompanion.ShowHistory and not WoWCompanion.LoadAnswers and not WoWCompanion.MatchAnswers)
+        assert(not p.plain:find("queued", 1, true) and not p.plain:find("Questions", 1, true))
+        for _, sec in ipairs(WoWCompanion.SECTIONS) do assert(sec[1] ~= "ask" and sec[1] ~= "history") end
+        PRINTED = {}
+        SlashCmdList.WOWC("history")
+        assert(PRINTED[1] == "WoW Companion commands:" and not table.concat(PRINTED, "\n"):find("history", 1, true))
     end },
 }
-local box_cases = {
-    { "box: Enter queues like /ask, clears, shows queued; hint is shown", function()
-        fresh_client(nil)
-        local p = WoWCompanion.panel
-        assert(p.askHint.text:find("/reload again to see the answer", 1, true) and p.askBox.maxLetters == 500)
-        NOW = 1800000200
-        p.askBox:SetText("  Best gear?  ")
-        p.askBox.scripts.OnEnterPressed(p.askBox)
-        local a = WoWCompanionDB.asks[1]
-        assert(a.text == "Best gear?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
-        assert(p.askBox:GetText() == "" and p.plain:find("queued; /reload to send", 1, true))
-    end },
-    { "box: button queues; empty input ignored and kept; shares the queue with /ask", function()
-        fresh_client(nil)
-        local p = WoWCompanion.panel
-        p.askBox:SetText("   ")
-        p.askButton.scripts.OnClick(p.askButton)
-        assert(WoWCompanionDB.asks == nil)
-        SlashCmdList.WOWCASK("from slash")
-        p.askBox:SetText("from box")
-        p.askButton.scripts.OnClick(p.askButton)
-        assert(#WoWCompanionDB.asks == 2 and WoWCompanionDB.asks[1].text == "from slash" and WoWCompanionDB.asks[2].text == "from box")
-        assert(WoWCompanionDB.asks[1].id ~= WoWCompanionDB.asks[2].id)
-    end },
-    { "box: text capped at 500 like /ask; Escape clears focus and keeps text", function()
-        fresh_client(nil)
-        local p = WoWCompanion.panel
-        p.askBox:SetText(string.rep("x", 800))
-        p.askBox.scripts.OnEnterPressed(p.askBox)
-        assert(#WoWCompanionDB.asks[1].text == 500)
-        p.askBox.focused = true
-        p.askBox:SetText("keep")
-        p.askBox.scripts.OnEscapePressed(p.askBox)
-        assert(p.askBox.focused == false and p.askBox:GetText() == "keep" and #WoWCompanionDB.asks == 1)
-    end },
-}
-for _, c in ipairs(box_cases) do cases[#cases + 1] = c end
 for _, c in ipairs(ask_cases) do cases[#cases + 1] = c end
-
--- History: a client whose asks carry the given ids/characters, all answered by the given answers table.
-local function history_client(asks, answers)
-    fresh_client({ asks = asks })
-    WoWCompanionAnswers = { schema = 1, answers = answers }
-    WoWCompanion.panel:Hide()
-    WoWCompanion.panel:Show()
-    return WoWCompanion.panel
-end
-
-local function numbered(n, who)
-    local asks, answers = {}, {}
-    for i = 1, n do
-        local id = "1799999000-" .. i
-        asks[i] = { id = id, asked_at = 1799999000 + i, character = who or "Thrall", text = "Q" .. i }
-        answers[id] = { answered_at = 1799999900 + i, text = "A" .. i, sources = { "S" .. i } }
-    end
-    return asks, answers
-end
-
-local function hist(who) return WoWCompanionDB.history and WoWCompanionDB.history[who or "Thrall"] or {} end
-
-local history_cases = {
-    { "history: shown answer is captured with question, times and sources", function()
-        history_client(numbered(1))
-        local e = hist()[1]
-        assert(#hist() == 1 and e.question == "Q1" and e.answer == "A1" and e.asked_at == 1799999001)
-        assert(e.answered_at == 1799999901 and e.sources[1] == "S1")
-        WoWCompanion.Refresh()
-        assert(#hist() == 1)
-    end },
-    { "history: keeps the 20 most recent, oldest dropped first", function()
-        local asks, answers = numbered(10)
-        history_client(asks, answers)
-        for i = 11, 25 do
-            local id = "1799999000-" .. i
-            table.insert(WoWCompanionDB.asks, { id = id, asked_at = 1799999000 + i, character = "Thrall", text = "Q" .. i })
-            answers[id] = { answered_at = 1799999900 + i, text = "A" .. i }
-            WoWCompanion.Refresh()
-        end
-        assert(#hist() == 20 and hist()[1].question == "Q6" and hist()[20].question == "Q25")
-    end },
-    { "history: view pages older/newer, clamps, shows question, age, answer, sources", function()
-        local p = history_client(numbered(3))
-        SlashCmdList.WOWC("history")
-        assert(p:IsShown() and p.plain:find("entry 3 of 3", 1, true) and p.plain:find("A: A3", 1, true))
-        assert(p.plain:find("asked", 1, true) and p.plain:find("sources: S3", 1, true) and p.plain:find("Q: Q3", 1, true))
-        p.nextButton.scripts.OnClick(p.nextButton)
-        assert(p.plain:find("entry 3 of 3", 1, true))
-        p.prevButton.scripts.OnClick(p.prevButton)
-        p.prevButton.scripts.OnClick(p.prevButton)
-        p.prevButton.scripts.OnClick(p.prevButton)
-        assert(p.plain:find("entry 1 of 3", 1, true) and p.plain:find("Q: Q1", 1, true))
-        p.histButton.scripts.OnClick(p.histButton)
-        assert(p.plain:find("Questions", 1, true) and not p.copyBox:IsShown())
-    end },
-    { "history: copy box holds the selected answer and stays read-only", function()
-        local p = history_client(numbered(2))
-        SlashCmdList.WOWC("history")
-        assert(p.copyBox:IsShown() and p.copyBox:GetText() == "A2\nsources: S2")
-        p.copyBox:SetText("typed")
-        p.copyBox.scripts.OnTextChanged(p.copyBox, true)
-        assert(p.copyBox:GetText() == "A2\nsources: S2")
-        p.prevButton.scripts.OnClick(p.prevButton)
-        assert(p.copyBox:GetText() == "A1\nsources: S1")
-    end },
-    { "history: clear asks in the panel first, cancel keeps, confirm clears and stays cleared", function()
-        local p = history_client(numbered(2))
-        SlashCmdList.WOWC("history clear")
-        assert(p:IsShown() and #hist() == 2 and p.plain:find("Clear all 2", 1, true))
-        assert(p.confirmButton:IsShown() and p.cancelButton:IsShown() and not p.prevButton:IsShown())
-        p.cancelButton.scripts.OnClick(p.cancelButton)
-        assert(#hist() == 2 and not p.confirmButton:IsShown() and p.prevButton:IsShown())
-        SlashCmdList.WOWC("history clear")
-        p.confirmButton.scripts.OnClick(p.confirmButton)
-        assert(#hist() == 0 and p.plain:find("No saved answers yet", 1, true))
-        WoWCompanion.Refresh()
-        assert(#hist() == 0)
-    end },
-    { "history: re-ask queues the same question, respects the cap, and the question box shows it", function()
-        local p = history_client(numbered(3))
-        SlashCmdList.WOWC("history")
-        assert(p.reaskButton:IsShown() and p.questionBox:IsShown() and p.questionBox:GetText() == "Q3")
-        p.questionBox:SetText("typed")
-        p.questionBox.scripts.OnTextChanged(p.questionBox, true)
-        assert(p.questionBox:GetText() == "Q3")
-        p.prevButton.scripts.OnClick(p.prevButton)
-        assert(p.questionBox:GetText() == "Q2")
-        local before = #WoWCompanionDB.asks
-        p.reaskButton.scripts.OnClick(p.reaskButton)
-        local a = WoWCompanionDB.asks
-        assert(#a == before + 1 and a[#a].text == "Q2" and a[#a].character == "Thrall")
-        assert(p.plain:find("entry 2 of 3", 1, true))
-        for _ = 1, 15 do p.reaskButton.scripts.OnClick(p.reaskButton) end
-        assert(#WoWCompanionDB.asks == WoWCompanion.MAX_ASKS)
-        SlashCmdList.WOWC("history clear")
-        assert(not p.reaskButton:IsShown())
-    end },
-    { "history: kept per character", function()
-        local a1, ans1 = numbered(2, "Thrall")
-        local a2 = numbered(1, "Jaina")
-        a2[1].id = "1799999000-9"
-        ans1["1799999000-9"] = { answered_at = 1799999950, text = "AJ" }
-        for _, a in ipairs(a2) do a1[#a1 + 1] = a end
-        history_client(a1, ans1)
-        assert(#hist("Thrall") == 2 and #hist("Jaina") == 1 and hist("Jaina")[1].answer == "AJ")
-        SlashCmdList.WOWC("history clear")
-        WoWCompanion.ConfirmClearHistory()
-        assert(#hist("Thrall") == 0 and #hist("Jaina") == 1)
-        WoWCompanion.ReaskSelected()
-        assert(#WoWCompanionDB.asks == 3)
-    end },
-}
-for _, c in ipairs(history_cases) do cases[#cases + 1] = c end
 
 -- Settings and the panel button.
 local function scroll_top(p)
@@ -469,7 +282,7 @@ local function click(b)
     b.scripts.OnClick(b)
 end
 
-local DEFAULT_SHOW = { quests = true, upgrades = true, materials = true, notes = true, ask = true, history = true }
+local DEFAULT_SHOW = { quests = true, upgrades = true, materials = true, notes = true }
 local settings_cases = {
     { "settings take defaults on first run", function()
         fresh_client(nil)
@@ -487,8 +300,8 @@ local settings_cases = {
             fresh_client({ settings = r[1] })
             assert(settings().scale == r[2] and type(settings().show) == "table", "row " .. i)
         end
-        fresh_client({ settings = { show = { notes = false, ask = "no" } } })
-        assert(settings().show.notes == false and settings().show.ask == true)
+        fresh_client({ settings = { show = { notes = false, talents = "no" } } })
+        assert(settings().show.notes == false and settings().show.talents == true)
     end },
     { "settings persist through WoWCompanionDB", function()
         fresh_client(nil)
@@ -533,21 +346,6 @@ local settings_cases = {
             click(_G["WoWCompanionOptionShow" .. r[1]])
             assert(p.plain:find(r[2], 1, true), "not restored " .. r[2])
         end
-        local p = ask_client("full")
-        assert(p.plain:find("Questions", 1, true) and p.askBox:IsShown() and p.histButton:IsShown())
-        local top = scroll_top(p)
-        click(WoWCompanionOptionShowask)
-        assert(not p.plain:find("Questions", 1, true) and not p.askBox:IsShown() and not p.askButton:IsShown())
-        assert(scroll_top(p) > top and p.histButton:IsShown())
-        click(WoWCompanionOptionShowhistory)
-        assert(not p.histButton:IsShown() and scroll_top(p) == -50)
-    end },
-    { "hiding history leaves the history view", function()
-        local p = digest_client("full")
-        SlashCmdList.WOWC("history")
-        assert(WoWCompanion.view.history)
-        click(WoWCompanionOptionShowhistory)
-        assert(not WoWCompanion.view.history and not p.histButton:IsShown())
     end },
     { "compartment button toggles the panel", function()
         WITH_COMPARTMENT = true
@@ -616,7 +414,7 @@ for _, c in ipairs(settings_cases) do cases[#cases + 1] = c end
 local Lint = dofile("tests/lint.lua")
 local lint_rows = {
     { true,  'f.title:SetText(L.ADDON_NAME)' },
-    { true,  'f.askBox:SetText("")' },
+    { true,  'f.box:SetText("")' },
     { true,  'f.text:SetText(string.format(L.SCALE_LABEL, 1.5))' },
     { true,  'f.text:SetText(string.format("%.2f", s))' },
     { true,  'local x = "plain" -- SetText("comment")' },
@@ -626,7 +424,7 @@ local lint_rows = {
     { false, 'f.text:SetText("Scale: " .. L.X)' },
     { false, 'print("Hello")' },
     { false, 'rows[1] = { kind = "text", text = "Hello" }' },
-    { false, 'note = "The answers file"' },
+    { false, 'note = "The notes file"' },
     { false, 'f:SetText(L.X .. " items")' },
 }
 cases[#cases + 1] = { "lint flags literals that skip L", function()
@@ -641,9 +439,9 @@ end }
 cases[#cases + 1] = { "a missing locale key falls back to the key, never nil", function()
     fresh_client(nil)
     local L = WoWCompanion.L
-    assert(L.ASK == "Ask" and L.NOT_A_REAL_KEY == "NOT_A_REAL_KEY" and rawget(L, "NOT_A_REAL_KEY") == nil)
-    L.ASK = nil
-    assert(L.ASK == "ASK")
+    assert(L.COMPACT == "Compact" and L.NOT_A_REAL_KEY == "NOT_A_REAL_KEY" and rawget(L, "NOT_A_REAL_KEY") == nil)
+    L.COMPACT = nil
+    assert(L.COMPACT == "COMPACT")
 end }
 
 -- What's new: once per version, never on a fresh install, dismissed for good.
@@ -653,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("ready-to-install", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("overlay answers", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -820,12 +618,11 @@ local function status_text(db, digest, installed_map)
 end
 local NOW0 = 1800000000
 local status_rows = {
-    { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "waiting for an answer: 0", "Last answer: none yet", "WoWCompanion_Digest: installed", "WoWCompanion_Answers: installed" } },
+    { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "Questions queued: 0", "WoWCompanion_Digest: installed" } },
     { "digest age and schema", {}, { schema = 1, character = "Thrall", generated = NOW0 - 7200 }, {}, { "Digest: updated 2 h ago, schema 1" } },
     { "digest with unknown schema", {}, { schema = 9, generated = NOW0 }, {}, { "schema 9" } },
-    { "queued count ignores answered", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } }, nil, {}, { "waiting for an answer: 1", "Last answer: 2 min ago" } },
-    { "last answer from history", { history = { Thrall = { { answered_at = NOW0 - 86400 * 3 } } } }, nil, {}, { "Last answer: 3 d ago" } },
-    { "missing slot addons", {}, nil, { WoWCompanion_Digest = true, WoWCompanion_Answers = true }, { "WoWCompanion_Digest: not installed", "WoWCompanion_Answers: not installed" } },
+    { "queued count", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } }, nil, {}, { "Questions queued: 2" } },
+    { "missing slot addon", {}, nil, { WoWCompanion_Digest = true }, { "WoWCompanion_Digest: not installed" } },
 }
 cases[#cases + 1] = { "status lines table", function()
     for i, row in ipairs(status_rows) do
@@ -874,9 +671,9 @@ end }
 local tip_rows = {
     { "2.0 file without this character", {}, { schema = "2.0", generated = NOW0, characters = {} }, { "Digest: none yet" } },
     { "1.2 file for another character", {}, { schema = "1.2", character = "Jaina", generated = NOW0 }, { "Digest: none yet" } },
-    { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions waiting: 0", "Last answer: none yet", "Click to open" } },
-    { "digest, queue and answer", { asks = { { id = "a", text = "q" }, { id = "b", text = "q", answered = true, answered_at = NOW0 - 120 } } },
-      { character = "Thrall", generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions waiting: 1", "Last answer: 2 min ago", "Click to open" } },
+    { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions queued: 0", "Click to open" } },
+    { "digest and queue", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } },
+      { character = "Thrall", generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions queued: 2", "Click to open" } },
 }
 local outdated_rows = {
     { "fresh, capture seconds later", { generated = 1000 }, 1100, 1010, false },
@@ -958,22 +755,6 @@ local compact_cases = {
         click(WoWCompanionOptionCompact)
         assert(settings().compact == false and WoWCompanionPanel.h == 320)
     end },
-    { "keys: arrows page and Escape closes only when focused in the history view; others propagate", function()
-        local p = history_client(numbered(3))
-        assert(p.keyboard == false and key(p, "LEFT") == true)
-        SlashCmdList.WOWC("history")
-        assert(p.keyboard == true)
-        assert(key(p, "LEFT") == true and p.plain:find("entry 3 of 3", 1, true), "unfocused: propagate, no paging")
-        p.mouseOver = true
-        assert(key(p, "LEFT") == false and p.plain:find("entry 2 of 3", 1, true))
-        assert(key(p, "RIGHT") == false and p.plain:find("entry 3 of 3", 1, true))
-        assert(key(p, "A") == true and key(p, "SPACE") == true and p.plain:find("entry 3 of 3", 1, true))
-        p.askBox.focused = true
-        assert(key(p, "LEFT") == true and p.plain:find("entry 3 of 3", 1, true))
-        p.askBox.focused = false
-        assert(key(p, "ESCAPE") == false and not WoWCompanion.view.history and p.keyboard == false)
-        assert(key(p, "LEFT") == true and p:IsShown())
-    end },
 }
 for _, c in ipairs(compact_cases) do cases[#cases + 1] = c end
 
@@ -993,14 +774,11 @@ local slot_rows = {
     { false, 'WoWCompanionDigest = { a = f"x" }' },
     { false, 'WoWCompanionDigest = { a = f{} }' },
     { false, 'x = 1\nWoWCompanionDigest = {}' },
-    { false, 'WoWCompanionAnswers = {}' },
 }
 cases[#cases + 1] = { "slot checker accepts data and rejects code", function()
     for i, row in ipairs(slot_rows) do
         assert(Slot.check(row[2]) == row[1], "row " .. i)
     end
-    assert(Slot.check('WoWCompanionAnswers = { answers = { ["a-1"] = { text = "x" } } }', "WoWCompanionAnswers"))
-    assert(not Slot.check('WoWCompanionAnswers = { a = os.time() }', "WoWCompanionAnswers"))
 end }
 
 -- Schema 2.0 files: the panel picks characters[UnitName("player")] and says what to do on a miss.
@@ -1041,7 +819,7 @@ cases[#cases + 1] = { "schema 2 digest drives the tracker, status and tooltip", 
     assert(ok, err)
 end }
 
--- "Ask about this": right-click fills the Ask box from the line's template; nothing queues until Enter.
+-- "Ask about this": right-click queues the line's templated question, like /ask.
 local function dofile_digest(file)
     local keep = WoWCompanionDigest
     WoWCompanionDigest = nil
@@ -1066,28 +844,24 @@ local ask_rows = {
     { "Deadmines", "Should I run Deadmines now, and what should I bring?" },
     { "Mortal Strike", "Why   - Next point: Mortal Strike next for my spec?" },
 }
-cases[#cases + 1] = { "ask about this: right-click fills each line type's template, focuses, never queues", function()
+cases[#cases + 1] = { "ask about this: right-click queues each line type's template and prints one line", function()
     local p = ask_row_client()
-    for _, c in ipairs(ask_rows) do
-        p.askBox:SetText("")
-        p.askBox.focused = false
+    for i, c in ipairs(ask_rows) do
+        PRINTED = {}
         local row = row_with(p, c[1])
         row.scripts.OnClick(row, "RightButton")
-        assert(p.askBox:GetText() ~= "" and p.askBox.focused, c[1])
-        assert(p.askBox:GetText():find(c[1], 1, true) and p.askBox:GetText():find("^%u"), c[1])
-        assert(WoWCompanionDB.asks == nil, c[1])
+        local a = WoWCompanionDB.asks[i]
+        assert(a and a.text:find(c[1], 1, true), c[1])
+        assert(a.text:find("^%u") and a.character == "Thrall" and a.asked_at == NOW and a.id, c[1])
+        assert(#PRINTED == 1 and PRINTED[1] == "Queued for WoW Companion. /reload and the overlay will answer it.", c[1])
     end
+    assert(#WoWCompanionDB.asks == #ask_rows)
+    local before = #WoWCompanionDB.asks
     local notes = row_with(p, "Bank has")
-    p.askBox:SetText("")
     notes.scripts.OnClick(notes, "RightButton")
-    assert(p.askBox:GetText() == "")
     local h = row_with(p, "Upgrades")
     h.scripts.OnClick(h, "RightButton")
-    assert(not WoWCompanionDB.collapsed)
-    local q = row_with(p, "Hammer of Fate")
-    q.scripts.OnClick(q, "RightButton")
-    p.askBox.scripts.OnEnterPressed(p.askBox)
-    assert(#WoWCompanionDB.asks == 1 and WoWCompanionDB.asks[1].text:find("Hammer of Fate", 1, true))
+    assert(not WoWCompanionDB.collapsed and #WoWCompanionDB.asks == before)
 end }
 cases[#cases + 1] = { "ask about this: AskTemplate by line type", function()
     local T = WoWCompanion.AskTemplate
@@ -1112,6 +886,87 @@ cases[#cases + 1] = { "panel content and rows follow the panel's visibility, and
     WoWCompanion.TogglePanel()
     assert(not any_visible(), "hidden again after closing")
     assert(not p.plain:find("[item ", 1, true) and not p.plain:find("[quest ", 1, true))
+end }
+
+-- Game tooltips: gold lines for a digest upgrade item and a next-step quest, none when switched off.
+local function tooltip_client(setup)
+    fresh_client(nil)
+    load_digest("tests/fixtures/digest_full.lua")
+    return WoWCompanion
+end
+local function tooltip_lines()
+    local out = {}
+    for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then out[#out + 1] = c end end
+    return out
+end
+cases[#cases + 1] = { "tooltips: upgrade item and next-step quest get a gold line; others and the off setting get none", function()
+    local WC = tooltip_client()
+    INVTYPE_WEAPON = "One-Hand"
+    GetItemInfoInstant = function() return 5678, "Weapon", "Hammer", "INVTYPE_WEAPON" end
+    assert(WC.TooltipLine("item", 5678) == "WoW Companion: upgrade for One-Hand")
+    assert(WC.TooltipLine("quest", 1234) == "WoW Companion: next step #1")
+    assert(WC.TooltipLine("item", 2589) == nil and WC.TooltipLine("quest", 99) == nil and WC.TooltipLine("item", nil) == nil)
+    assert(WC.TooltipLine("item", 1234) == nil and WC.TooltipLine("quest", 5678) == nil)
+    GetItemInfoInstant = nil
+    assert(WC.TooltipLine("item", 5678) == "WoW Companion: upgrade for your gear")
+    WoWCompanionDB.settings.tooltips = false
+    assert(WC.TooltipLine("item", 5678) == nil and WC.TooltipLine("quest", 1234) == nil)
+    WoWCompanionDB.settings.tooltips = true
+    PLAYER_NAME = "Jaina"
+    assert(WC.TooltipLine("item", 5678) == nil)
+    PLAYER_NAME = nil
+end }
+cases[#cases + 1] = { "tooltips: the TooltipDataProcessor hook adds the gold line to the game tooltip", function()
+    local posts = {}
+    Enum = { TooltipDataType = { Item = 1, Quest = 2 } }
+    TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) posts[kind] = fn end }
+    local ok, err = pcall(function()
+        tooltip_client()
+        assert(WoWCompanion.tooltipMode == "processor" and posts[1] and posts[2])
+        GameTooltip.calls = {}
+        posts[1](GameTooltip, { id = 5678 })
+        posts[2](GameTooltip, { id = 1234 })
+        posts[1](GameTooltip, { id = 2589 })
+        posts[1]({}, { id = 5678 })
+        local lines = tooltip_lines()
+        assert(#lines == 2 and lines[1][2]:find("upgrade for", 1, true) and lines[2][2] == "WoW Companion: next step #1")
+        assert(lines[1][3] == 1 and lines[1][4] == 0.82 and lines[1][5] == 0)
+        WoWCompanionDB.settings.tooltips = false
+        GameTooltip.calls = {}
+        posts[1](GameTooltip, { id = 5678 })
+        assert(#tooltip_lines() == 0)
+    end)
+    Enum, TooltipDataProcessor = nil, nil
+    assert(ok, err)
+end }
+cases[#cases + 1] = { "tooltips: older clients hook the tooltip instead; the setting defaults on and has a checkbox", function()
+    WITH_TOOLTIP_HOOKS = true
+    local ok, err = pcall(function()
+        tooltip_client()
+        local hooks = HOOKS
+        assert(WoWCompanion.tooltipMode == "hook" and WoWCompanionDB.settings.tooltips == true)
+        GameTooltip.calls = {}
+        hooks.OnTooltipSetItem(GameTooltip)
+        hooks.SetHyperlink(GameTooltip, "quest:1234")
+        local lines = tooltip_lines()
+        assert(#lines == 2 and lines[2][2] == "WoW Companion: next step #1")
+        click(WoWCompanionOptionTooltips)
+        assert(WoWCompanionDB.settings.tooltips == false)
+    end)
+    WITH_TOOLTIP_HOOKS = nil
+    assert(ok, err)
+end }
+
+-- Locale strings are plain text: no markdown backticks (the game would print them literally).
+cases[#cases + 1] = { "no locale string contains a backtick; the stale hint reads plainly", function()
+    fresh_client(nil)
+    local n = 0
+    for k, v in pairs(WoWCompanion.L) do
+        n = n + 1
+        assert(not tostring(v):find("`", 1, true), "backtick in " .. k)
+    end
+    assert(n > 50)
+    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Advice may be out of date: /reload (the overlay refreshes it) or run wowc-advisor digest.")
 end }
 
 local failed = 0

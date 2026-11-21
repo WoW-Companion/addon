@@ -92,6 +92,13 @@ function Stub.install(env)
     for _, m in ipairs({ "SetOwner", "SetHyperlink", "AddLine", "Show", "Hide" }) do
         env.GameTooltip[m] = function(self, ...) self.calls[#self.calls + 1] = { m, ... } end
     end
+    -- Older clients have no TooltipDataProcessor: a test sets WITH_TOOLTIP_HOOKS to get hooksecurefunc and HookScript, which record into HOOKS.
+    env.hooksecurefunc, env.HOOKS = nil, {}
+    if env.WITH_TOOLTIP_HOOKS then
+        env.hooksecurefunc = function(_, name, fn) env.HOOKS[name] = fn end
+        env.GameTooltip.HookScript = function(_, name, fn) env.HOOKS[name] = fn end
+        env.GameTooltip.GetItem = function() return "Hammer", "|cff0070dd|Hitem:5678::::|h[Hammer]|h|r" end
+    end
     env.Minimap = new_region("Frame")
     env.CURSOR = { 0, 0 }
     env.GetCursorPosition = function() return env.CURSOR[1], env.CURSOR[2] end

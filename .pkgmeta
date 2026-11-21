@@ -1,6 +1,6 @@
 # BigWigs packager metadata, prepared for CurseForge and Wago. Nothing uploads from this repo yet:
 # the GitHub release zip is built by scripts/package.sh.
-# The release ships three sibling folders: WoWCompanion, WoWCompanion_Digest, WoWCompanion_Answers.
+# The release ships two sibling folders: WoWCompanion, WoWCompanion_Digest.
 package-as: WoWCompanion
 
 ignore:

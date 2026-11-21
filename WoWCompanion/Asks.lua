@@ -1,4 +1,4 @@
--- WoW Companion: /ask queue and answer matching.
+-- WoW Companion: the /ask queue. The overlay reads it from SavedVariables and answers there.
 -- A question is plain data in WoWCompanionDB.asks; it only leaves the game
 -- through SavedVariables on /reload or logout. See docs/ask-format.md.
 
@@ -9,14 +9,8 @@ WC.ASK_SCHEMA = 1
 WC.MAX_ASKS = 10
 WC.MAX_ASK_LEN = 500
 
-local ANSWERS_ADDON = "WoWCompanion_Answers"
-
 local function trim(s)
     return (s:gsub("^%s+", ""):gsub("%s+$", ""))
-end
-
-local function plain(s)
-    return (tostring(s):gsub("|", "||"))
 end
 
 -- Appends a question to the queue; returns the entry, or nil for empty text.
@@ -32,70 +26,9 @@ function WC.QueueAsk(db, text, character, now)
     return entry
 end
 
--- The one entry point for /ask and the panel box: queues for the current
+-- The one entry point for /ask and Ask about this: queues for the current
 -- character; returns the entry, or nil when there was nothing to queue.
 function WC.SubmitAsk(text)
     if not WC.db then return nil end
     return WC.QueueAsk(WC.db, text, UnitName("player"), time())
-end
-
--- Loads the load-on-demand answers addon; the client's API name differs by build.
-function WC.LoadAnswers()
-    local addon_loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
-    if addon_loader then addon_loader(ANSWERS_ADDON) end
-end
-
-local function usable(a)
-    return type(a) == "table" and type(a.text) == "string" and tonumber(a.answered_at) ~= nil
-end
-
--- Marks answered asks in db and returns the lines to show plus an optional note.
-function WC.MatchAnswers(db, answers)
-    local note
-    local list = {}
-    if answers ~= nil and not (type(answers) == "table" and next(answers) == nil) then
-        if type(answers) ~= "table" or answers.schema ~= WC.ASK_SCHEMA or type(answers.answers) ~= "table" then
-            note = L.ANSWERS_UNREADABLE
-        else
-            list = answers.answers
-        end
-    end
-    local bad = 0
-    local out = {}
-    for _, ask in ipairs(db.asks or {}) do
-        local a = list[ask.id]
-        if a ~= nil and not usable(a) then
-            bad = bad + 1
-            a = nil
-        end
-        if a then
-            ask.answered, ask.answered_at = true, tonumber(a.answered_at)
-            WC.CaptureHistory(db, ask, a)
-        end
-        out[#out + 1] = { ask = ask, answer = a }
-    end
-    if bad > 0 and not note then note = string.format(L.ANSWERS_MALFORMED, bad) end
-    return out, note
-end
-
--- Returns the rows for the asks section (empty when there is nothing to show).
-function WC.RenderAsks(items, note, now, collapsed)
-    local out, lines = {}, {}
-    for _, item in ipairs(items) do
-        lines[#lines + 1] = { kind = "line", text = string.format(L.ASK_LINE_Q, plain(item.ask.text)) }
-        local a = item.answer
-        if a then
-            lines[#lines + 1] = { kind = "line", text = string.format(L.ASK_LINE_A, plain(a.text), WC.FormatAge(math.max(0, now - a.answered_at))) }
-            if type(a.sources) == "table" and #a.sources > 0 then
-                local s = {}
-                for i, v in ipairs(a.sources) do s[i] = plain(v) end
-                lines[#lines + 1] = { kind = "line", text = string.format(L.ASK_SOURCES, table.concat(s, ", ")) }
-            end
-        else
-            lines[#lines + 1] = { kind = "line", text = L.ASK_QUEUED }
-        end
-    end
-    if #items > 0 then WC.SectionRows(out, "ask", L.QUESTIONS, lines, collapsed) end
-    if note then out[#out + 1] = { kind = "text", text = note } end
-    return out
 end

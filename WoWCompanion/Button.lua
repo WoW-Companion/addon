@@ -21,8 +21,6 @@ function WC.TooltipLines(info)
     out[#out + 1] = gen and string.format(L.TIP_DIGEST, WC.FormatAge(math.max(0, info.now - gen))) or L.TIP_DIGEST_NONE
     if type(d) == "table" and gen and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = L.TIP_OUT_OF_DATE end
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))
-    local last = WC.LastAnswer(info.db, info.player)
-    out[#out + 1] = last and string.format(L.TIP_ANSWER, WC.FormatAge(math.max(0, info.now - last))) or L.TIP_ANSWER_NONE
     out[#out + 1] = L.TIP_CLICK
     return out
 end

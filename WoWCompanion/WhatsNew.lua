@@ -4,8 +4,9 @@
 local WC = WoWCompanion
 local L = WC.L
 
--- Per version, the keys (in L) of its three main lines.
+-- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.2.0"] = { "WHATS_NEW_0_2_0_1", "WHATS_NEW_0_2_0_2", "WHATS_NEW_0_2_0_3", "WHATS_NEW_0_2_0_4" },
     ["0.1.1"] = { "WHATS_NEW_0_1_1_1", "WHATS_NEW_0_1_1_2", "WHATS_NEW_0_1_1_3" },
     ["0.1.0"] = { "WHATS_NEW_0_1_0_1", "WHATS_NEW_0_1_0_2", "WHATS_NEW_0_1_0_3", "WHATS_NEW_0_1_0_4" },
 }
@@ -37,7 +38,7 @@ end
 
 local function create_box(version, keys)
     local f = CreateFrame("Frame", "WoWCompanionWhatsNew", WC.panel, "BasicFrameTemplateWithInset")
-    f:SetSize(340, 120)
+    f:SetSize(340, 150)
     f:SetPoint("TOPLEFT", WC.panel, "BOTTOMLEFT", 0, -4)
     f.version = version
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")

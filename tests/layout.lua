@@ -1,7 +1,7 @@
--- Packaged layout check: the three addon folders each carry a valid TOC whose files exist.
+-- Packaged layout check: the addon folders each carry a valid TOC whose files exist.
 -- With a zip path as arg[1], also checks the zip holds exactly those folders at its top level and no player-data file.
-local FOLDERS = { "WoWCompanion", "WoWCompanion_Digest", "WoWCompanion_Answers" }
-local DATA = { ["WoWCompanion_Digest/Digest.lua"] = true, ["WoWCompanion_Answers/Answers.lua"] = true }
+local FOLDERS = { "WoWCompanion", "WoWCompanion_Digest" }
+local DATA = { ["WoWCompanion_Digest/Digest.lua"] = true }
 local bad = 0
 local function fail(msg) bad = bad + 1; print("layout: " .. msg) end
 

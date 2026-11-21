@@ -7,11 +7,10 @@ local L = WC.L
 
 WC.NO_ADVICE = L.NO_ADVICE
 
--- The release zip leaves out the two data files so an update never overwrites a player's data;
--- until the companion writes them the globals are empty tables. The slot addons load after this
--- file, so a real data file replaces these.
+-- The release zip leaves out the data file so an update never overwrites a player's data;
+-- until the companion writes it the global is an empty table. The slot addon loads after this
+-- file, so a real data file replaces it.
 WoWCompanionDigest = WoWCompanionDigest or {}
-WoWCompanionAnswers = WoWCompanionAnswers or {}
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
@@ -26,6 +25,7 @@ loader:SetScript("OnEvent", function(_, _, name)
     WC.InitWhatsNew(WC.db, fresh)
     WC.CreateSettings()
     WC.CreateButton()
+    WC.CreateTooltips()
 end)
 
 -- The slot addon loads after us, so redraw once everything is in.
@@ -39,16 +39,18 @@ end)
 SLASH_WOWC1 = "/wowc"
 SLASH_WOWCASK1 = "/ask"
 
+-- Queues the text (see docs/ask-format.md) and says so; empty text just toggles the panel.
 local function ask(text)
     if WC.SubmitAsk(text) then
-        WC.ShowPanel()
+        print(L.ASK_QUEUED)
     else
         WC.TogglePanel()
     end
 end
+WC.Ask = ask
 
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_HISTORY, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
@@ -59,9 +61,6 @@ SlashCmdList["WOWC"] = function(msg)
         ask(question)
     elseif cmd == "" or cmd == "ask" then
         WC.TogglePanel()
-    elseif cmd == "history" then
-        local sub = (msg:match("^%s*%S+%s+(%S+)") or ""):lower()
-        if sub == "clear" then WC.RequestClearHistory() else WC.ShowHistory(true, false) end
     elseif cmd == "settings" or cmd == "options" then
         WC.OpenSettings()
     elseif cmd == "status" then
