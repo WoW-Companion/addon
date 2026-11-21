@@ -3,17 +3,20 @@
 
 WoWCompanion = WoWCompanion or {}
 local WC = WoWCompanion
+local L = WC.L
 
-WC.NO_ADVICE = "No advice yet \226\128\148 the companion hasn't written a digest."
+WC.NO_ADVICE = L.NO_ADVICE
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, _, name)
     if name ~= "WoWCompanion" then return end
+    local fresh = WoWCompanionDB == nil or next(WoWCompanionDB) == nil
     WoWCompanionDB = WoWCompanionDB or {}
     WC.db = WoWCompanionDB
     WC.InitSettings(WC.db)
     WC.CreatePanel()
+    WC.InitWhatsNew(WC.db, fresh)
     WC.CreateSettings()
     WC.CreateButton()
 end)
@@ -38,21 +41,15 @@ local function ask(text)
 end
 
 WC.HELP = {
-    "WoW Companion commands:",
-    "  /wowc - show or hide the panel",
-    "  /wowc ask <question> (or /ask <question>) - queue a question; it is sent on /reload",
-    "  /wowc history - browse past answers; /wowc history clear - clear them (asks first)",
-    "  /wowc settings - open the settings page",
-    "  /wowc reset - restore the panel position and expand all sections",
-    "  /wowc help - show this list",
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_HISTORY, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
     msg = msg or ""
-    local text = msg:match("^%s*ask%s+(.*)$")
+    local question = msg:match("^%s*ask%s+(.*)$")
     local cmd = (msg:match("^%s*(%S+)") or ""):lower()
-    if text then
-        ask(text)
+    if question then
+        ask(question)
     elseif cmd == "" or cmd == "ask" then
         WC.TogglePanel()
     elseif cmd == "history" then

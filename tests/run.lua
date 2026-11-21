@@ -17,10 +17,12 @@ local function fresh_client(savedvars)
         frames[#frames + 1] = f
         return f
     end
+    TOC_VERSION = nil
     local toc = assert(io.open(root .. "/WoWCompanion.toc"))
     for line in toc:lines() do
-        local file = line:match("^([%w_]+%.lua)%s*$")
-        if file then assert(loadfile(root .. "/" .. file))() end
+        local file = line:match("^([%w_\\]+%.lua)%s*$")
+        if file then assert(loadfile(root .. "/" .. file:gsub("\\", "/")))() end
+        TOC_VERSION = TOC_VERSION or line:match("^## Version:%s*(%S+)")
     end
     toc:close()
     Stub.fire(frames, "ADDON_LOADED", "WoWCompanion")
@@ -546,6 +548,69 @@ local settings_cases = {
     end },
 }
 for _, c in ipairs(settings_cases) do cases[#cases + 1] = c end
+
+-- Locale: fallback to the key, and the lint (small rows plus one scan of the real files).
+local Lint = dofile("tests/lint.lua")
+local lint_rows = {
+    { true,  'f.title:SetText(L.ADDON_NAME)' },
+    { true,  'f.askBox:SetText("")' },
+    { true,  'f.text:SetText(string.format(L.SCALE_LABEL, 1.5))' },
+    { true,  'f.text:SetText(string.format("%.2f", s))' },
+    { true,  'local x = "plain" -- SetText("comment")' },
+    { true,  'text = L.NO_ADVICE' },
+    { true,  'text = "  - " .. L.X' },
+    { false, 'f.title:SetText("Hello")' },
+    { false, 'f.text:SetText("Scale: " .. L.X)' },
+    { false, 'print("Hello")' },
+    { false, 'rows[1] = { kind = "text", text = "Hello" }' },
+    { false, 'note = "The answers file"' },
+    { false, 'f:SetText(L.X .. " items")' },
+}
+cases[#cases + 1] = { "lint flags literals that skip L", function()
+    for i, row in ipairs(lint_rows) do
+        assert(Lint.check(row[2]) == row[1], "row " .. i)
+    end
+end }
+cases[#cases + 1] = { "every addon string goes through L", function()
+    local bad = Lint.scan(root)
+    assert(#bad == 0, table.concat(bad, "\n"))
+end }
+cases[#cases + 1] = { "a missing locale key falls back to the key, never nil", function()
+    fresh_client(nil)
+    local L = WoWCompanion.L
+    assert(L.ASK == "Ask" and L.NOT_A_REAL_KEY == "NOT_A_REAL_KEY" and rawget(L, "NOT_A_REAL_KEY") == nil)
+    L.ASK = nil
+    assert(L.ASK == "ASK")
+end }
+
+-- What's new: once per version, never on a fresh install, dismissed for good.
+local function upgrade_client(seen)
+    fresh_client({ lastSeenVersion = seen, position = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 } })
+    return WoWCompanion.whatsNew
+end
+cases[#cases + 1] = { "what's new shows once per version", function()
+    local box = upgrade_client("0.0.0")
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("locale table", 1, true))
+    assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
+    assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
+    -- Ignored, the note comes back on the next load.
+    box = upgrade_client("0.0.0")
+    assert(box)
+    WoWCompanionWhatsNewButton.scripts.OnClick()
+    assert(box:IsShown() == false and WoWCompanionDB.lastSeenVersion == TOC_VERSION)
+    local saved = WoWCompanionDB
+    fresh_client(saved)
+    assert(WoWCompanion.whatsNew == nil, "same version shows nothing")
+end }
+cases[#cases + 1] = { "what's new is skipped on a fresh install and without a changelog entry", function()
+    fresh_client(nil)
+    assert(WoWCompanion.whatsNew == nil and WoWCompanionDB.lastSeenVersion == TOC_VERSION)
+    local WC = WoWCompanion
+    local db = {}
+    assert(WC.WhatsNewPending(db, "9.9.9", false) == nil and db.lastSeenVersion == "9.9.9")
+    assert(WC.WhatsNewPending({}, nil, false) == nil)
+    assert(WC.CHANGELOG[TOC_VERSION] and #WC.CHANGELOG[TOC_VERSION] == 3, "changelog covers the TOC version")
+end }
 
 -- Slot file safety: small table of sources through the static checker.
 local Slot = dofile("tests/slotcheck.lua")

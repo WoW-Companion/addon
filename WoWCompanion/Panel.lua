@@ -1,6 +1,7 @@
 -- WoW Companion: the movable advice panel.
 
 local WC = WoWCompanion
+local L = WC.L
 
 function WC.CreatePanel()
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BasicFrameTemplateWithInset")
@@ -27,7 +28,7 @@ function WC.CreatePanel()
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOP", f, "TOP", 0, -5)
-    f.title:SetText("WoW Companion")
+    f.title:SetText(L.ADDON_NAME)
 
     f.header = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.header:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -28)
@@ -46,7 +47,7 @@ function WC.CreatePanel()
     f.askButton = CreateFrame("Button", "WoWCompanionAskButton", f, "UIPanelButtonTemplate")
     f.askButton:SetSize(54, 22)
     f.askButton:SetPoint("LEFT", f.askBox, "RIGHT", 6, 0)
-    f.askButton:SetText("Ask")
+    f.askButton:SetText(L.ASK)
     f.askButton:SetScript("OnClick", function() WC.SubmitFromBox() end)
 
     f.askHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -64,14 +65,14 @@ function WC.CreatePanel()
         return b
     end
     -- History controls: all of them only change what the panel shows or this character's saved list.
-    f.histButton = button("WoWCompanionHistoryButton", "History", 64, 264, -70, function()
+    f.histButton = button("WoWCompanionHistoryButton", L.HISTORY, 64, 264, -70, function()
         WC.ShowHistory(not WC.view.history, false)
     end)
-    f.prevButton = button("WoWCompanionHistoryPrev", "Prev", 50, 14, -98, function() WC.HistoryPage(-1) end)
-    f.nextButton = button("WoWCompanionHistoryNext", "Next", 50, 68, -98, function() WC.HistoryPage(1) end)
-    f.clearButton = button("WoWCompanionHistoryClear", "Clear", 50, 122, -98, function() WC.RequestClearHistory() end)
-    f.confirmButton = button("WoWCompanionHistoryConfirm", "Confirm", 64, 14, -98, function() WC.ConfirmClearHistory() end)
-    f.cancelButton = button("WoWCompanionHistoryCancel", "Cancel", 64, 82, -98, function() WC.CancelClearHistory() end)
+    f.prevButton = button("WoWCompanionHistoryPrev", L.PREV, 50, 14, -98, function() WC.HistoryPage(-1) end)
+    f.nextButton = button("WoWCompanionHistoryNext", L.NEXT, 50, 68, -98, function() WC.HistoryPage(1) end)
+    f.clearButton = button("WoWCompanionHistoryClear", L.CLEAR, 50, 122, -98, function() WC.RequestClearHistory() end)
+    f.confirmButton = button("WoWCompanionHistoryConfirm", L.CONFIRM, 64, 14, -98, function() WC.ConfirmClearHistory() end)
+    f.cancelButton = button("WoWCompanionHistoryCancel", L.CANCEL, 64, 82, -98, function() WC.CancelClearHistory() end)
 
     -- Read-only view of the selected answer: select the text and copy it with Ctrl+C.
     f.copyBox = CreateFrame("EditBox", "WoWCompanionCopyBox", f, "InputBoxTemplate")
@@ -102,7 +103,7 @@ function WC.CreatePanel()
     f:Hide()
 end
 
-WC.ASK_HINT = "Your AI client answers after /reload; /reload again to see the answer."
+WC.ASK_HINT = L.ASK_HINT
 
 -- Queues the box's text exactly like /ask, then clears the box. Empty input is ignored.
 function WC.SubmitFromBox()
@@ -176,7 +177,7 @@ function WC.UpdateHistoryUI(f, entry)
     set_shown(f.confirmButton, on and confirming)
     set_shown(f.cancelButton, on and confirming)
     set_shown(f.copyBox, on and entry)
-    f.histButton:SetText(on and "Back" or "History")
+    f.histButton:SetText(on and L.BACK or L.HISTORY)
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, top)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, (on and entry) and 40 or 12)
     f.copyBox.copyText = entry and WC.HistoryCopyText(entry) or ""

@@ -5,10 +5,12 @@
 ## SavedVariables: WoWCompanionDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 
+Locales\enUS.lua
 Core.lua
 Digest.lua
 Asks.lua
 History.lua
 Panel.lua
 Settings.lua
+WhatsNew.lua
 Button.lua
