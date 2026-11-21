@@ -299,6 +299,99 @@ local box_cases = {
 for _, c in ipairs(box_cases) do cases[#cases + 1] = c end
 for _, c in ipairs(ask_cases) do cases[#cases + 1] = c end
 
+-- History: a client whose asks carry the given ids/characters, all answered by the given answers table.
+local function history_client(asks, answers)
+    fresh_client({ asks = asks })
+    WoWCompanionAnswers = { schema = 1, answers = answers }
+    WoWCompanion.panel:Hide()
+    WoWCompanion.panel:Show()
+    return WoWCompanion.panel
+end
+
+local function numbered(n, who)
+    local asks, answers = {}, {}
+    for i = 1, n do
+        local id = "1799999000-" .. i
+        asks[i] = { id = id, asked_at = 1799999000 + i, character = who or "Thrall", text = "Q" .. i }
+        answers[id] = { answered_at = 1799999900 + i, text = "A" .. i, sources = { "S" .. i } }
+    end
+    return asks, answers
+end
+
+local function hist(who) return WoWCompanionDB.history and WoWCompanionDB.history[who or "Thrall"] or {} end
+
+local history_cases = {
+    { "history: shown answer is captured with question, times and sources", function()
+        history_client(numbered(1))
+        local e = hist()[1]
+        assert(#hist() == 1 and e.question == "Q1" and e.answer == "A1" and e.asked_at == 1799999001)
+        assert(e.answered_at == 1799999901 and e.sources[1] == "S1")
+        WoWCompanion.Refresh()
+        assert(#hist() == 1)
+    end },
+    { "history: keeps the 20 most recent, oldest dropped first", function()
+        local asks, answers = numbered(10)
+        history_client(asks, answers)
+        for i = 11, 25 do
+            local id = "1799999000-" .. i
+            table.insert(WoWCompanionDB.asks, { id = id, asked_at = 1799999000 + i, character = "Thrall", text = "Q" .. i })
+            answers[id] = { answered_at = 1799999900 + i, text = "A" .. i }
+            WoWCompanion.Refresh()
+        end
+        assert(#hist() == 20 and hist()[1].question == "Q6" and hist()[20].question == "Q25")
+    end },
+    { "history: view pages older/newer, clamps, shows question, age, answer, sources", function()
+        local p = history_client(numbered(3))
+        SlashCmdList.WOWC("history")
+        assert(p:IsShown() and p.plain:find("entry 3 of 3", 1, true) and p.plain:find("A: A3", 1, true))
+        assert(p.plain:find("asked", 1, true) and p.plain:find("sources: S3", 1, true) and p.plain:find("Q: Q3", 1, true))
+        p.nextButton.scripts.OnClick(p.nextButton)
+        assert(p.plain:find("entry 3 of 3", 1, true))
+        p.prevButton.scripts.OnClick(p.prevButton)
+        p.prevButton.scripts.OnClick(p.prevButton)
+        p.prevButton.scripts.OnClick(p.prevButton)
+        assert(p.plain:find("entry 1 of 3", 1, true) and p.plain:find("Q: Q1", 1, true))
+        p.histButton.scripts.OnClick(p.histButton)
+        assert(p.plain:find("Questions", 1, true) and not p.copyBox:IsShown())
+    end },
+    { "history: copy box holds the selected answer and stays read-only", function()
+        local p = history_client(numbered(2))
+        SlashCmdList.WOWC("history")
+        assert(p.copyBox:IsShown() and p.copyBox:GetText() == "A2\nsources: S2")
+        p.copyBox:SetText("typed")
+        p.copyBox.scripts.OnTextChanged(p.copyBox, true)
+        assert(p.copyBox:GetText() == "A2\nsources: S2")
+        p.prevButton.scripts.OnClick(p.prevButton)
+        assert(p.copyBox:GetText() == "A1\nsources: S1")
+    end },
+    { "history: clear asks in the panel first, cancel keeps, confirm clears and stays cleared", function()
+        local p = history_client(numbered(2))
+        SlashCmdList.WOWC("history clear")
+        assert(p:IsShown() and #hist() == 2 and p.plain:find("Clear all 2", 1, true))
+        assert(p.confirmButton:IsShown() and p.cancelButton:IsShown() and not p.prevButton:IsShown())
+        p.cancelButton.scripts.OnClick(p.cancelButton)
+        assert(#hist() == 2 and not p.confirmButton:IsShown() and p.prevButton:IsShown())
+        SlashCmdList.WOWC("history clear")
+        p.confirmButton.scripts.OnClick(p.confirmButton)
+        assert(#hist() == 0 and p.plain:find("No saved answers yet", 1, true))
+        WoWCompanion.Refresh()
+        assert(#hist() == 0)
+    end },
+    { "history: kept per character", function()
+        local a1, ans1 = numbered(2, "Thrall")
+        local a2 = numbered(1, "Jaina")
+        a2[1].id = "1799999000-9"
+        ans1["1799999000-9"] = { answered_at = 1799999950, text = "AJ" }
+        for _, a in ipairs(a2) do a1[#a1 + 1] = a end
+        history_client(a1, ans1)
+        assert(#hist("Thrall") == 2 and #hist("Jaina") == 1 and hist("Jaina")[1].answer == "AJ")
+        SlashCmdList.WOWC("history clear")
+        WoWCompanion.ConfirmClearHistory()
+        assert(#hist("Thrall") == 0 and #hist("Jaina") == 1)
+    end },
+}
+for _, c in ipairs(history_cases) do cases[#cases + 1] = c end
+
 -- Slot file safety: small table of sources through the static checker.
 local Slot = dofile("tests/slotcheck.lua")
 local slot_rows = {

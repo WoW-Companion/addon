@@ -35,6 +35,7 @@ WC.HELP = {
     "WoW Companion commands:",
     "  /wowc - show or hide the panel",
     "  /wowc ask <question> (or /ask <question>) - queue a question; it is sent on /reload",
+    "  /wowc history - browse past answers; /wowc history clear - clear them (asks first)",
     "  /wowc reset - restore the panel position and expand all sections",
     "  /wowc help - show this list",
 }
@@ -47,6 +48,9 @@ SlashCmdList["WOWC"] = function(msg)
         ask(text)
     elseif cmd == "" or cmd == "ask" then
         WC.TogglePanel()
+    elseif cmd == "history" then
+        local sub = (msg:match("^%s*%S+%s+(%S+)") or ""):lower()
+        if sub == "clear" then WC.RequestClearHistory() else WC.ShowHistory(true, false) end
     elseif cmd == "reset" then
         WC.ResetPanel()
     else

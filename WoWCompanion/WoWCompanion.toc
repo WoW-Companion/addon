@@ -8,4 +8,5 @@
 Core.lua
 Digest.lua
 Asks.lua
+History.lua
 Panel.lua

@@ -48,14 +48,43 @@ function WC.CreatePanel()
 
     f.askHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.askHint:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -74)
-    f.askHint:SetWidth(310)
+    f.askHint:SetWidth(250)
     f.askHint:SetJustifyH("LEFT")
     f.askHint:SetText(WC.ASK_HINT)
+
+    local function button(name, label, w, x, y, fn)
+        local b = CreateFrame("Button", name, f, "UIPanelButtonTemplate")
+        b:SetSize(w, 22)
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+        b:SetText(label)
+        b:SetScript("OnClick", fn)
+        return b
+    end
+    -- History controls: all of them only change what the panel shows or this character's saved list.
+    f.histButton = button("WoWCompanionHistoryButton", "History", 64, 264, -70, function()
+        WC.ShowHistory(not WC.view.history, false)
+    end)
+    f.prevButton = button("WoWCompanionHistoryPrev", "Prev", 50, 14, -98, function() WC.HistoryPage(-1) end)
+    f.nextButton = button("WoWCompanionHistoryNext", "Next", 50, 68, -98, function() WC.HistoryPage(1) end)
+    f.clearButton = button("WoWCompanionHistoryClear", "Clear", 50, 122, -98, function() WC.RequestClearHistory() end)
+    f.confirmButton = button("WoWCompanionHistoryConfirm", "Confirm", 64, 14, -98, function() WC.ConfirmClearHistory() end)
+    f.cancelButton = button("WoWCompanionHistoryCancel", "Cancel", 64, 82, -98, function() WC.CancelClearHistory() end)
+
+    -- Read-only view of the selected answer: select the text and copy it with Ctrl+C.
+    f.copyBox = CreateFrame("EditBox", "WoWCompanionCopyBox", f, "InputBoxTemplate")
+    f.copyBox:SetSize(300, 20)
+    f.copyBox:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 20, 14)
+    f.copyBox:SetAutoFocus(false)
+    f.copyBox:SetScript("OnTextChanged", function(self, user)
+        if user then self:SetText(self.copyText or "") end
+    end)
+    f.copyBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    f.copyBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
 
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionPanelScroll", f, "UIPanelScrollFrameTemplate")
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -104)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, 12)
-    f.content = CreateFrame("Frame", nil, f.scroll)
+    f.content = CreateFrame("Frame", f.scroll)
     f.content:SetSize(290, 1)
     f.scroll:SetScrollChild(f.content)
 
@@ -98,7 +127,7 @@ end
 local function get_row(f, i)
     local row = f.rows[i]
     if row then return row end
-    row = CreateFrame("Button", nil, f.content)
+    row = CreateFrame("Button", f.content)
     row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
     row.label:SetWidth(290)
@@ -120,15 +149,42 @@ local function toggle_section(id)
     WC.Refresh()
 end
 
+-- Shows the history controls only in the history view; entry is the selected one, if any.
+function WC.UpdateHistoryUI(f, entry)
+    local on, confirming = WC.view.history, WC.view.confirming
+    local function set(b, v) if v then b:Show() else b:Hide() end end
+    set(f.prevButton, on and entry and not confirming)
+    set(f.nextButton, on and entry and not confirming)
+    set(f.clearButton, on and entry and not confirming)
+    set(f.confirmButton, on and confirming)
+    set(f.cancelButton, on and confirming)
+    set(f.copyBox, on and entry)
+    f.histButton:SetText(on and "Back" or "History")
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 14, on and -126 or -104)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -32, (on and entry) and 40 or 12)
+    f.copyBox.copyText = entry and WC.HistoryCopyText(entry) or ""
+    f.copyBox:SetText(f.copyBox.copyText)
+end
+
 -- Re-reads the global digest table (data only) and redraws the panel.
 function WC.Refresh()
     local f = WC.panel
     if not f then return end
     local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
-    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), UnitName("player"), collapsed)
+    local player = UnitName("player")
+    local header, rows = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed)
     f.header:SetText(header)
     local items, note = WC.MatchAnswers(WC.db, WoWCompanionAnswers)
-    for _, r in ipairs(WC.RenderAsks(items, note, time(), collapsed)) do rows[#rows + 1] = r end
+    if WC.view.history then
+        local list = WC.HistoryList(WC.db, player)
+        local index = #list > 0 and WC.HistoryIndex(#list) or 0
+        WC.view.index = index > 0 and index or nil
+        rows = WC.RenderHistory(list, index, time(), WC.view.confirming)
+        WC.UpdateHistoryUI(f, list[index])
+    else
+        for _, r in ipairs(WC.RenderAsks(items, note, time(), collapsed)) do rows[#rows + 1] = r end
+        WC.UpdateHistoryUI(f, nil)
+    end
 
     local y = 0
     for i, r in ipairs(rows) do
