@@ -8,6 +8,7 @@ verify:
 	$(LUA) tests/slotcheck.lua WoWCompanion_Digest/Digest.lua tests/fixtures/digest_*.lua
 	$(LUA) tests/slotcheck.lua WoWCompanion_Answers/Answers.lua tests/fixtures/answers_*.lua
 	$(LUA) tests/layout.lua
+	scripts/package.sh | xargs $(LUA) tests/layout.lua
 	$(LUA) tests/run.lua WoWCompanion
 
 package:
