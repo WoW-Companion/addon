@@ -13,9 +13,10 @@ local STEPS_PER_UNIT = 20 -- 1 / SCALE_STEP, kept whole so the rounded value is 
 -- Settings section ids, in display order, and the digest section ids they control.
 WC.SECTIONS = {
     { "quests", L.SECTION_quests }, { "upgrades", L.SECTION_upgrades }, { "materials", L.SECTION_materials },
-    { "notes", L.SECTION_notes }, { "ask", L.SECTION_ask }, { "history", L.SECTION_history },
+    { "notes", L.SECTION_notes }, { "dungeons", L.SECTION_dungeons },
+    { "talents", L.SECTION_talents }, { "ask", L.SECTION_ask }, { "history", L.SECTION_history },
 }
-WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials = "materials", notes = "notes" }
+WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials = "materials", notes = "notes", dungeons = "dungeons", talents = "talents" }
 
 function WC.ClampScale(v)
     v = tonumber(v) or 1
@@ -66,7 +67,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 380)
+    f:SetSize(320, 440)
     f.name = L.ADDON_NAME
     f.checks = {}
 

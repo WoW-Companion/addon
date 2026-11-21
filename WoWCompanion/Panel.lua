@@ -141,10 +141,10 @@ local function get_row(f, i)
     return row
 end
 
--- Display only: shows the item's tooltip while the mouse is over the row.
-local function show_item_tooltip(row)
+-- Display only: shows the item's or spell's tooltip while the mouse is over the row.
+local function show_tooltip(row)
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-    GameTooltip:SetHyperlink("item:" .. row.itemId)
+    GameTooltip:SetHyperlink(row.link)
     GameTooltip:Show()
 end
 
@@ -225,12 +225,12 @@ function WC.Refresh()
         row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
         row:SetSize(290, h)
         y = y + h
-        row.itemId = r.item
+        row.link = (r.item and "item:" .. r.item) or (r.spell and "spell:" .. r.spell) or nil
         row.sectionId = r.id
-        local interactive = r.item ~= nil or r.kind == "header"
+        local interactive = row.link ~= nil or r.kind == "header"
         row:EnableMouse(interactive)
-        row:SetScript("OnEnter", r.item and show_item_tooltip or nil)
-        row:SetScript("OnLeave", r.item and function() GameTooltip:Hide() end or nil)
+        row:SetScript("OnEnter", row.link and show_tooltip or nil)
+        row:SetScript("OnLeave", row.link and function() GameTooltip:Hide() end or nil)
         row:SetScript("OnClick", r.kind == "header" and function() toggle_section(r.id) end or nil)
     end
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
