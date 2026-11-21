@@ -1,6 +1,7 @@
 -- Packaged layout check: the three addon folders each carry a valid TOC whose files exist.
--- With a zip path as arg[1], also checks the zip holds exactly those folders at its top level.
+-- With a zip path as arg[1], also checks the zip holds exactly those folders at its top level and no player-data file.
 local FOLDERS = { "WoWCompanion", "WoWCompanion_Digest", "WoWCompanion_Answers" }
+local DATA = { ["WoWCompanion_Digest/Digest.lua"] = true, ["WoWCompanion_Answers/Answers.lua"] = true }
 local bad = 0
 local function fail(msg) bad = bad + 1; print("layout: " .. msg) end
 
@@ -42,6 +43,7 @@ if zip then
     for name in h:lines() do
         local top = name:match("^([^/]+)/")
         if not top then fail("zip entry outside a folder: " .. name) else seen[top] = true end
+        if DATA[name] then fail("zip ships player data: " .. name) end
     end
     h:close()
     for _, dir in ipairs(FOLDERS) do

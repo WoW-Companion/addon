@@ -16,19 +16,19 @@ choice is remembered. The panel shows how old the digest is and, past 12 hours, 
 
 ## Install
 
-1. Get the three folders. `make package` builds `dist/WoWCompanion-<version>.zip` (it needs `zip` and a
-   checkout of this repo, so it is a developer route). GitHub's "Download ZIP" of this repo also works,
-   but it holds the whole repo: copy only the three folders out of it. There is no player-friendly
-   release download yet.
-2. Put `WoWCompanion`, `WoWCompanion_Digest` and `WoWCompanion_Answers` side by side in
-   `_forever_\Interface\AddOns`.
-3. Fully quit and restart the game. Do this the first time, and whenever a new folder is added:
-   the game only discovers a new addon folder at startup, so `/reload` is not enough.
+1. Download the latest `WoWCompanion-<version>.zip` from the
+   [Releases](https://github.com/WoW-Companion/addon/releases) page of this repo.
+2. Unzip it into `_forever_\Interface\AddOns`. The zip holds the three folders `WoWCompanion`,
+   `WoWCompanion_Digest` and `WoWCompanion_Answers` at its top level, so they land side by side.
+3. Fully quit and restart the game the first time, and whenever a new folder is added: the game only
+   discovers a new addon folder at startup, so `/reload` is not enough.
 
-To update, replace the contents of the `WoWCompanion` folder, then `/reload`. Never overwrite
-`WoWCompanion_Digest/Digest.lua` or `WoWCompanion_Answers/Answers.lua`: they hold your data. Delete any
-old `WoWCompanion` folder first rather than merging over it; a leftover one from early versions
-breaks schema 2.0 digests.
+To update safely, delete the old `WoWCompanion` folder, unzip the new release over your install, then
+fully restart the game (or `/reload` if no folder was added). The zip deliberately holds no
+`WoWCompanion_Digest/Digest.lua` or `WoWCompanion_Answers/Answers.lua`: those files hold your data and are
+written by the companion, so unzipping never overwrites them. The addon treats them as empty until the
+companion writes them. A leftover `WoWCompanion` folder from early versions breaks schema 2.0 digests,
+hence the delete. Developers can build the same zip with `make package`.
 
 The digest holds every character (schema 2.0, see `docs/digest-format.md`). If the character you are
 logged in on has no entry, the panel shows a short hint with the steps to get one.

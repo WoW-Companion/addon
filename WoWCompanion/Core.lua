@@ -7,6 +7,12 @@ local L = WC.L
 
 WC.NO_ADVICE = L.NO_ADVICE
 
+-- The release zip leaves out the two data files so an update never overwrites a player's data;
+-- until the companion writes them the globals are empty tables. The slot addons load after this
+-- file, so a real data file replaces these.
+WoWCompanionDigest = WoWCompanionDigest or {}
+WoWCompanionAnswers = WoWCompanionAnswers or {}
+
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, _, name)
