@@ -69,6 +69,7 @@ function WC.MatchAnswers(db, answers)
         end
         if a then
             ask.answered, ask.answered_at = true, tonumber(a.answered_at)
+            WC.CaptureHistory(db, ask, a)
         end
         out[#out + 1] = { ask = ask, answer = a }
     end

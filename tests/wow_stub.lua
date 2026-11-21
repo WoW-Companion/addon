@@ -36,6 +36,7 @@ local function new_region(kind)
     function r:SetMaxLetters(n) self.maxLetters = n end
     function r:SetAutoFocus(v) self.autoFocus = v end
     function r:ClearFocus() self.focused = false end
+    function r:HighlightText() self.highlighted = true end
     function r:SetScrollChild(c) self.child = c end
     function r:UpdateScrollChildRect() end
     function r:CreateFontString() return new_region("FontString") end
