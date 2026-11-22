@@ -55,7 +55,7 @@ the world map, about the size of the quest markers (the next step larger and glo
 pick-up and turn-in steps, route lines between the steps still to do), the next step on the minimap, and a small movable
 tracker reading `Step 3/12: <label> · 85 yd NE` that ticks off as quests are accepted, finished and
 turned in, with no `/reload`. The plan itself refreshes at the next `/reload`. `/wowc plan` shows or
-hides the tracker and `/wowc plan map` the pins, `/wowc plan lines` the route lines, and `/wowc plan size small|normal|large` sets the badge size; all also have settings. Without a plan
+hides the tracker and `/wowc plan map` the pins, `/wowc plan lines` the route lines, `/wowc plan arrows` their arrowheads, and `/wowc plan size small|normal|large` sets the badge size; all also have settings. Without a plan
 file nothing is shown.
 
 ## Read-only promise

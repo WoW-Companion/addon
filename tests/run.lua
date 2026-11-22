@@ -1187,6 +1187,36 @@ cases[#cases + 1] = { "plan: minimap pin clamps to the rim, lifts off the NPC, p
     assert(not WC.PinArrived("objective", 1) and not WC.PinArrived("travel", 1) and not WC.PinArrived("pickup", nil))
 end }
 
+cases[#cases + 1] = { "plan: arrowhead placement, chevron spacing and frame levels", function()
+    local WC = plan_client("full")
+    local near = function(a, b) return math.abs(a - b) < 1e-6 end
+    -- due east: angle 0, tip stops radius + gap short of the destination
+    local ang, tx, ty, len = WC.ArrowPlace(0, 0, 100, 0, 14, 6)
+    assert(near(ang, 0) and near(tx, 80) and near(ty, 0) and near(len, 100))
+    ang, tx, ty = WC.ArrowPlace(0, 0, 0, 50, 10, 0)
+    assert(near(ang, math.pi / 2) and near(tx, 0) and near(ty, 40))
+    ang, tx, ty = WC.ArrowPlace(30, 40, 0, 0, 0, 0) -- 3-4-5, toward the origin
+    assert(near(tx, 0) and near(ty, 0) and ang < -math.pi / 2)
+    assert(WC.ArrowPlace(5, 5, 5, 5, 10, 2) == nil)
+    -- the art points up, so east needs a quarter turn clockwise
+    assert(near(WC.ArrowRotation(0), -math.pi / 2) and near(WC.ArrowRotation(math.pi / 2), 0))
+    -- chevrons: none up to 12% of the map width, one to 24%, two beyond; evenly spaced
+    assert(WC.ChevronCount(12, 100) == 0 and WC.ChevronCount(13, 100) == 1)
+    assert(WC.ChevronCount(24, 100) == 1 and WC.ChevronCount(25, 100) == 2 and WC.ChevronCount(5, 0) == 0)
+    local sp = WC.ChevronSpots(2)
+    assert(near(sp[1], 1 / 3) and near(sp[2], 2 / 3) and #WC.ChevronSpots(0) == 0)
+    -- levels: lines, then arrows, then our badges, all clear of other addons' low defaults and below the tags
+    local lv = WC.PLAN_LEVELS
+    assert(lv.line >= 500 and lv.line < lv.arrow and lv.arrow < lv.pin and lv.pin < 2500)
+end }
+
+cases[#cases + 1] = { "plan: /wowc plan arrows toggles the arrowheads", function()
+    local WC = plan_client("full")
+    assert(WoWCompanionDB.settings.planArrows == true)
+    SlashCmdList.WOWC("plan arrows")
+    assert(WoWCompanionDB.settings.planArrows == false and WoWCompanionOptionPlanArrows ~= nil)
+end }
+
 cases[#cases + 1] = { "plan: no Questie asset or code is referenced", function()
     for _, file in ipairs({ "PlanUI.lua", "Plan.lua", "Settings.lua", "WhatsNew.lua", "Locales/enUS.lua" }) do
         local src = assert(io.open("WoWCompanion/" .. file)):read("*a")

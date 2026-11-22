@@ -13,9 +13,16 @@ local PIN_ORDER = { "small", "normal", "large" }
 WC.PIN_SIZES, WC.PIN_ORDER = PIN_SIZES, PIN_ORDER
 local NEXT_GROW = 1.3 -- the next step's badge is this much bigger
 local MERGE_DISTANCE = 1.2 -- steps closer than this (0-100 map units) share one badge
--- Frame levels above the canvas: our lines, then our badges. Kept low and fixed so we sit over the
--- terrain and mob dots but stay below the map's own quest markers and their click areas.
-local LINE_LEVEL, PIN_LEVEL = 5, 6
+-- Frame levels above the canvas, lowest first: route lines, their arrowheads, then our badges. They sit well
+-- above other addons' small map icons (which use the default low levels) but stay below the tags
+-- (TAG_LEVEL) and the map's own quest markers.
+local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 1000, 1001, 1010
+WC.PLAN_LEVELS = { line = LINE_LEVEL, arrow = ARROW_LEVEL, pin = PIN_LEVEL }
+local OUTLINE = { 0, 0, 0, 0.6 } -- dark edge under the gold line
+local LINE_WIDTH, OUTLINE_PAD = 2.5, 2 -- the outline is 1 px wider each side
+local ARROW_SIZE, ARROW_GAP = 14, 2 -- arrowhead size in pixels and its gap outside the badge ring
+local CHEVRON_SIZE = 9
+local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
 local DISC = "Interface\\Minimap\\UI-Minimap-Background"
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
@@ -37,7 +44,8 @@ local TAG_OFFSET = 16 -- pixels up and right of the marker centre, clear of its 
 local TAG_LEVEL = 2500 -- above the client's marker frames, which stay below this on the canvas
 
 local EMPTY = ""
-local pins, lines = {}, {}
+local pins, lines, arrows = {}, {}, {}
+local lineLayer, arrowLayer
 
 local function mapShown()
     return WC.plan ~= nil and WC.db.settings.planMap
@@ -231,10 +239,64 @@ function WC.PinSize(setting, isNext)
     return isNext and math.floor(d * NEXT_GROW + 0.5) or d
 end
 
+-- Arrowhead maths, pure. Points are canvas coordinates (y grows upward here; callers flip), radius is the
+-- destination badge radius. Returns the direction angle (radians, counter-clockwise from east), the arrowhead
+-- tip (stopping gap pixels outside the badge ring) and the segment length; nil for a zero-length segment.
+function WC.ArrowPlace(x1, y1, x2, y2, radius, gap)
+    local dx, dy = x2 - x1, y2 - y1
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len == 0 then return nil end
+    local ux, uy = dx / len, dy / len
+    local back = (radius or 0) + (gap or ARROW_GAP)
+    return (math.atan2 or math.atan)(dy, dx), x2 - ux * back, y2 - uy * back, len
+end
+
+-- The art points up, so the texture rotation for a direction angle is the angle less a quarter turn.
+function WC.ArrowRotation(angle)
+    return angle - math.pi / 2
+end
+
+-- How many chevrons a segment gets: none up to LONG_SEGMENT of the map width, one up to twice that, else two.
+function WC.ChevronCount(len, mapWidth)
+    if not mapWidth or mapWidth <= 0 then return 0 end
+    local f = len / mapWidth
+    if f <= LONG_SEGMENT then return 0 end
+    return f <= 2 * LONG_SEGMENT and 1 or 2
+end
+
+-- Fractions along the segment (0 = start, 1 = end) where n chevrons sit, evenly spaced.
+function WC.ChevronSpots(n)
+    local out = {}
+    for i = 1, n do out[i] = i / (n + 1) end
+    return out
+end
+
+local function arrowTex(i, layer, sub)
+    local t = arrows[i]
+    if not t then
+        t = arrowLayer:CreateTexture(nil, layer)
+        t:SetTexture(MINIMAP_ARROW)
+        arrows[i] = t
+    end
+    if t.SetDrawLayer then t:SetDrawLayer(layer, sub) end
+    return t
+end
+
+local function placeArrow(i, cx, cy, size, rot, rgba, sub)
+    local t = arrowTex(i, "ARTWORK", sub)
+    t:SetSize(size, size)
+    t:ClearAllPoints()
+    t:SetPoint("CENTER", arrowLayer, "TOPLEFT", cx, cy)
+    if t.SetRotation then t:SetRotation(rot) end
+    t:SetVertexColor(rgba[1], rgba[2], rgba[3], rgba[4])
+    t:Show()
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     hideAll(pins)
     hideAll(lines)
+    hideAll(arrows)
     if not mapShown() or not (WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame.GetMapID) then return end
     local canvas = WorldMapFrame:GetCanvas()
     local w, h = canvas:GetWidth(), canvas:GetHeight()
@@ -246,7 +308,7 @@ function WC.RefreshMapPins()
     local markers = #groups > 0 and WC.ClientMarkers(mapID) or {}
     local radius = WC.MarkerRadius(WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale())
     local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
-    local where = {} -- step.n -> the pin showing it
+    local where, spot, rad = {}, {}, {} -- step.n -> the pin's anchor, its canvas spot and badge radius
     for i, g in ipairs(groups) do
         local p = pinFor(i, canvas)
         p.planGroup = g
@@ -290,23 +352,67 @@ function WC.RefreshMapPins()
         a:Show()
         p:Show()
         if g.isNext and p.pulse then p.pulse:Play() end
-        for _, s in ipairs(g.steps) do where[s.n] = p.anchor end
+        local r = size * (marker and TAG_SCALE or 1) * scale / 2
+        for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
     end
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
-    -- Lines join consecutive undone steps (plan order) that are both on this map, under the badges.
-    local prev, n = nil, 0
+    if not lineLayer then
+        lineLayer = CreateFrame("Frame", nil, canvas)
+        lineLayer:SetAllPoints(canvas)
+    end
+    if lineLayer.SetFrameLevel then lineLayer:SetFrameLevel(base + LINE_LEVEL) end
+    lineLayer:Show()
+    if not arrowLayer then
+        arrowLayer = CreateFrame("Frame", nil, canvas)
+        arrowLayer:SetAllPoints(canvas)
+    end
+    if arrowLayer.SetFrameLevel then arrowLayer:SetFrameLevel(base + ARROW_LEVEL) end
+    arrowLayer:Show()
+    local wantArrows = WC.db.settings.planArrows
+    local nextAnchor = WC.PlanNext() and where[WC.PlanNext().n]
+    -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
+    -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
+    local prev, n, na = nil, 0, 0
     for _, s in ipairs(WC.plan.steps) do
         if not (WC.plan.done and WC.plan.done[s.n]) then
             if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then
-                n = n + 1
-                local ln = lines[n] or canvas:CreateLine()
-                lines[n] = ln
-                if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 7) end
-                ln:SetThickness(2.5)
-                ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.6)
-                ln:SetStartPoint("CENTER", where[prev.n])
-                ln:SetEndPoint("CENTER", where[s.n])
-                ln:Show()
+                local isNext = nextAnchor ~= nil and where[s.n] == nextAnchor
+                local glow = isNext and 1 or 0
+                for k = 1, 2 do
+                    n = n + 1
+                    local ln = lines[n] or lineLayer:CreateLine()
+                    lines[n] = ln
+                    if k == 1 then
+                        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
+                        ln:SetThickness(LINE_WIDTH + OUTLINE_PAD + glow * 2)
+                        ln:SetColorTexture(OUTLINE[1], OUTLINE[2], OUTLINE[3], OUTLINE[4])
+                    else
+                        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
+                        ln:SetThickness(LINE_WIDTH)
+                        ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], isNext and 0.9 or 0.7)
+                    end
+                    ln:SetStartPoint("CENTER", where[prev.n])
+                    ln:SetEndPoint("CENTER", where[s.n])
+                    ln:Show()
+                end
+                if wantArrows and arrowLayer.CreateTexture then
+                    local a, b = spot[prev.n], spot[s.n]
+                    -- canvas y grows downward, the maths wants it up
+                    local ang, tx, ty, len = WC.ArrowPlace(a[1], -a[2], b[1], -b[2], rad[s.n], ARROW_GAP + ARROW_SIZE / 2)
+                    if ang then
+                        local rot = WC.ArrowRotation(ang)
+                        local function put(cx, cy, size, sub)
+                            na = na + 1
+                            placeArrow(na, cx, -cy, size * scale, rot, OUTLINE, sub)
+                            na = na + 1
+                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { 1, 0.95, 0.6, 1 } or { GOLD[1], GOLD[2], GOLD[3], 1 }, sub + 1)
+                        end
+                        put(tx, ty, ARROW_SIZE, 3)
+                        for _, f in ipairs(WC.ChevronSpots(WC.ChevronCount(len, w))) do
+                            put(a[1] + (b[1] - a[1]) * f, -a[2] + (-b[2] + a[2]) * f, CHEVRON_SIZE, 3)
+                        end
+                    end
+                end
             end
             prev = s
         end
@@ -430,7 +536,7 @@ function WC.CyclePlanSize()
     WC.SetPlanSize("normal")
 end
 
--- /wowc plan toggles the tracker; "map" the pins, "lines" the route lines, "size [small|normal|large]" the pin size.
+-- /wowc plan toggles the tracker; "map" the pins, "lines" the route lines, "arrows" their arrowheads, "size [small|normal|large]" the pin size.
 function WC.TogglePlan(what, arg)
     local s = WC.db.settings
     if what == "map" then
@@ -439,6 +545,9 @@ function WC.TogglePlan(what, arg)
     elseif what == "lines" then
         s.planLines = not s.planLines
         print(s.planLines and L.PLAN_LINES_ON or L.PLAN_LINES_OFF)
+    elseif what == "arrows" then
+        s.planArrows = not s.planArrows
+        print(s.planArrows and L.PLAN_ARROWS_ON or L.PLAN_ARROWS_OFF)
     elseif what == "size" then
         if PIN_SIZES[arg] then return WC.SetPlanSize(arg) end
         return WC.CyclePlanSize()
