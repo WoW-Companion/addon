@@ -65,7 +65,11 @@ local function new_region(kind)
     function r:SetTexture(t) self.texture = t end
     function r:SetScale(v) self.scale = v end
     function r:SetFont(path, size) self.font, self.fontSize = path, size end
-    function r:SetFrameLevel() end
+    function r:SetFrameLevel(v) self.level = v end
+    function r:GetFrameLevel() return self.level or 1 end
+    function r:SetVertexColor() end
+    function r:SetTextColor() end
+    function r:SetDrawLayer() end
     function r:RegisterForClicks() end
     function r:SetChecked(v) self.checked = v and true or false end
     function r:GetChecked() return self.checked end

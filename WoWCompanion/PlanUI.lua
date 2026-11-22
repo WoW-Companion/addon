@@ -6,8 +6,18 @@ local WC = WoWCompanion
 local L = WC.L
 
 local GOLD = { 1, 0.82, 0 }
-local KIND_MARK = { pickup = "!", objective = "x", turnin = "?", travel = ">" }
-local PIN_SIZE, NEXT_SIZE = 16, 22
+local NOTCH = { pickup = "!", turnin = "?" } -- objective and travel steps show the number only
+-- Badge diameter in map units by the pin size setting; "normal" matches the client's own quest markers (~28).
+local PIN_SIZES = { small = 22, normal = 28, large = 36 }
+local PIN_ORDER = { "small", "normal", "large" }
+WC.PIN_SIZES, WC.PIN_ORDER = PIN_SIZES, PIN_ORDER
+local NEXT_GROW = 1.3 -- the next step's badge is this much bigger
+local MERGE_DISTANCE = 1.2 -- steps closer than this (0-100 map units) share one badge
+-- Frame levels above the canvas: our lines, then our badges. Kept low and fixed so we sit over the
+-- terrain and mob dots but stay below the map's own quest markers and their click areas.
+local LINE_LEVEL, PIN_LEVEL = 5, 6
+-- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
+local DISC = "Interface\\Minimap\\UI-Minimap-Background"
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
 -- Minimap radius in yards by zoom level (outdoors); only used to decide when the pin sits on the edge.
 local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
@@ -20,26 +30,70 @@ local function mapShown()
     return WC.plan ~= nil and WC.db.settings.planMap
 end
 
+-- Pure badge helpers. A group is { steps = {...}, isNext = bool }.
+-- The text in a badge: "4", or "4·5" when steps share a spot (first and last of the group).
+function WC.PinLabel(steps)
+    local first, last = steps[1].n, steps[#steps].n
+    if first == last then return tostring(first) end
+    return first .. "\194\183" .. last
+end
+
+-- The small "!" or "?" on the ring for a step kind, or nil for a number-only badge.
+function WC.PinNotch(kind)
+    return NOTCH[kind]
+end
+
+-- The group's cue: the next step's kind when it is in the group, else the first step's.
+function WC.PinGroupKind(group)
+    for _, s in ipairs(group.steps) do
+        if group.next == s then return s.kind end
+    end
+    return group.steps[1].kind
+end
+
 local function pinFor(i, canvas)
     local p = pins[i]
     if p then return p end
     p = CreateFrame("Button", nil, canvas)
-    p:SetSize(PIN_SIZE, PIN_SIZE)
-    p.border = p:CreateTexture(nil, "BACKGROUND")
-    p.border:SetAllPoints()
-    p.fill = p:CreateTexture(nil, "BORDER")
-    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", 1, -1)
-    p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -1, 1)
-    p.num = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    p.glow = p:CreateTexture(nil, "BACKGROUND")
+    p.glow:SetTexture(DISC)
+    p.glow:SetPoint("CENTER", p, "CENTER", 0, 0)
+    p.ring = p:CreateTexture(nil, "BORDER")
+    p.ring:SetTexture(DISC)
+    p.ring:SetAllPoints()
+    p.fill = p:CreateTexture(nil, "ARTWORK")
+    p.fill:SetTexture(DISC)
+    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", 3, -3)
+    p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -3, 3)
+    p.fill:SetVertexColor(0.05, 0.04, 0.02, 0.95)
+    p.num = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     p.num:SetPoint("CENTER", p, "CENTER", 0, 0)
+    p.notchBg = p:CreateTexture(nil, "OVERLAY")
+    p.notchBg:SetTexture(DISC)
+    p.notchBg:SetSize(12, 12)
+    p.notchBg:SetPoint("CENTER", p, "TOPRIGHT", -4, -4)
+    p.notchBg:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
     p.mark = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    p.mark:SetPoint("BOTTOMLEFT", p, "TOPRIGHT", -3, -3)
+    p.mark:SetPoint("CENTER", p.notchBg, "CENTER", 0, 0)
+    p.mark:SetTextColor(0.05, 0.04, 0.02)
+    if p.CreateAnimationGroup then
+        local ag = p.glow:CreateAnimationGroup()
+        ag:SetLooping("BOUNCE")
+        local a = ag:CreateAnimation("Alpha")
+        a:SetFromAlpha(0.25)
+        a:SetToAlpha(0.8)
+        a:SetDuration(1.2)
+        p.pulse = ag
+    end
     p:SetScript("OnEnter", function(self)
-        local s = self.planStep
-        if not s then return end
+        local g = self.planGroup
+        if not g then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(string.format(L.PLAN_PIN_LINE, s.n, s.quest ~= "" and s.quest or s.label), GOLD[1], GOLD[2], GOLD[3])
-        if s.quest ~= "" then GameTooltip:AddLine(s.label, 1, 1, 1) end
+        for _, s in ipairs(g.steps) do
+            GameTooltip:AddLine(string.format(L.PLAN_PIN_LINE, tostring(s.n), s.label), GOLD[1], GOLD[2], GOLD[3])
+            if s.quest ~= "" then GameTooltip:AddLine(s.quest, 1, 1, 1) end
+            GameTooltip:AddLine(L["PLAN_KIND_" .. s.kind] or s.kind, 0.7, 0.7, 0.7)
+        end
         GameTooltip:Show()
     end)
     p:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -48,7 +102,10 @@ local function pinFor(i, canvas)
 end
 
 local function hideAll(list)
-    for _, o in ipairs(list) do o:Hide() end
+    for _, o in ipairs(list) do
+        if o.pulse then o.pulse:Stop() end
+        o:Hide()
+    end
 end
 
 -- Placement maths, pure. x and y are the plan's 0-100 map coordinates, w and h the map canvas size
@@ -65,6 +122,34 @@ function WC.PinWanted(step, mapID, done)
     return step.map == mapID and not (done and done[step.n])
 end
 
+-- Groups the wanted steps of a map into badges, in plan order; steps within MERGE_DISTANCE of an
+-- earlier group's first step join it. group.next is the plan's next step when it is in the group.
+function WC.PinGroups(steps, mapID, done, nextStep)
+    local groups = {}
+    for _, s in ipairs(steps) do
+        if WC.PinWanted(s, mapID, done) then
+            local home
+            for _, g in ipairs(groups) do
+                local f = g.steps[1]
+                if math.abs(f.x - s.x) < MERGE_DISTANCE and math.abs(f.y - s.y) < MERGE_DISTANCE then home = g break end
+            end
+            if not home then
+                home = { steps = {}, x = s.x, y = s.y }
+                groups[#groups + 1] = home
+            end
+            home.steps[#home.steps + 1] = s
+            if s == nextStep then home.next = s end
+        end
+    end
+    for _, g in ipairs(groups) do g.isNext = g.next ~= nil end
+    return groups
+end
+
+function WC.PinSize(setting, isNext)
+    local d = PIN_SIZES[setting] or PIN_SIZES.normal
+    return isNext and math.floor(d * NEXT_GROW + 0.5) or d
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     hideAll(pins)
@@ -75,31 +160,46 @@ function WC.RefreshMapPins()
     if not w or not h or w <= 0 then return end
     local mapID = WorldMapFrame:GetMapID()
     local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
-    local nextStep, shown, prev = WC.PlanNext(), 0, nil
+    local setting = WC.db.settings.planSize
+    local groups = WC.PinGroups(WC.plan.steps, mapID, WC.plan.done, WC.PlanNext())
+    local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
+    local where = {} -- step.n -> the pin showing it
+    for i, g in ipairs(groups) do
+        local p = pinFor(i, canvas)
+        p.planGroup = g
+        local size = WC.PinSize(setting, g.isNext)
+        p:SetSize(size, size)
+        p:SetScale(scale)
+        if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and 1 or 0)) end
+        p:ClearAllPoints()
+        local ox, oy = WC.PinOffset(g.x, g.y, w, h, scale)
+        p:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+        if g.isNext then p.ring:SetVertexColor(1, 0.95, 0.6, 1) else p.ring:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1) end
+        p.glow:SetSize(size * 1.7, size * 1.7)
+        p.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.5)
+        p.glow:SetShown(g.isNext)
+        p.num:SetText(WC.PinLabel(g.steps))
+        local notch = WC.PinNotch(WC.PinGroupKind(g))
+        p.mark:SetText(notch or "")
+        p.notchBg:SetShown(notch ~= nil)
+        p:Show()
+        if g.isNext and p.pulse then p.pulse:Play() end
+        for _, s in ipairs(g.steps) do where[s.n] = p end
+    end
+    if not WC.db.settings.planLines or not canvas.CreateLine then return end
+    -- Lines join consecutive undone steps (plan order) that are both on this map, under the badges.
+    local prev, n = nil, 0
     for _, s in ipairs(WC.plan.steps) do
-        if WC.PinWanted(s, mapID, WC.plan.done) then
-            shown = shown + 1
-            local isNext = nextStep == s
-            local p = pinFor(shown, canvas)
-            p.planStep = s
-            local size = isNext and NEXT_SIZE or PIN_SIZE
-            p:SetSize(size, size)
-            p:SetScale(scale)
-            p:ClearAllPoints()
-            local ox, oy = WC.PinOffset(s.x, s.y, w, h, scale)
-            p:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
-            if isNext then p.border:SetColorTexture(1, 1, 1, 1) else p.border:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9) end
-            p.fill:SetColorTexture(0.08, 0.06, 0, 0.85)
-            p.num:SetText(tostring(s.n))
-            p.mark:SetText(KIND_MARK[s.kind] or "")
-            p:Show()
-            if prev and canvas.CreateLine then
-                local ln = lines[shown - 1] or canvas:CreateLine()
-                lines[shown - 1] = ln
-                ln:SetThickness(1.5)
-                ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.35)
-                ln:SetStartPoint("CENTER", pins[shown - 1])
-                ln:SetEndPoint("CENTER", p)
+        if not (WC.plan.done and WC.plan.done[s.n]) then
+            if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then
+                n = n + 1
+                local ln = lines[n] or canvas:CreateLine()
+                lines[n] = ln
+                if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 7) end
+                ln:SetThickness(2.5)
+                ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.6)
+                ln:SetStartPoint("CENTER", where[prev.n])
+                ln:SetEndPoint("CENTER", where[s.n])
                 ln:Show()
             end
             prev = s
@@ -160,12 +260,35 @@ function WC.RefreshPlan()
     WC.RefreshMapPins()
 end
 
--- /wowc plan toggles the tracker, /wowc plan map the pins; each says what it did.
-function WC.TogglePlan(map)
+function WC.SetPlanSize(size)
+    local id = PIN_SIZES[size] and size or "normal"
+    WC.db.settings.planSize = id
+    local name = L["PLAN_SIZE_" .. id]
+    print(string.format(L.PLAN_SIZE_SET, name))
+    if WC.settingsFrame then WC.settingsFrame.sync() end
+    WC.RefreshPlan()
+end
+
+function WC.CyclePlanSize()
+    local cur = WC.db.settings.planSize
+    for i, id in ipairs(PIN_ORDER) do
+        if id == cur then return WC.SetPlanSize(PIN_ORDER[i % #PIN_ORDER + 1]) end
+    end
+    WC.SetPlanSize("normal")
+end
+
+-- /wowc plan toggles the tracker; "map" the pins, "lines" the route lines, "size [small|normal|large]" the pin size.
+function WC.TogglePlan(what, arg)
     local s = WC.db.settings
-    if map then
+    if what == "map" then
         s.planMap = not s.planMap
         print(s.planMap and L.PLAN_MAP_ON or L.PLAN_MAP_OFF)
+    elseif what == "lines" then
+        s.planLines = not s.planLines
+        print(s.planLines and L.PLAN_LINES_ON or L.PLAN_LINES_OFF)
+    elseif what == "size" then
+        if PIN_SIZES[arg] then return WC.SetPlanSize(arg) end
+        return WC.CyclePlanSize()
     else
         s.planTracker = not s.planTracker
         print(s.planTracker and L.PLAN_TRACKER_ON or L.PLAN_TRACKER_OFF)

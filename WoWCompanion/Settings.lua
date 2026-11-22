@@ -36,6 +36,8 @@ function WC.InitSettings(db)
     s.compact = s.compact == true
     s.planTracker = s.planTracker ~= false
     s.planMap = s.planMap ~= false
+    s.planLines = s.planLines ~= false
+    s.planSize = WC.PIN_SIZES and WC.PIN_SIZES[s.planSize] and s.planSize or "normal"
     s.tooltips = s.tooltips ~= false
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
     s.hideInCombat = { tracker = h.tracker ~= false, panel = h.panel == true }
@@ -75,6 +77,10 @@ local function sync(f)
     f.scaleText:SetText(string.format(L.SCALE_LABEL, s.scale))
     local size = L["FONT_" .. s.fontSize]
     f.fontButton:SetText(string.format(L.FONT_LABEL, size))
+    if f.planSize then
+        local name = L["PLAN_SIZE_" .. s.planSize]
+        f.planSize:SetText(string.format(L.PLAN_SIZE_LABEL, name))
+    end
     for _, c in ipairs(f.checks) do c:SetChecked(c.get()) end
 end
 
@@ -82,7 +88,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 560)
+    f:SetSize(320, 600)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -117,7 +123,12 @@ function WC.CreateSettings()
         WC.ApplySettings()
     end)
 
-    local y = -118
+    f.planSize = CreateFrame("Button", "WoWCompanionOptionPlanSize", f, "UIPanelButtonTemplate")
+    f.planSize:SetSize(180, 22)
+    f.planSize:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -114)
+    f.planSize:SetScript("OnClick", function() WC.CyclePlanSize() end)
+
+    local y = -144
     local function check(name, label, get, set)
         local c = CreateFrame("CheckButton", "WoWCompanionOption" .. name, f, "UICheckButtonTemplate")
         c:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
@@ -138,6 +149,7 @@ function WC.CreateSettings()
     check("Tracker", L.SHOW_TRACKER, function() return s.tracker end, function(v) s.tracker = v end)
     check("PlanTracker", L.SHOW_PLAN_TRACKER, function() return s.planTracker end, function(v) s.planTracker = v end)
     check("PlanMap", L.SHOW_PLAN_MAP, function() return s.planMap end, function(v) s.planMap = v end)
+    check("PlanLines", L.SHOW_PLAN_LINES, function() return s.planLines end, function(v) s.planLines = v end)
     check("Tooltips", L.SHOW_TOOLTIPS, function() return s.tooltips end, function(v) s.tooltips = v end)
     check("Compact", L.COMPACT_PANEL, function() return s.compact end, function(v) s.compact = v; WC.view.expanded = {} end)
     for _, sec in ipairs(WC.SECTIONS) do

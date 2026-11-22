@@ -50,11 +50,12 @@ the advisor repo.
 ## Quest route on the map
 
 With advisor 0.6.0 or later the companion also writes `WoWCompanion_Digest/Plan.lua` (the same data-only
-rules as the digest; the zip does not ship it). The addon then draws the route as numbered gold pins on
-the world map (the next step larger and white-edged), the next step on the minimap, and a small movable
+rules as the digest; the zip does not ship it). The addon then draws the route as round numbered gold-ringed badges on
+the world map, about the size of the quest markers (the next step larger and glowing, a small ! or ? on
+pick-up and turn-in steps, route lines between the steps still to do), the next step on the minimap, and a small movable
 tracker reading `Step 3/12: <label> · 85 yd NE` that ticks off as quests are accepted, finished and
 turned in, with no `/reload`. The plan itself refreshes at the next `/reload`. `/wowc plan` shows or
-hides the tracker and `/wowc plan map` the pins; both also have settings checkboxes. Without a plan
+hides the tracker and `/wowc plan map` the pins, `/wowc plan lines` the route lines, and `/wowc plan size small|normal|large` sets the badge size; all also have settings. Without a plan
 file nothing is shown.
 
 ## Read-only promise
