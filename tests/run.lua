@@ -463,7 +463,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("minimap", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("world map", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -2195,6 +2195,53 @@ cases[#cases + 1] = { "world map button: placed through the overlay API, toggles
     fresh_client(nil)
     assert(WoWCompanion.mapButton and WoWCompanion.mapButtonMode == "edge" and WoWCompanion.mapButton.parent == WorldMapFrame)
     WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "world map button: survives a RefreshOverlayFrames that calls the overlay methods on every frame", function()
+    fresh_client(nil)
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    WorldMapFrame.overlayFrames = {}
+    function WorldMapFrame:AddOverlayFrame(template, kind)
+        local f = CreateFrame(kind, nil, self)
+        self.overlayFrames[#self.overlayFrames + 1] = f
+        return f
+    end
+    -- as the client does: every overlay frame is asked to refresh, and a missing method is an error
+    function WorldMapFrame:RefreshOverlayFrames()
+        for _, f in ipairs(self.overlayFrames) do
+            for _, m in ipairs({ "Refresh", "OnMapChanged" }) do f[m](f) end
+        end
+    end
+    fresh_client(nil)
+    assert(WoWCompanion.mapButtonMode == "overlay" and #WorldMapFrame.overlayFrames == 1)
+    WorldMapFrame:RefreshOverlayFrames()
+    assert(WoWCompanion.mapButton.unknownMethod == nil, "no catch-all hides other methods")
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "what's new: body sits in a scroll frame, window sized to the text, button clear of it", function()
+    local box = upgrade_client("0.0.0")
+    assert(box.scroll and box.scroll.kind == "ScrollFrame" and box.content.parent == box.scroll and box.scroll.child == box.content)
+    assert(box.body.parent == box.content and box.button.parent == box)
+    local WC = WoWCompanion
+    assert(WC.WhatsNewWindowHeight(0) == WC.WHATS_NEW_MIN_H and WC.WhatsNewWindowHeight(9999) == WC.WHATS_NEW_MAX_H)
+    assert(WC.WhatsNewWindowHeight(100) == 172)
+end }
+
+cases[#cases + 1] = { "advice age uses the capture time as loaded from disk, not the live login refresh", function()
+    local function warned(disk, live_after, digest_gen)
+        fresh_client(nil)
+        ForeverScribeDB = fs_db(disk)
+        WoWCompanion.ResetCaptureSnapshot()
+        WoWCompanion.OwnCapturedAt("Thrall") -- the load-time snapshot
+        ForeverScribeDB.chars["Testrealm:Thrall"].snapshot.capturedAt = live_after -- the login refresh, in memory only
+        load_digest("tests/fixtures/digest_full.lua")
+        return WoWCompanion.panel.plain:find(HINT, 1, true) ~= nil
+    end
+    assert(not warned(GEN - 60, GEN + 2800), "unchanged save at login: no warning")
+    assert(warned(GEN + 1200, GEN + 1200), "a really newer save on disk: warning")
+    assert(not warned(GEN + 900, GEN + 900), "exactly at the grace")
+    assert(warned(GEN + 901, GEN + 901), "just over the grace")
 end }
 
 cases[#cases + 1] = { "panel views: the row lists of Full, Compact and Next step only, and the header line", function()

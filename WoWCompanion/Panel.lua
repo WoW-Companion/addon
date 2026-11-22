@@ -280,7 +280,7 @@ function WC.Refresh()
     local player = UnitName("player")
     local show = WC.db.settings.show
     local header, rows, meta = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed, show,
-        WC.CapturedAt(ForeverScribeDB, player, GetRealmName and GetRealmName()))
+        WC.OwnCapturedAt(player))
     WC.StyleText(f.step)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
     f.header:SetText(meta and meta.advice or header)

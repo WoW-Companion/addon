@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.4.5"] = { "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" },
     ["0.4.4"] = { "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3" },
     ["0.4.3"] = { "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2" },
     ["0.4.2"] = { "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2" },
@@ -51,9 +52,17 @@ function WC.DismissWhatsNew()
     f:Hide()
 end
 
+WC.WHATS_NEW_TEXT_W = 288
+WC.WHATS_NEW_MIN_H, WC.WHATS_NEW_MAX_H = 110, 300
+
+-- The window height for body text of height h: it grows with the text up to a cap, then the text scrolls.
+function WC.WhatsNewWindowHeight(h)
+    return math.max(WC.WHATS_NEW_MIN_H, math.min(WC.WHATS_NEW_MAX_H, h + 28 + 38 + 6))
+end
+
 local function create_box(version, keys)
     local f = CreateFrame("Frame", "WoWCompanionWhatsNew", WC.panel, "BasicFrameTemplateWithInset")
-    f:SetSize(340, 150)
+    f:SetSize(340, 150) -- resized below to fit the text
     f:SetPoint("TOPLEFT", WC.panel, "BOTTOMLEFT", 0, -4)
     f.version = version
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -61,11 +70,24 @@ local function create_box(version, keys)
     f.title:SetText(string.format(L.WHATS_NEW_TITLE, version))
     local lines = {}
     for i, key in ipairs(keys) do lines[i] = "- " .. L[key] end
-    f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.body:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -28)
-    f.body:SetWidth(310)
+    -- The text lives in a scroll frame (its bar shows when the text overflows); the Got it button sits below it.
+    f.scroll = CreateFrame("ScrollFrame", "WoWCompanionWhatsNewScroll", f, "UIPanelScrollFrameTemplate")
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -28)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 38)
+    f.content = CreateFrame("Frame", nil, f.scroll)
+    f.content:SetSize(WC.WHATS_NEW_TEXT_W, 1)
+    f.scroll:SetScrollChild(f.content)
+    f.body = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    f.body:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, 0)
+    f.body:SetWidth(WC.WHATS_NEW_TEXT_W)
     f.body:SetJustifyH("LEFT")
+    if WC.StyleText then WC.StyleText(f.body) end
     f.body:SetText(table.concat(lines, "\n"))
+    local h = (f.body.GetStringHeight and f.body:GetStringHeight()) or 0
+    if h <= 0 then h = 14 * #lines end
+    f.content:SetHeight(h + 4)
+    f.window = WC.WhatsNewWindowHeight(h)
+    f:SetSize(340, f.window)
     f.button = CreateFrame("Button", "WoWCompanionWhatsNewButton", f, "UIPanelButtonTemplate")
     f.button:SetSize(80, 22)
     f.button:SetPoint("BOTTOM", f, "BOTTOM", 0, 8)
