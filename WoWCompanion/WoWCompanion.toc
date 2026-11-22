@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: WoW Companion
 ## Notes: Read-only panel that shows the advice the WoW Companion writes for you.
-## Version: 0.2.0
+## Version: 0.3.0
 ## SavedVariables: WoWCompanionDB
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 
@@ -12,6 +12,8 @@ Asks.lua
 Panel.lua
 Settings.lua
 Tracker.lua
+Plan.lua
+PlanUI.lua
 Tooltips.lua
 Combat.lua
 WhatsNew.lua

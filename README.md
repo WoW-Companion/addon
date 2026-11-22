@@ -47,6 +47,16 @@ For the rest of setup (connecting your AI client and writing the digest), see `d
 the advisor repo.
 
 `/wowc status` prints the addon version, client build, digest age, queued questions, and whether the digest slot addon is installed. 
+## Quest route on the map
+
+With advisor 0.6.0 or later the companion also writes `WoWCompanion_Digest/Plan.lua` (the same data-only
+rules as the digest; the zip does not ship it). The addon then draws the route as numbered gold pins on
+the world map (the next step larger and white-edged), the next step on the minimap, and a small movable
+tracker reading `Step 3/12: <label> · 85 yd NE` that ticks off as quests are accepted, finished and
+turned in, with no `/reload`. The plan itself refreshes at the next `/reload`. `/wowc plan` shows or
+hides the tracker and `/wowc plan map` the pins; both also have settings checkboxes. Without a plan
+file nothing is shown.
+
 ## Read-only promise
 
 This addon only reads game state and displays it. It never casts spells, uses

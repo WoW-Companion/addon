@@ -73,6 +73,14 @@ local function new_region(kind)
     function r:SetValueStep(v) self.step = v end
     function r:SetValue(v) self.value = v end
     function r:GetValue() return self.value end
+    function r:CreateLine() return new_region("Line") end
+    function r:SetThickness() end
+    function r:SetStartPoint(...) self.startPoint = { ... } end
+    function r:SetEndPoint(...) self.endPoint = { ... } end
+    function r:SetRotation(v) self.rotation = v end
+    function r:SetShown(v) if v then self:Show() else self:Hide() end end
+    function r:GetWidth() return self.w or 0 end
+    function r:HookScript(name, fn) self.scripts[name] = fn end
     function r:GetCenter() return 0, 0 end
     function r:GetEffectiveScale() return 1 end
     return r
