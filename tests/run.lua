@@ -1103,6 +1103,29 @@ cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", funct
     WorldMapFrame = nil
 end }
 
+cases[#cases + 1] = { "plan: badges coincide with client markers by radius, scaled by zoom", function()
+    local WC = plan_client("full")
+    local g = { steps = { { n = 1, x = 50, y = 50, questID = 7 } } }
+    local r = WC.MarkerRadius(1)
+    assert(r == 2.5 and WC.MarkerRadius(2) == 1.25 and WC.MarkerRadius(nil) == 2.5)
+    assert(WC.GroupMarker(g, { { questID = 7, x = 51, y = 51 } }, r), "same quest, inside")
+    assert(WC.GroupMarker(g, { { questID = 9, x = 52, y = 50 } }, r), "any marker, inside")
+    assert(not WC.GroupMarker(g, { { questID = 7, x = 54, y = 50 } }, r), "outside")
+    assert(not WC.GroupMarker(g, { { questID = 7, x = 52, y = 50 } }, WC.MarkerRadius(4)), "zoom shrinks the radius")
+    local m = WC.GroupMarker(g, { { questID = 9, x = 51, y = 50 }, { questID = 7, x = 50, y = 51 } }, r)
+    assert(m.questID == 7, "same quest wins a tie")
+    assert(not WC.GroupMarker(g, {}, r) and not WC.GroupMarker(g, nil, r))
+    assert(WC.PinLabel({ { n = 4 }, { n = 5 } }) == "4\194\1835", "merged tag text")
+end }
+
+cases[#cases + 1] = { "plan: no OnUpdate on world-map pin frames", function()
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    local _, n = src:gsub('SetScript%("OnUpdate"', "")
+    assert(n == 1, "only the driver frame has an OnUpdate")
+    local pf = src:match("local function pinFor.-\nend\n")
+    assert(pf and not pf:find("OnUpdate", 1, true) and not src:match("function WC.RefreshMapPins.-\nend\n"):find("OnUpdate", 1, true))
+end }
+
 cases[#cases + 1] = { "plan: badge text, kind notch, next-step state and done steps", function()
     local WC = plan_client("full")
     assert(WC.PinLabel({ { n = 4 } }) == "4" and WC.PinLabel({ { n = 4 }, { n = 5 } }) == "4\194\1835")

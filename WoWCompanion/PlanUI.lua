@@ -29,6 +29,13 @@ local MM_ARROW_GAP = 13 -- the edge arrow sits this far from the badge centre, t
 local ARRIVE_YARDS = 5 -- pick-ups and turn-ins pulse within this distance
 local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 
+-- Corner tags: a step that sits on one of the client's own quest markers is drawn as a small tag on that
+-- marker's top-right corner instead of a full badge that would hide underneath it.
+local COINCIDE_RADIUS = 2.5 -- map percent at 1x zoom; shrinks as the map zooms in (markers keep their pixel size)
+local TAG_SCALE = 0.45 -- tag diameter relative to the full badge
+local TAG_OFFSET = 16 -- pixels up and right of the marker centre, clear of its glyph
+local TAG_LEVEL = 2500 -- above the client's marker frames, which stay below this on the canvas
+
 local EMPTY = ""
 local pins, lines = {}, {}
 
@@ -83,10 +90,19 @@ function WC.BadgeParts(p, inset, notch, font, notchInset)
     p.mark:SetTextColor(0.05, 0.04, 0.02)
 end
 
+-- Re-insets the dark fill inside the ring (a corner tag has a thinner ring than a full badge).
+function WC.SetBadgeInset(p, inset)
+    p.fill:ClearAllPoints()
+    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", inset, -inset)
+    p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -inset, inset)
+end
+
 local function pinFor(i, canvas)
     local p = pins[i]
     if p then return p end
     p = CreateFrame("Button", nil, canvas)
+    p.anchor = CreateFrame("Frame", nil, canvas) -- the true spot, which the route lines join
+    p.anchor:SetSize(1, 1)
     WC.BadgeParts(p, 3, 12, "GameFontNormal", 4)
     if p.CreateAnimationGroup then
         local ag = p.glow:CreateAnimationGroup()
@@ -115,6 +131,7 @@ end
 
 local function hideAll(list)
     for _, o in ipairs(list) do
+        if o.anchor then o.anchor:Hide() end
         if o.pulse then o.pulse:Stop() end
         o:Hide()
     end
@@ -157,6 +174,58 @@ function WC.PinGroups(steps, mapID, done, nextStep)
     return groups
 end
 
+-- Coincidence, pure. markers are { questID, x, y } in 0-100 map units. The radius is COINCIDE_RADIUS
+-- divided by the canvas zoom. A group coincides with the nearest marker within the radius, a marker of
+-- one of its own quests winning a tie in distance; returns that marker or nil.
+function WC.MarkerRadius(canvasScale)
+    return COINCIDE_RADIUS / ((canvasScale and canvasScale > 0) and canvasScale or 1)
+end
+
+function WC.GroupMarker(group, markers, radius)
+    local best, bestD, bestSame
+    for _, m in ipairs(markers or {}) do
+        for _, s in ipairs(group.steps) do
+            local d = math.sqrt((s.x - m.x) ^ 2 + (s.y - m.y) ^ 2)
+            if d <= radius then
+                local same = (s.questID or 0) > 0 and s.questID == m.questID
+                if not best or d < bestD or (d == bestD and same and not bestSame) then
+                    best, bestD, bestSame = m, d, same
+                end
+            end
+        end
+    end
+    return best
+end
+
+-- The client's own markers on a map: quests from the quest-on-map API (x and y are 0-1), plus any quest or
+-- POI pin the world map is holding when it can enumerate them. Every call is guarded; unknown APIs give {}.
+function WC.ClientMarkers(mapID)
+    local out = {}
+    local q = C_QuestLog and C_QuestLog.GetQuestsOnMap
+    if q then
+        local ok, list = pcall(q, mapID)
+        if ok and type(list) == "table" then
+            for _, m in ipairs(list) do
+                if type(m.x) == "number" and type(m.y) == "number" then
+                    out[#out + 1] = { questID = m.questID or 0, x = m.x * 100, y = m.y * 100 }
+                end
+            end
+        end
+    end
+    if WorldMapFrame and WorldMapFrame.EnumerateAllPins then
+        local ok = pcall(function()
+            for pin in WorldMapFrame:EnumerateAllPins() do
+                local t = tostring(pin.pinTemplate or "")
+                if (t:find("Quest", 1, true) or t:find("POI", 1, true)) and tonumber(pin.normalizedX) and tonumber(pin.normalizedY) then
+                    out[#out + 1] = { questID = tonumber(pin.questID) or 0, x = pin.normalizedX * 100, y = pin.normalizedY * 100 }
+                end
+            end
+        end)
+        if not ok then return out end
+    end
+    return out
+end
+
 function WC.PinSize(setting, isNext)
     local d = PIN_SIZES[setting] or PIN_SIZES.normal
     return isNext and math.floor(d * NEXT_GROW + 0.5) or d
@@ -174,29 +243,54 @@ function WC.RefreshMapPins()
     local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
     local setting = WC.db.settings.planSize
     local groups = WC.PinGroups(WC.plan.steps, mapID, WC.plan.done, WC.PlanNext())
+    local markers = #groups > 0 and WC.ClientMarkers(mapID) or {}
+    local radius = WC.MarkerRadius(WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale())
     local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
     local where = {} -- step.n -> the pin showing it
     for i, g in ipairs(groups) do
         local p = pinFor(i, canvas)
         p.planGroup = g
         local size = WC.PinSize(setting, g.isNext)
-        p:SetSize(size, size)
-        p:SetScale(scale)
-        if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and 1 or 0)) end
-        p:ClearAllPoints()
+        local marker = WC.GroupMarker(g, markers, radius)
         local ox, oy = WC.PinOffset(g.x, g.y, w, h, scale)
-        p:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+        local a = p.anchor
+        a:SetScale(scale)
+        a:ClearAllPoints()
+        a:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+        p:SetScale(scale)
+        p:ClearAllPoints()
+        local label = WC.PinLabel(g.steps)
+        if marker then
+            local d = math.floor(size * TAG_SCALE + 0.5)
+            p:SetSize(math.max(d, 5 * #label), d)
+            if p.SetFrameLevel then p:SetFrameLevel(base + TAG_LEVEL + (g.isNext and 1 or 0)) end
+            p:SetPoint("CENTER", a, "CENTER", TAG_OFFSET, TAG_OFFSET)
+            WC.SetBadgeInset(p, 1.5)
+            if p.num.SetFontObject then p.num:SetFontObject("GameFontNormalSmall") end
+            p.notchBg:Hide()
+            p.mark:SetText("")
+        else
+            p:SetSize(size, size)
+            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and 1 or 0)) end
+            p:SetPoint("CENTER", a, "CENTER", 0, 0)
+            WC.SetBadgeInset(p, 3)
+            if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
+        end
+        p.isTag = marker ~= nil
         if g.isNext then p.ring:SetVertexColor(1, 0.95, 0.6, 1) else p.ring:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1) end
-        p.glow:SetSize(size * 1.7, size * 1.7)
+        p.glow:SetSize(size * (marker and TAG_SCALE or 1) * 1.7, size * (marker and TAG_SCALE or 1) * 1.7)
         p.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.5)
         p.glow:SetShown(g.isNext)
-        p.num:SetText(WC.PinLabel(g.steps))
-        local notch = WC.PinNotch(WC.PinGroupKind(g))
-        p.mark:SetText(notch or "")
-        p.notchBg:SetShown(notch ~= nil)
+        p.num:SetText(label)
+        if not marker then
+            local notch = WC.PinNotch(WC.PinGroupKind(g))
+            p.mark:SetText(notch or "")
+            p.notchBg:SetShown(notch ~= nil)
+        end
+        a:Show()
         p:Show()
         if g.isNext and p.pulse then p.pulse:Play() end
-        for _, s in ipairs(g.steps) do where[s.n] = p end
+        for _, s in ipairs(g.steps) do where[s.n] = p.anchor end
     end
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
     -- Lines join consecutive undone steps (plan order) that are both on this map, under the badges.
@@ -431,6 +525,7 @@ function WC.CreatePlanUI()
     -- The world map exists from the start; redraw whenever it changes map, size or is opened.
     if WorldMapFrame then
         if hooksecurefunc and WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", WC.RefreshMapPins) end
+        if hooksecurefunc and WorldMapFrame.OnCanvasScaleChanged then hooksecurefunc(WorldMapFrame, "OnCanvasScaleChanged", WC.RefreshMapPins) end
         if WorldMapFrame.HookScript then WorldMapFrame:HookScript("OnShow", WC.RefreshMapPins) end
         local canvas = WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
         if canvas and canvas.HookScript then canvas:HookScript("OnSizeChanged", WC.RefreshMapPins) end
