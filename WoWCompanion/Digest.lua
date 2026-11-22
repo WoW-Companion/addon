@@ -480,10 +480,24 @@ function WC.DigestOutdated(d, now, captured)
     return math.max(0, now - gen) > WC.STALE_SECONDS
 end
 
--- The current character's last capture time, or nil.
+-- The current character's last capture time as it stands ON DISK: read once, when the saved
+-- variables load, and kept. ForeverScribe refreshes its in-memory capture time at login, before
+-- anything reaches disk, so the live value would warn of a "newer save" the overlay never saw.
+-- A later save only reaches disk at logout or reload, which starts a new session and a new read.
+-- Returns nil when ForeverScribe is absent or has no capture for this character.
+local disk_capture = {}
 function WC.OwnCapturedAt(player)
-    return WC.CapturedAt(ForeverScribeDB, player, GetRealmName and GetRealmName())
+    if type(ForeverScribeDB) ~= "table" then return nil end
+    local kept = disk_capture[player]
+    if kept == nil then
+        kept = WC.CapturedAt(ForeverScribeDB, player, GetRealmName and GetRealmName()) or false
+        disk_capture[player] = kept
+    end
+    return kept or nil
 end
+
+-- Forgets the kept capture times (a fresh load, and tests).
+function WC.ResetCaptureSnapshot() disk_capture = {} end
 
 -- Returns the header text and a list of rows for a digest.
 -- Row kinds: "text", "header" (has id) and "line" (may carry item, the item id for a tooltip).

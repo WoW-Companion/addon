@@ -19,6 +19,8 @@ loader:SetScript("OnEvent", function(_, _, name)
     local fresh = WoWCompanionDB == nil or next(WoWCompanionDB) == nil
     WoWCompanionDB = WoWCompanionDB or {}
     WC.db = WoWCompanionDB
+    WC.ResetCaptureSnapshot()
+    WC.OwnCapturedAt(UnitName("player")) -- snapshot ForeverScribe's on-disk capture time before its login refresh
     WC.InitSettings(WC.db)
     WC.CreatePanel()
     WC.CreateTracker()

@@ -101,6 +101,18 @@ local function show_map_tooltip(owner)
     GameTooltip:Show()
 end
 
+-- The map calls methods on every overlay frame (RefreshOverlayFrames runs them inside secureexecuterange),
+-- so a frame handed to AddOverlayFrame must answer them. Ours has nothing to recompute when the map changes
+-- (it is a fixed button), so each is a no-op. Only the methods the client is known to call are given: an
+-- unknown one still errors, which is a real error to see rather than hide.
+WC.OVERLAY_METHODS = { "Refresh", "OnMapChanged", "RefreshAll" }
+function WC.MakeOverlayFrame(frame)
+    for _, name in ipairs(WC.OVERLAY_METHODS) do
+        if frame[name] == nil then frame[name] = function() end end
+    end
+    return frame
+end
+
 -- One round button in the world map's side column. The client's own overlay API (WorldMapFrame:AddOverlayFrame)
 -- places it with the other map buttons; a client without it gets the button on the map frame's own edge.
 function WC.CreateMapButton()
@@ -118,6 +130,7 @@ function WC.CreateMapButton()
         b:SetPoint("TOPRIGHT", map, "TOPRIGHT", -8, -110)
         WC.mapButtonMode = "edge"
     end
+    WC.MakeOverlayFrame(b)
     b:SetSize(31, 31)
     if b.SetFrameStrata then b:SetFrameStrata("HIGH") end
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
