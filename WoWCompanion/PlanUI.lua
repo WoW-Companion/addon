@@ -51,6 +51,20 @@ local function hideAll(list)
     for _, o in ipairs(list) do o:Hide() end
 end
 
+-- Placement maths, pure. x and y are the plan's 0-100 map coordinates, w and h the map canvas size
+-- in its own units. A region's anchor offset is multiplied by the region's own scale, so a pin that is
+-- counter-scaled by 1/canvasScale must have its offset divided by that same scale; otherwise the
+-- position gets scaled a second time and drifts away from the true spot.
+function WC.PinOffset(x, y, w, h, pinScale)
+    local k = 1 / ((pinScale and pinScale > 0) and pinScale or 1)
+    return x / 100 * w * k, -y / 100 * h * k
+end
+
+-- A step is drawn only on the map the world map is showing, and only while it is still to do.
+function WC.PinWanted(step, mapID, done)
+    return step.map == mapID and not (done and done[step.n])
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     hideAll(pins)
@@ -63,7 +77,7 @@ function WC.RefreshMapPins()
     local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
     local nextStep, shown, prev = WC.PlanNext(), 0, nil
     for _, s in ipairs(WC.plan.steps) do
-        if s.map == mapID and not WC.plan.done[s.n] then
+        if WC.PinWanted(s, mapID, WC.plan.done) then
             shown = shown + 1
             local isNext = nextStep == s
             local p = pinFor(shown, canvas)
@@ -72,7 +86,8 @@ function WC.RefreshMapPins()
             p:SetSize(size, size)
             p:SetScale(scale)
             p:ClearAllPoints()
-            p:SetPoint("CENTER", canvas, "TOPLEFT", s.x / 100 * w, -s.y / 100 * h)
+            local ox, oy = WC.PinOffset(s.x, s.y, w, h, scale)
+            p:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
             if isNext then p.border:SetColorTexture(1, 1, 1, 1) else p.border:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9) end
             p.fill:SetColorTexture(0.08, 0.06, 0, 0.85)
             p.num:SetText(tostring(s.n))

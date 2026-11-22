@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("numbered pins", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("wrong place", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1076,6 +1076,18 @@ cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next o
     WC.RefreshMapPins()
     assert(not p[1].shown)
     WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: pin placement is normalised and filtered by map", function()
+    local WC = plan_client("full")
+    local x, y = WC.PinOffset(50, 25, 1000, 400, 1)
+    assert(x == 500 and y == -100)
+    x, y = WC.PinOffset(50, 25, 1000, 400, 0.5) -- a pin scaled 0.5 shows its offset halved, so double it
+    assert(x == 1000 and y == -200)
+    assert(WC.PinWanted({ map = 7, n = 1 }, 7, {}) and not WC.PinWanted({ map = 7, n = 1 }, 8, {}))
+    assert(not WC.PinWanted({ map = 7, n = 1 }, 7, { [1] = true }))
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    assert(not src:find("WorldMapFrame:GetWidth", 1, true) and not src:find("WorldMapFrame:GetHeight", 1, true))
 end }
 
 cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", function()
