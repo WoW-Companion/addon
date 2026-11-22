@@ -1562,8 +1562,7 @@ cases[#cases + 1] = { "optional objectives get the suffix once, from a flag or t
 end }
 
 cases[#cases + 1] = { "quest and section collapse state: a clicked quest hides its lines and persists", function()
-    local p = v13_client()
-    PLAYER_NAME = nil
+    local p = v13_client() -- PLAYER_NAME stays Genaenyu so the clicks' redraws still find the digest
     assert(p.plain:find("0/1 Find Aamelia Windfield", 1, true))
     local h = row_with(p, "[9] Blood Tithe")
     assert(h.scripts.OnClick and h.mouse)
@@ -1576,6 +1575,7 @@ cases[#cases + 1] = { "quest and section collapse state: a clicked quest hides i
     local s = row_with(p, "Next quests")
     s.scripts.OnClick(s)
     assert(not p.plain:find("Blood Tithe", 1, true) and p.plain:find("Hammer of Fate", 1, true))
+    PLAYER_NAME = nil
 end }
 
 cases[#cases + 1] = { "a schema 1.2 digest renders its text lines without level or objective rows", function()
