@@ -13,16 +13,16 @@ local PIN_SIZES = { small = 22, normal = 28, large = 36 }
 local PIN_ORDER = { "small", "normal", "large" }
 WC.PIN_SIZES, WC.PIN_ORDER = PIN_SIZES, PIN_ORDER
 local NEXT_LEVEL = 50 -- the next step sits this many levels above the rest of its kind
-local NEXT_GROW = 1.3 -- the next step's badge is this much bigger
-local MERGE_DISTANCE = 1.2 -- steps closer than this (0-100 map units) share one badge
+-- The next step's badge is bigger by the nextGrow setting (1.3), and steps closer than the mergeDistance
+-- setting (1.2, in 0-100 map units) share one badge: both are read through WC.Setting, whose defaults are those numbers.
 -- Frame levels above the canvas, lowest first: route lines, their arrowheads, then our badges. They sit well
 -- above other addons' small map icons (which use the default low levels) but stay below the tags
 -- (TAG_LEVEL) and the map's own quest markers.
 local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 3000, 3001, 3010
 WC.PLAN_LEVELS = { line = LINE_LEVEL, arrow = ARROW_LEVEL, pin = PIN_LEVEL }
 local OUTLINE = { 0, 0, 0, 0.6 } -- dark edge under the gold line
-local LINE_WIDTH, OUTLINE_PAD = 2.5, 2 -- the outline is 1 px wider each side
-local ARROW_SIZE, ARROW_GAP = 14, 2 -- arrowhead size in pixels and its gap outside the badge ring
+local OUTLINE_PAD = 2 -- the outline is 1 px wider each side; the line's width, colour and opacity are settings
+local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (14 px) is the arrowSize setting
 local CHEVRON_SIZE = 9
 local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
@@ -41,11 +41,23 @@ local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 -- Corner tags: a step that sits on one of the client's own quest markers is drawn as a small tag on that
 -- marker's top-right corner instead of a full badge that would hide underneath it.
 local COINCIDE_RADIUS = 2.5 -- map percent at 1x zoom; shrinks as the map zooms in (markers keep their pixel size)
-local TAG_SCALE = 0.75 -- tag diameter relative to the full badge
+-- The tag diameter relative to the full badge is the tagScale setting (0.75).
 local TAG_OFFSET = 18 -- pixels up and right of the marker centre; the tag's edge clears the glyph centre
 local TAG_CHAR_WIDTH = 8 -- pixels per label character, so a merged label widens the tag into a pill
 -- The dark green, slightly see-through fill every badge kind uses (map badge, corner tag, minimap badge).
+-- The shipped default; the badgeFill and badgeOpacity settings override it (see WC.BadgeFillColor).
 WC.BADGE_FILL = { 0.05, 0.22, 0.13, 0.80 }
+
+-- The fill's r, g, b, a from the settings; with nothing saved this is WC.BADGE_FILL.
+function WC.BadgeFillColor()
+    local c = WC.Setting("badgeFill")
+    return c[1], c[2], c[3], WC.Setting("badgeOpacity")
+end
+
+-- Tints a badge's fill with the current setting (called whenever a badge is drawn, so colour changes apply live).
+function WC.ApplyBadgeFill(p)
+    p.fill:SetVertexColor(WC.BadgeFillColor())
+end
 local TAG_LEVEL = 3500 -- above the client's marker frames, which stay below this on the canvas
 
 local EMPTY = ""
@@ -91,7 +103,7 @@ function WC.BadgeParts(p, inset, notch, font, notchInset)
     p.fill:SetTexture(DISC)
     p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", inset, -inset)
     p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -inset, inset)
-    p.fill:SetVertexColor(WC.BADGE_FILL[1], WC.BADGE_FILL[2], WC.BADGE_FILL[3], WC.BADGE_FILL[4])
+    WC.ApplyBadgeFill(p)
     p.num = p:CreateFontString(nil, "OVERLAY", font)
     p.num:SetPoint("CENTER", p, "CENTER", 0, 0)
     p.notchBg = p:CreateTexture(nil, "OVERLAY")
@@ -202,7 +214,7 @@ function WC.PinWanted(step, mapID, done)
     return step.map == mapID and not (done and done[step.n])
 end
 
--- Groups the wanted steps of a map into badges, in plan order; steps within MERGE_DISTANCE of an
+-- Groups the wanted steps of a map into badges, in plan order; steps within the mergeDistance setting of an
 -- earlier group's first step join it. group.next is the plan's next step when it is in the group.
 function WC.PinGroups(steps, mapID, done, nextStep)
     local groups = {}
@@ -211,7 +223,7 @@ function WC.PinGroups(steps, mapID, done, nextStep)
             local home
             for _, g in ipairs(groups) do
                 local f = g.steps[1]
-                if math.abs(f.x - s.x) < MERGE_DISTANCE and math.abs(f.y - s.y) < MERGE_DISTANCE then home = g break end
+                if math.abs(f.x - s.x) < WC.Setting("mergeDistance") and math.abs(f.y - s.y) < WC.Setting("mergeDistance") then home = g break end
             end
             if not home then
                 home = { steps = {}, x = s.x, y = s.y }
@@ -278,13 +290,13 @@ function WC.ClientMarkers(mapID)
 end
 
 function WC.PinSize(setting, isNext)
-    local d = PIN_SIZES[setting] or PIN_SIZES.normal
-    return isNext and math.floor(d * NEXT_GROW + 0.5) or d
+    local d = math.floor((PIN_SIZES[setting] or PIN_SIZES.normal) * WC.Setting("badgeScale") + 0.5)
+    return isNext and math.floor(d * WC.Setting("nextGrow") + 0.5) or d
 end
 
 -- A corner tag's diameter for a full badge of `size`, and its width for `label` (a pill when merged).
 function WC.TagDiameter(size)
-    return math.floor(size * TAG_SCALE + 0.5)
+    return math.floor(size * WC.Setting("tagScale") + 0.5)
 end
 
 function WC.TagWidth(d, label)
@@ -387,7 +399,7 @@ function WC.SetPlanShow(arg)
     local n = tonumber(arg)
     WC.db.settings.planShow = (n and n >= 1) and math.floor(n) or "all"
     print(string.format(L.PLAN_SHOW_SET, tostring(WC.db.settings.planShow)))
-    if WC.settingsFrame then WC.settingsFrame.sync() end
+    if WC.SyncOptions then WC.SyncOptions() end
     WC.RefreshPlan()
 end
 
@@ -453,7 +465,8 @@ function WC.RefreshMapPins()
         end
         a:Show()
         p:Show()
-        if g.isNext and p.pulse then p.pulse:Play() end
+        WC.ApplyBadgeFill(p)
+        if g.isNext and p.pulse and WC.Setting("nextPulse") then p.pulse:Play() end
         local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
@@ -472,6 +485,8 @@ function WC.RefreshMapPins()
     if arrowLayer.SetFrameLevel then arrowLayer:SetFrameLevel(base + ARROW_LEVEL) end
     arrowLayer:Show()
     local wantArrows = WC.db.settings.planArrows
+    local lineW, lineA, lineC = WC.Setting("lineWidth"), WC.Setting("lineOpacity"), WC.Setting("lineColor")
+    local arrowSize = WC.Setting("arrowSize")
     local nextAnchor = WC.PlanNext() and where[WC.PlanNext().n]
     -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
     -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
@@ -487,12 +502,12 @@ function WC.RefreshMapPins()
                     lines[n] = ln
                     if k == 1 then
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
-                        ln:SetThickness(LINE_WIDTH + OUTLINE_PAD + glow * 2)
+                        ln:SetThickness(lineW + OUTLINE_PAD + glow * 2)
                         ln:SetColorTexture(OUTLINE[1], OUTLINE[2], OUTLINE[3], OUTLINE[4])
                     else
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
-                        ln:SetThickness(LINE_WIDTH)
-                        ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], isNext and 0.9 or 0.7)
+                        ln:SetThickness(lineW)
+                        ln:SetColorTexture(lineC[1], lineC[2], lineC[3], isNext and math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100) or lineA)
                     end
                     ln:SetStartPoint("CENTER", where[prev.n])
                     ln:SetEndPoint("CENTER", where[s.n])
@@ -501,17 +516,18 @@ function WC.RefreshMapPins()
                 if wantArrows and arrowLayer.CreateTexture then
                     local a, b = spot[prev.n], spot[s.n]
                     -- canvas y grows downward, the maths wants it up
-                    local ang, tx, ty, len = WC.ArrowPlace(a[1], -a[2], b[1], -b[2], rad[s.n], ARROW_GAP + ARROW_SIZE / 2)
+                    local ang, tx, ty, len = WC.ArrowPlace(a[1], -a[2], b[1], -b[2], rad[s.n], ARROW_GAP + arrowSize / 2)
                     if ang then
                         local rot = WC.ArrowRotation(ang)
                         local function put(cx, cy, size, sub)
                             na = na + 1
                             placeArrow(na, cx, -cy, size * scale, rot, OUTLINE, sub)
                             na = na + 1
-                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { 1, 0.95, 0.6, 1 } or { GOLD[1], GOLD[2], GOLD[3], 1 }, sub + 1)
+                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { 1, 0.95, 0.6, 1 } or { lineC[1], lineC[2], lineC[3], 1 }, sub + 1)
                         end
-                        put(tx, ty, ARROW_SIZE, 3)
-                        for _, f in ipairs(WC.ChevronSpots(WC.ChevronCount(len, w))) do
+                        put(tx, ty, arrowSize, 3)
+                        local chevrons = WC.Setting("planChevrons") and WC.ChevronCount(len, w) or 0
+                        for _, f in ipairs(WC.ChevronSpots(chevrons)) do
                             put(a[1] + (b[1] - a[1]) * f, -a[2] + (-b[2] + a[2]) * f, CHEVRON_SIZE, 3)
                         end
                     end
@@ -567,6 +583,7 @@ local function placeMinimap(m, mapID, px, py, step)
     m:ClearAllPoints()
     m:SetPoint("CENTER", Minimap, "CENTER", x, y)
     local b = m.badge
+    WC.ApplyBadgeFill(b)
     local ox, oy = WC.MinimapBadgeOffset(edge)
     b:ClearAllPoints()
     b:SetPoint("CENTER", m, "CENTER", ox, oy)
@@ -582,7 +599,7 @@ local function placeMinimap(m, mapID, px, py, step)
     local notch = WC.PinNotch(step.kind)
     b.mark:SetText(notch or "")
     b.notchBg:SetShown(notch ~= nil)
-    local arrived = WC.PinArrived(step.kind, dist)
+    local arrived = WC.Setting("arrivalPulse") and WC.PinArrived(step.kind, dist)
     b.glow:SetShown(arrived)
     if b.pulse then
         if arrived and not b.pulsing then b.pulse:Play() elseif not arrived and b.pulsing then b.pulse:Stop() end
@@ -603,7 +620,7 @@ local function tick()
     if f and f:IsShown() then f.label:SetText(WC.PlanText(step, mapID, px, py)) end
     local m = WC.planMinimap
     if m then
-        if step and mapShown() then placeMinimap(m, mapID, px, py, step) else m:Hide() end
+        if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
     end
 end
 
@@ -627,7 +644,7 @@ function WC.SetPlanSize(size)
     WC.db.settings.planSize = id
     local name = L["PLAN_SIZE_" .. id]
     print(string.format(L.PLAN_SIZE_SET, name))
-    if WC.settingsFrame then WC.settingsFrame.sync() end
+    if WC.SyncOptions then WC.SyncOptions() end
     WC.RefreshPlan()
 end
 
@@ -662,7 +679,7 @@ function WC.TogglePlan(what, arg)
         s.planTracker = not s.planTracker
         print(s.planTracker and L.PLAN_TRACKER_ON or L.PLAN_TRACKER_OFF)
     end
-    if WC.settingsFrame then WC.settingsFrame.sync() end
+    if WC.SyncOptions then WC.SyncOptions() end
     WC.RefreshPlan()
 end
 

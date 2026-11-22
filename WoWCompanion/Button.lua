@@ -22,19 +22,26 @@ function WC.TooltipLines(info)
     if type(d) == "table" and gen and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = L.TIP_OUT_OF_DATE end
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))
     out[#out + 1] = L.TIP_CLICK
+    out[#out + 1] = L.TIP_CLICK_RIGHT
+    if info.minimap then out[#out + 1] = L.TIP_CLICK_DRAG end
     return out
 end
 
 -- Display only: fills the game tooltip next to the button.
 local function show_tooltip(owner)
     local lines = WC.TooltipLines({ digest = WoWCompanionDigest, db = WC.db or {}, player = UnitName("player"), now = time(),
-        captured = WC.OwnCapturedAt(UnitName("player")) })
+        captured = WC.OwnCapturedAt(UnitName("player")), minimap = owner == WC.minimapButton })
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     for _, line in ipairs(lines) do GameTooltip:AddLine(line) end
     GameTooltip:Show()
 end
 
 local function hide_tooltip() GameTooltip:Hide() end
+
+-- A click on the minimap button or the compartment entry: right opens the options window, any other click the panel.
+function WC.ButtonClick(button)
+    if button == "RightButton" then WC.OpenOptions() else WC.TogglePanel() end
+end
 
 function WC.PlaceMinimapButton()
     local b = WC.minimapButton
@@ -48,13 +55,13 @@ local function create_minimap_button()
     local b = CreateFrame("Button", "WoWCompanionMinimapButton", Minimap)
     b:SetSize(31, 31)
     b:SetFrameLevel(8)
-    b:RegisterForClicks("LeftButtonUp")
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:RegisterForDrag("LeftButton")
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetSize(20, 20)
     b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     b.icon:SetTexture(WC.ICON)
-    b:SetScript("OnClick", function() WC.TogglePanel() end)
+    b:SetScript("OnClick", function(_, button) WC.ButtonClick(button) end)
     b:SetScript("OnEnter", show_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     b:SetScript("OnDragStart", function(self)
@@ -76,7 +83,7 @@ function WC.CreateButton()
             text = WC.L.ADDON_NAME,
             icon = WC.ICON,
             notCheckable = true,
-            func = function() WC.TogglePanel() end,
+            func = function(_, data) WC.ButtonClick(type(data) == "table" and data.buttonName or nil) end,
             funcOnEnter = show_tooltip,
             funcOnLeave = hide_tooltip,
         })

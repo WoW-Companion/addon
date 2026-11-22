@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.4.1"] = { "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2" },
     ["0.4.0"] = { "WHATS_NEW_0_4_0_1", "WHATS_NEW_0_4_0_2" },
     ["0.3.9"] = { "WHATS_NEW_0_3_9_1", "WHATS_NEW_0_3_9_2" },
     ["0.3.8"] = { "WHATS_NEW_0_3_8_1", "WHATS_NEW_0_3_8_2" },
@@ -73,6 +74,10 @@ end
 -- Called once at load, after the panel exists.
 function WC.InitWhatsNew(db, fresh)
     local version = WC.Version()
+    if db.settings.showWhatsNew == false and version then
+        db.lastSeenVersion = version -- the player turned the box off: note the version, show nothing
+        return
+    end
     local keys = WC.WhatsNewPending(db, version, fresh)
     if keys then WC.whatsNew = create_box(version, keys) end
 end
