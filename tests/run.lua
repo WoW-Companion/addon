@@ -1099,8 +1099,26 @@ cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", funct
     for _, f in ipairs(frames) do if f.planGroup and f.planGroup.steps[1].n == 2 then f.scripts.OnEnter(f) end end
     local text = {}
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
-    assert(text[1] == "Step 2 \226\128\148 Kill 5 boars" and text[2] == "Quest 10" and text[3] == "Objective")
+    assert(text[1] == "Step 2 \194\183 Objective" and text[2] == "Quest 10" and text[3] == "Kill 5 boars" and #text == 3)
     WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: tooltip layout per kind, merged de-dup, label stripping, next marker", function()
+    local WC = plan_client("full")
+    local function texts(g) local t = {} for _, l in ipairs(WC.PlanTipLines(g)) do t[#t + 1] = l.text end return table.concat(t, "|") end
+    local P = { n = 1, kind = "pickup", quest = "Blood Tithe", label = "Pick up Blood Tithe from Bob" }
+    local O = { n = 2, kind = "objective", quest = "Blood Tithe", label = "Blood Tithe: 0/1 Find Aamelia Windfield" }
+    local T = { n = 3, kind = "turnin", quest = "Blood Tithe", label = "Turn in Blood Tithe to Aamelia Windfield" }
+    assert(texts({ steps = { P } }) == "Step 1 \194\183 Pick up|Blood Tithe|from Bob")
+    assert(texts({ steps = { O } }) == "Step 2 \194\183 Objective|Blood Tithe|0/1 Find Aamelia Windfield")
+    assert(texts({ steps = { O, T }, next = O }) ==
+        "Step 2 \194\183 Objective \194\183 Next|Blood Tithe|0/1 Find Aamelia Windfield| |Step 3 \194\183 Turn in|to Aamelia Windfield")
+    assert(texts({ steps = { O, { n = 3, kind = "turnin", quest = "Other", label = "Turn in Other to X" } } }):find("|Other|to X", 1, true))
+    local Q = { quest = "Ka'rok: the End (Part 1)", label = "Ka'rok: the End (Part 1): 2/3 Slay it" }
+    assert(WC.PlanDetail(Q) == "2/3 Slay it")
+    assert(WC.PlanDetail({ quest = "A: B", label = "Turn in A: B to Cy" }) == "to Cy")
+    assert(WC.PlanDetail({ quest = "A", label = "Pick up A" }) == "" and WC.PlanDetail({ quest = "", label = "Travel to X" }) == "Travel to X")
+    assert(texts({ steps = { { n = 1, kind = "pickup", quest = "A", label = "Pick up A from Z", approx = true } } }):find("from Z (approx.)", 1, true))
 end }
 
 cases[#cases + 1] = { "plan: badges coincide with client markers by radius, scaled by zoom", function()

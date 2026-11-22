@@ -6,6 +6,7 @@ local WC = WoWCompanion
 local L = WC.L
 
 local GOLD = { 1, 0.82, 0 }
+local GREY = { 0.7, 0.7, 0.7 }
 local NOTCH = { pickup = "!", turnin = "?" } -- objective and travel steps show the number only
 -- Badge diameter in map units by the pin size setting; "normal" matches the client's own quest markers (~28).
 local PIN_SIZES = { small = 22, normal = 28, large = 36 }
@@ -107,6 +108,44 @@ function WC.SetBadgeInset(p, inset)
     p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -inset, inset)
 end
 
+-- Tooltip detail: the label without the quest name it repeats, or "" when nothing is left.
+-- Strips "<quest>: ", then "Pick up <quest> " or "Turn in <quest> " (plain-text match, so quote
+-- and colon characters in names are safe).
+function WC.PlanDetail(step)
+    local label, quest = step.label or "", step.quest or ""
+    if quest ~= "" then
+        local function strip(prefix)
+            if label:sub(1, #prefix) == prefix then label = label:sub(#prefix + 1) return true end
+        end
+        if not strip(quest .. ": ") then
+            if not strip("Turn in " .. quest .. " ") and not strip("Pick up " .. quest .. " ") then
+                if label == "Turn in " .. quest or label == "Pick up " .. quest or label == quest then label = "" end
+            end
+        end
+    end
+    return label
+end
+
+-- The tooltip for a badge group, as { text =, color = } lines: per step a gold header "Step 2 · Objective"
+-- (" · Next" on the next step), the quest name in white unless the step before shares the quest, then the
+-- detail in grey (" (approx.)" appended for an approximate step). A spacer separates the steps.
+function WC.PlanTipLines(group)
+    local lines, prevQuest = {}, nil
+    for i, s in ipairs(group.steps) do
+        if i > 1 then lines[#lines + 1] = { text = " ", color = GREY } end
+        local head = string.format(L.PLAN_TIP_HEAD, tostring(s.n), L["PLAN_KIND_" .. s.kind] or s.kind)
+        if group.next == s then head = head .. L.PLAN_TIP_NEXT end
+        lines[#lines + 1] = { text = head, color = GOLD }
+        local q = s.quest or ""
+        if q ~= "" and q ~= prevQuest then lines[#lines + 1] = { text = q, color = { 1, 1, 1 } } end
+        prevQuest = q ~= "" and q or nil
+        local d = WC.PlanDetail(s)
+        if s.approx then d = (d ~= "" and d .. " " or "") .. L.PLAN_TIP_APPROX end
+        if d ~= "" then lines[#lines + 1] = { text = d, color = GREY } end
+    end
+    return lines
+end
+
 local function pinFor(i, canvas)
     local p = pins[i]
     if p then return p end
@@ -127,10 +166,9 @@ local function pinFor(i, canvas)
         local g = self.planGroup
         if not g then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        for _, s in ipairs(g.steps) do
-            GameTooltip:AddLine(string.format(L.PLAN_PIN_LINE, tostring(s.n), s.label), GOLD[1], GOLD[2], GOLD[3])
-            if s.quest ~= "" then GameTooltip:AddLine(s.quest, 1, 1, 1) end
-            GameTooltip:AddLine(L["PLAN_KIND_" .. s.kind] or s.kind, 0.7, 0.7, 0.7)
+        for _, line in ipairs(WC.PlanTipLines(g)) do
+            local c = line.color
+            GameTooltip:AddLine(line.text, c[1], c[2], c[3])
         end
         GameTooltip:Show()
     end)
