@@ -143,26 +143,6 @@ function WC.PlanDetail(step)
     return label
 end
 
--- The tooltip for a badge group, as { text =, color = } lines: per step a gold header "Step 2 · Objective"
--- (" · Next" on the next step), the quest name in white unless the step before shares the quest, then the
--- detail in grey (" (approx.)" appended for an approximate step). A spacer separates the steps.
-function WC.PlanTipLines(group)
-    local lines, prevQuest = {}, nil
-    for i, s in ipairs(group.steps) do
-        if i > 1 then lines[#lines + 1] = { text = " ", color = GREY } end
-        local head = string.format(L.PLAN_TIP_HEAD, tostring(s.n), L["PLAN_KIND_" .. s.kind] or s.kind)
-        if group.next == s then head = head .. L.PLAN_TIP_NEXT end
-        lines[#lines + 1] = { text = head, color = GOLD }
-        local q = s.quest or ""
-        if q ~= "" and q ~= prevQuest then lines[#lines + 1] = { text = q, color = { 1, 1, 1 } } end
-        prevQuest = q ~= "" and q or nil
-        local d = WC.PlanLiveText(s, WC.PlanDetail(s))
-        if s.approx then d = (d ~= "" and d .. " " or "") .. L.PLAN_TIP_APPROX end
-        if d ~= "" then lines[#lines + 1] = { text = d, color = GREY } end
-    end
-    return lines
-end
-
 local function pinFor(i, canvas)
     local p = pins[i]
     if p then return p end
@@ -182,12 +162,7 @@ local function pinFor(i, canvas)
     p:SetScript("OnEnter", function(self)
         local g = self.planGroup
         if not g then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        for _, line in ipairs(WC.PlanTipLines(g)) do
-            local c = line.color
-            GameTooltip:AddLine(line.text, c[1], c[2], c[3])
-        end
-        GameTooltip:Show()
+        WC.ShowPlanTip(self, "ANCHOR_RIGHT", g)
         WC.HoverEnterBadge(g)
     end)
     p:SetScript("OnLeave", function() GameTooltip:Hide() WC.HoverLeaveBadge() end)
@@ -592,7 +567,8 @@ end
 local function placeMinimap(m, mapID, px, py, step)
     if not (Minimap and mapID == step.map and px) then m:Hide() return end
     local w, h = WC.MapYards(mapID)
-    local dist, _, bearing = WC.PlanDistance(px, py, step.x, step.y, w, h)
+    local dist, compass, bearing = WC.PlanDistance(px, py, step.x, step.y, w, h)
+    m.tipDist, m.tipDir = dist, compass
     local half = (Minimap:GetWidth() or 140) / 2
     local zoom = Minimap.GetZoom and Minimap:GetZoom() or 0
     local indoors = IsIndoors and IsIndoors()
@@ -798,6 +774,15 @@ function WC.CreatePlanUI()
         b.pulse, b.pulseAnim = ag, a
     end
     m.badge = b
+    -- Mouse-over for the tooltip; clicks still reach the minimap and the pins under the badge.
+    b:EnableMouse(true)
+    if b.SetPropagateMouseClicks then b:SetPropagateMouseClicks(true) end
+    b:SetScript("OnEnter", function(self)
+        local st = WC.PlanNext()
+        if not st then return end
+        WC.ShowPlanTip(self, "ANCHOR_LEFT", { steps = { st }, next = st }, { dist = m.tipDist, dir = m.tipDir })
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     m.arrow = {} -- the rim arrow: two line pieces, no texture art
     for k = 1, 2 do
         local ln = b:CreateLine()

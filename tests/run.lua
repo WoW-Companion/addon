@@ -1273,7 +1273,7 @@ cases[#cases + 1] = { "plan: pin placement is normalised and filtered by map", f
     assert(not src:find("WorldMapFrame:GetWidth", 1, true) and not src:find("WorldMapFrame:GetHeight", 1, true))
 end }
 
-cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", function()
+cases[#cases + 1] = { "plan: pin tooltip names the quest, target and step", function()
     local WC = plan_client("full")
     local canvas = CreateFrame("Frame", nil, UIParent)
     canvas:SetSize(1000, 500)
@@ -1282,7 +1282,7 @@ cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", funct
     for _, f in ipairs(frames) do if f.planGroup and f.planGroup.steps[1].n == 2 then f.scripts.OnEnter(f) end end
     local text = {}
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
-    assert(text[1] == "Step 2 \194\183 Objective" and text[2] == "Quest 10" and text[3] == "Kill 5 boars" and #text == 3)
+    assert(text[1] == "Quest 10" and text[2] == "Kill 5 boars" and text[3]:find("^Step 2 of %d+") and #text == 3, table.concat(text, "|"))
     WorldMapFrame = nil
 end }
 
@@ -1292,16 +1292,70 @@ cases[#cases + 1] = { "plan: tooltip layout per kind, merged de-dup, label strip
     local P = { n = 1, kind = "pickup", quest = "Blood Tithe", label = "Pick up Blood Tithe from Bob" }
     local O = { n = 2, kind = "objective", quest = "Blood Tithe", label = "Blood Tithe: 0/1 Find Aamelia Windfield" }
     local T = { n = 3, kind = "turnin", quest = "Blood Tithe", label = "Turn in Blood Tithe to Aamelia Windfield" }
-    assert(texts({ steps = { P } }) == "Step 1 \194\183 Pick up|Blood Tithe|from Bob")
-    assert(texts({ steps = { O } }) == "Step 2 \194\183 Objective|Blood Tithe|0/1 Find Aamelia Windfield")
-    assert(texts({ steps = { O, T }, next = O }) ==
-        "Step 2 \194\183 Objective \194\183 Next|Blood Tithe|0/1 Find Aamelia Windfield| |Step 3 \194\183 Turn in|to Aamelia Windfield")
-    assert(texts({ steps = { O, { n = 3, kind = "turnin", quest = "Other", label = "Turn in Other to X" } } }):find("|Other|to X", 1, true))
+    local F = "|Step %d of 20"
+    local function one(g) local t = texts(g) return t end
+    local s1 = texts({ steps = { P } })
+    assert(s1:find("^Blood Tithe|Bob|Step 1 of %d+"), s1)
+    assert(texts({ steps = { O }, next = O }):find("^Blood Tithe|Find Aamelia Windfield|Step 2 of %d+ \194\183 Next"))
+    local m = texts({ steps = { O, T }, next = O })
+    assert(select(2, m:gsub("Blood Tithe", "")) == 1, "quest name once in a merged badge")
+    assert(m:find("| |Turn in to Aamelia Windfield|Step 3 of", 1, true))
+    assert(texts({ steps = { O, { n = 3, kind = "turnin", quest = "Other", label = "Turn in Other to X" } } }):find("|Other|Turn in to X", 1, true))
     local Q = { quest = "Ka'rok: the End (Part 1)", label = "Ka'rok: the End (Part 1): 2/3 Slay it" }
     assert(WC.PlanDetail(Q) == "2/3 Slay it")
     assert(WC.PlanDetail({ quest = "A: B", label = "Turn in A: B to Cy" }) == "to Cy")
     assert(WC.PlanDetail({ quest = "A", label = "Pick up A" }) == "" and WC.PlanDetail({ quest = "", label = "Travel to X" }) == "Travel to X")
-    assert(texts({ steps = { { n = 1, kind = "pickup", quest = "A", label = "Pick up A from Z", approx = true } } }):find("from Z (approx.)", 1, true))
+    assert(texts({ steps = { { n = 1, kind = "pickup", quest = "A", label = "Pick up A from Z", approx = true } } }):find("Z (approx.)", 1, true))
+end }
+
+cases[#cases + 1] = { "badge tooltip: title, who, rows, xp, levels, footer, combat and missing APIs", function()
+    local WC = plan_client("full")
+    local P = { n = 1, kind = "pickup", questID = 10, quest = "The Skybreaker Bulwark", label = "Pick up The Skybreaker Bulwark from Seena Skybreaker", level = 10, class = "Class" }
+    local function lines(g, o) return WC.PlanTipLines(g, o) end
+    local g = { steps = { P }, next = P, total = 20 }
+    local L1 = lines(g, { dist = 125, dir = "W" })
+    assert(L1[1].text == "[10] The Skybreaker Bulwark (Class)" and L1[1].right == nil, "no xp when not in the log")
+    assert(L1[2].text == "Seena Skybreaker" and L1[3].text == "Step 1 of 20 \194\183 Next \194\183 125 yd W")
+    assert(lines(g)[3].text == "Step 1 of 20 \194\183 Next", "no distance off the minimap")
+    -- no level data: no brackets and no (levels) on the who line
+    local N = { n = 2, kind = "pickup", questID = 11, quest = "Crab Season", label = "Pick up Crab Season from Bob" }
+    assert(lines({ steps = { N }, total = 20 })[1].text == "Crab Season")
+    -- an objective step in the log: live rows, XP on the right
+    local O = { n = 3, kind = "objective", questID = 12, quest = "Crab Season", label = "Crab Season: 0/6 Windsong Crawler", npcLevel = "8-9" }
+    QUESTS[12] = "active"
+    C_QuestLog.GetQuestObjectives = function() return { { text = "Windsong Crawler Meat", numFulfilled = 0, numRequired = 6 }, { text = "Done thing", numFulfilled = 1, numRequired = 1, finished = true } } end
+    GetQuestLogRewardXP = function() return 600 end
+    local LO = lines({ steps = { O }, total = 20 })
+    assert(LO[1].text == "Crab Season" and LO[1].right == "(600xp)")
+    assert(LO[2].text == "Windsong Crawler (8-9)")
+    assert(LO[3].text == "   0/6 Windsong Crawler Meat" and LO[4].text == "   1/1 Done thing" and LO[4].color[1] < 0.7)
+    WC.db.settings.badgeTipsXP = false
+    assert(lines({ steps = { O }, total = 20 })[1].right == nil, "show XP off")
+    WC.db.settings.badgeTipsXP = true
+    GetQuestLogRewardXP = nil
+    assert(lines({ steps = { O }, total = 20 })[1].right == nil, "no API: no xp")
+    C_QuestLog.GetQuestObjectives = nil
+    assert(#lines({ steps = { O }, total = 20 }) == 3, "no objectives API: title, who, footer")
+    -- ready quests say so
+    QUESTS[12] = "ready"
+    local T = { n = 4, kind = "turnin", questID = 12, quest = "Crab Season", label = "Turn in Crab Season to Cy" }
+    local LT = lines({ steps = { T }, total = 20 })
+    assert(LT[2].text == "Turn in to Cy" and LT[3].text == "   Ready to turn in")
+    -- merged: the quest name once, a spacer between steps
+    local M = lines({ steps = { O, T }, total = 20 })
+    local names = 0
+    for _, l in ipairs(M) do if l.text == "Crab Season" then names = names + 1 end end
+    assert(names == 1)
+    -- setting and combat
+    assert(WC.BadgeTipsAllowed())
+    WC.db.settings.badgeTipsHideCombat = true
+    WC.inCombat = true
+    assert(not WC.BadgeTipsAllowed(), "hidden in combat when asked")
+    WC.inCombat = false
+    WC.db.settings.badgeTipsHideCombat = false
+    WC.db.settings.badgeTips = false
+    assert(not WC.BadgeTipsAllowed() and not WC.ShowPlanTip({}, "ANCHOR_LEFT", g))
+    assert(WC.DEF_OF.badgeTips.default == true and WC.DEF_OF.badgeTipsXP.default == true and WC.DEF_OF.badgeTipsHideCombat.default == false)
 end }
 
 cases[#cases + 1] = { "plan: badges coincide with client markers by radius, scaled by zoom", function()
@@ -1866,7 +1920,9 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
     assert(TOC_VERSION == "0.4.7" and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_7_1"); has("WHATS_NEW_0_4_6_1")
+    has("WHATS_NEW_0_4_7_1")
+    has("WHATS_NEW_0_4_6_1")
+    has("WHATS_NEW_0_4_7_2")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }

@@ -43,6 +43,9 @@ function WC.ParsePlan(plan, player)
                 n = #steps + 1, kind = s.kind, questID = tonumber(s.questID) or 0,
                 quest = plain(s.quest or ""), label = plain(s.label or ""), approx = s.approx == true,
                 map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100),
+                -- optional, shown in tooltips only when the plan carries them: quest level, class-quest name, NPC level text
+                level = tonumber(s.level), class = type(s.class) == "string" and s.class ~= "" and plain(s.class) or nil,
+                npcLevel = (type(s.npcLevel) == "string" or type(s.npcLevel) == "number") and plain(tostring(s.npcLevel)) or nil,
             }
         end
     end

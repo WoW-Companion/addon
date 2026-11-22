@@ -15,6 +15,7 @@ Options.lua
 Tracker.lua
 Plan.lua
 PlanUI.lua
+PlanTip.lua
 Tooltips.lua
 Hover.lua
 Card.lua

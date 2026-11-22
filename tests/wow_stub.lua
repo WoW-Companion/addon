@@ -116,7 +116,7 @@ function Stub.install(env)
     env.print = function(s) env.PRINTED[#env.PRINTED + 1] = s end
     -- Records what the tooltip was asked to show; nothing else is modelled.
     env.GameTooltip = { calls = {} }
-    for _, m in ipairs({ "SetOwner", "SetHyperlink", "AddLine", "Show", "Hide" }) do
+    for _, m in ipairs({ "SetOwner", "SetHyperlink", "AddLine", "AddDoubleLine", "Show", "Hide" }) do
         env.GameTooltip[m] = function(self, ...) self.calls[#self.calls + 1] = { m, ... } end
     end
     -- Older clients have no TooltipDataProcessor: a test sets WITH_TOOLTIP_HOOKS to get hooksecurefunc and HookScript, which record into HOOKS.
