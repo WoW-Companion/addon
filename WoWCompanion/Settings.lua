@@ -38,6 +38,7 @@ function WC.InitSettings(db)
     s.planMap = s.planMap ~= false
     s.planLines = s.planLines ~= false
     s.planArrows = s.planArrows ~= false
+    s.planShow = (tonumber(s.planShow) and tonumber(s.planShow) >= 1) and math.floor(tonumber(s.planShow)) or "all"
     s.planSize = WC.PIN_SIZES and WC.PIN_SIZES[s.planSize] and s.planSize or "normal"
     s.tooltips = s.tooltips ~= false
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
@@ -78,6 +79,9 @@ local function sync(f)
     f.scaleText:SetText(string.format(L.SCALE_LABEL, s.scale))
     local size = L["FONT_" .. s.fontSize]
     f.fontButton:SetText(string.format(L.FONT_LABEL, size))
+    if f.planShow then
+        f.planShow:SetText(string.format(L.PLAN_SHOW_LABEL, tostring(s.planShow)))
+    end
     if f.planSize then
         local name = L["PLAN_SIZE_" .. s.planSize]
         f.planSize:SetText(string.format(L.PLAN_SIZE_LABEL, name))
@@ -89,7 +93,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 630)
+    f:SetSize(320, 656)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -129,7 +133,15 @@ function WC.CreateSettings()
     f.planSize:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -114)
     f.planSize:SetScript("OnClick", function() WC.CyclePlanSize() end)
 
-    local y = -144
+    f.planShow = CreateFrame("Button", "WoWCompanionOptionPlanShow", f, "UIPanelButtonTemplate")
+    f.planShow:SetSize(180, 22)
+    f.planShow:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -140)
+    f.planShow:SetScript("OnClick", function()
+        local cur = WC.db.settings.planShow
+        WC.SetPlanShow(cur == "all" and 5 or (cur == 5 and 10 or "all"))
+    end)
+
+    local y = -170
     local function check(name, label, get, set)
         local c = CreateFrame("CheckButton", "WoWCompanionOption" .. name, f, "UICheckButtonTemplate")
         c:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)

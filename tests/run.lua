@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("arrowheads", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("badges", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1207,7 +1207,7 @@ cases[#cases + 1] = { "plan: arrowhead placement, chevron spacing and frame leve
     assert(near(sp[1], 1 / 3) and near(sp[2], 2 / 3) and #WC.ChevronSpots(0) == 0)
     -- levels: lines, then arrows, then our badges, all clear of other addons' low defaults and below the tags
     local lv = WC.PLAN_LEVELS
-    assert(lv.line >= 500 and lv.line < lv.arrow and lv.arrow < lv.pin and lv.pin < 2500)
+    assert(lv.line >= 500 and lv.line < lv.arrow and lv.arrow < lv.pin and lv.pin < 3500)
 end }
 
 cases[#cases + 1] = { "plan: /wowc plan arrows toggles the arrowheads", function()
@@ -1215,6 +1215,65 @@ cases[#cases + 1] = { "plan: /wowc plan arrows toggles the arrowheads", function
     assert(WoWCompanionDB.settings.planArrows == true)
     SlashCmdList.WOWC("plan arrows")
     assert(WoWCompanionDB.settings.planArrows == false and WoWCompanionOptionPlanArrows ~= nil)
+end }
+
+cases[#cases + 1] = { "plan: our badges sit above a simulated other-addon pin, and are re-asserted after a refresh", function()
+    local WC = plan_client("full")
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    local other = CreateFrame("Frame", nil, canvas)
+    other:SetFrameLevel(2000) -- another addon's pin at a high level
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    local mine = {}
+    for _, f in ipairs(frames) do if f.planGroup then mine[#mine + 1] = f end end
+    assert(#mine >= 1)
+    for _, f in ipairs(mine) do assert(f:GetFrameLevel() > other:GetFrameLevel()) end
+    local top = mine[1]
+    for _, f in ipairs(mine) do if f.planGroup.isNext then top = f end end
+    for _, f in ipairs(mine) do assert(f:GetFrameLevel() <= top:GetFrameLevel() or f.isTag) end
+    for _, f in ipairs(mine) do f:SetFrameLevel(1) end -- a refresh by someone else resets levels
+    WC.RefreshMapPins()
+    for _, f in ipairs(mine) do if f:IsShown() then assert(f:GetFrameLevel() > 2000) end end
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: /wowc plan debug prints one line per undone step", function()
+    local WC = plan_client("full")
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    local out = {}
+    local realPrint = print
+    print = function(...) out[#out + 1] = table.concat({ ... }, " ") end
+    SlashCmdList.WOWC("plan debug")
+    print = realPrint
+    assert(#out >= 2, "head plus step lines")
+    for i = 2, #out do
+        assert(out[i]:match("^step %d+ %a+ x=%S+ y=%S+ %a+ level=%d+ shown=%a+$"), out[i])
+        assert(out[i]:find("shown=yes", 1, true))
+    end
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: show n limits to the next n undone steps", function()
+    local WC = plan_client("full")
+    local steps = {}
+    for i = 1, 20 do steps[i] = { n = i } end
+    assert(#WC.ShownSteps(steps, {}, "all") == 20 and #WC.ShownSteps(steps, nil, nil) == 20)
+    local five = WC.ShownSteps(steps, { [1] = true, [2] = true }, 5)
+    assert(#five == 5 and five[1].n == 3 and five[5].n == 7)
+    SlashCmdList.WOWC("plan show 5")
+    assert(WoWCompanionDB.settings.planShow == 5 and WoWCompanionOptionPlanShow ~= nil)
+    SlashCmdList.WOWC("plan show all")
+    assert(WoWCompanionDB.settings.planShow == "all")
+end }
+
+cases[#cases + 1] = { "plan: no other addon's globals or frames are referenced", function()
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    assert(not src:find("QuestieFrame", 1, true) and not src:find("Questie", 1, true) and not src:find("_G%[", 1))
+    assert(not src:find("GetChildren", 1, true) and not src:find("EnumerateFrames", 1, true))
 end }
 
 cases[#cases + 1] = { "plan: no Questie asset or code is referenced", function()
