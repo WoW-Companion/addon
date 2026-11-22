@@ -61,18 +61,18 @@ local function new_region(kind)
     function r:CreateFontString() return new_region("FontString") end
     function r:CreateTexture() return new_region("Texture") end
     function r:SetAllPoints() end
-    function r:SetColorTexture() end
+    function r:SetColorTexture(...) self.colorTexture = { ... } end
     function r:SetShadowOffset(x, y) self.shadow = { x, y } end
     function r:SetShadowColor() end
     function r:SetBackdrop(b) self.backdrop = b end
-    function r:SetBackdropColor() end
+    function r:SetBackdropColor(...) self.backdropColor = { ... } end
     function r:SetBackdropBorderColor() end
     function r:SetTexture(t) self.texture = t end
     function r:SetScale(v) self.scale = v end
     function r:SetFont(path, size) self.font, self.fontSize = path, size end
     function r:SetFrameLevel(v) self.level = v end
     function r:GetFrameLevel() return self.level or 1 end
-    function r:SetVertexColor() end
+    function r:SetVertexColor(...) self.vertex = { ... } end
     function r:SetTextColor(...) self.color = { ... } end
     function r:SetDrawLayer() end
     function r:RegisterForClicks() end
@@ -83,10 +83,12 @@ local function new_region(kind)
     function r:SetValue(v) self.value = v end
     function r:GetValue() return self.value end
     function r:CreateLine() return new_region("Line") end
-    function r:SetThickness() end
+    function r:SetThickness(v) self.thickness = v end
     function r:SetStartPoint(...) self.startPoint = { ... } end
     function r:SetEndPoint(...) self.endPoint = { ... } end
     function r:SetRotation(v) self.rotation = v end
+    function r:SetEnabled(v) self.enabled = v and true or false end
+    function r:SetFrameStrata(v) self.strata = v end
     function r:SetShown(v) if v then self:Show() else self:Hide() end end
     function r:GetWidth() return self.w or 0 end
     function r:HookScript(name, fn) self.scripts[name] = fn end

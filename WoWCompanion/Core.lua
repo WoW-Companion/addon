@@ -23,6 +23,7 @@ loader:SetScript("OnEvent", function(_, _, name)
     WC.CreatePanel()
     WC.CreateTracker()
     WC.InitWhatsNew(WC.db, fresh)
+    WC.CreateOptions()
     WC.CreateSettings()
     WC.CreateButton()
     WC.CreatePlanUI()
@@ -62,8 +63,8 @@ SlashCmdList["WOWC"] = function(msg)
         ask(question)
     elseif cmd == "" or cmd == "ask" then
         WC.TogglePanel()
-    elseif cmd == "settings" or cmd == "options" then
-        WC.OpenSettings()
+    elseif cmd == "settings" or cmd == "options" or cmd == "config" then
+        WC.OpenOptions()
     elseif cmd == "plan" then
         WC.TogglePlan((msg:match("^%s*%S+%s+(%S+)") or ""):lower(), (msg:match("^%s*%S+%s+%S+%s+(%S+)") or ""):lower())
     elseif cmd == "status" then

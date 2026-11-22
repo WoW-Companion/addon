@@ -4,7 +4,9 @@ local WC = WoWCompanion
 local L = WC.L
 
 local FULL_HEIGHT, COMPACT_MIN = 320, 150
-local PANEL_WIDTH, CONTENT_WIDTH = 340, 292 -- the width is unchanged from the old panel: lines wrap instead of being cut
+local WIDTH_MARGIN = 48 -- the panel is this much wider than its text column; the width is the panelWidth setting (340)
+local function panel_width() return WC.Setting("panelWidth") end
+local function content_width() return panel_width() - WIDTH_MARGIN end
 local SCROLL_TOP, SCROLL_BOTTOM = 44, 10 -- the scroll area's offsets from the frame's top and bottom
 local STEP, TITLE_X, RIGHT_W = 16, 32, 64 -- indent step; where a quest title starts; width kept for a right-aligned note
 
@@ -20,10 +22,10 @@ WC.view = { expanded = {} }
 function WC.CreatePanel()
     -- A light, translucent frame: a thin border and a dark wash instead of the dialog template.
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BackdropTemplate")
-    f:SetSize(PANEL_WIDTH, FULL_HEIGHT)
+    f:SetSize(panel_width(), FULL_HEIGHT)
     if f.SetBackdrop then
         f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        f:SetBackdropColor(0, 0, 0, 0.45)
+        f:SetBackdropColor(0, 0, 0, WC.Setting("bgOpacity"))
         f:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.5)
     end
     f:SetScale(WC.db.settings.scale)
@@ -71,7 +73,7 @@ function WC.CreatePanel()
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -SCROLL_TOP)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, SCROLL_BOTTOM)
     f.content = CreateFrame("Frame", nil, f.scroll)
-    f.content:SetSize(CONTENT_WIDTH, 1)
+    f.content:SetSize(content_width(), 1)
     f.scroll:SetScrollChild(f.content)
 
     f.rows = {}
@@ -89,6 +91,22 @@ function WC.CreatePanel()
     c.GetText = function(self) return self.label:GetText() end
     c:SetText(L.COMPACT)
     f.compactButton = c
+
+    -- The gear: opens the options window.
+    local g = CreateFrame("Button", "WoWCompanionGearButton", f)
+    g:SetSize(16, 16)
+    g:SetPoint("TOPRIGHT", f, "TOPRIGHT", -82, -6)
+    g.icon = g:CreateTexture(nil, "ARTWORK")
+    g.icon:SetAllPoints()
+    g.icon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
+    g:SetScript("OnClick", function() WC.OpenOptions() end)
+    g:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(L.OPEN_GEAR_TIP)
+        GameTooltip:Show()
+    end)
+    g:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.gear = g
 
     f:SetScript("OnHide", function() WC.view.expanded = {} end)
 
@@ -193,6 +211,8 @@ function WC.Refresh()
     WC.RefreshTracker()
     local f = WC.panel
     if not f then return end
+    if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, WC.Setting("bgOpacity")) end
+    f.content:SetWidth(content_width())
     WC.StyleText(f.title)
     WC.StyleText(f.header)
     local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
@@ -221,7 +241,7 @@ function WC.Refresh()
         row.right:SetText(r.right or "")
         row.right:SetTextColor(unpack(WC.COLORS.dim))
         -- The text wraps at the panel width; it is never cut.
-        row.label:SetWidth(CONTENT_WIDTH - x - (r.right and RIGHT_W or 0))
+        row.label:SetWidth(content_width() - x - (r.right and RIGHT_W or 0))
         row.label:ClearAllPoints()
         row.label:SetPoint("TOPLEFT", row, "TOPLEFT", x, 0)
         row.right:ClearAllPoints()
@@ -232,7 +252,7 @@ function WC.Refresh()
         if r.kind == "header" and i > 1 then y = y + 4 end -- a little air above each section
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
-        row:SetSize(CONTENT_WIDTH, h)
+        row:SetSize(content_width(), h)
         y = y + h + (r.kind == "obj" and 0 or 1)
         row.link = (r.item and "item:" .. r.item) or (r.spell and "spell:" .. r.spell) or nil
         row.sectionId = r.id
@@ -254,7 +274,7 @@ function WC.Refresh()
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)
     f.content:SetHeight(y)
-    f:SetSize(PANEL_WIDTH, compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, SCROLL_TOP + SCROLL_BOTTOM + y)) or FULL_HEIGHT)
+    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, SCROLL_TOP + SCROLL_BOTTOM + y)) or FULL_HEIGHT)
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end

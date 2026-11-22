@@ -391,21 +391,25 @@ local settings_cases = {
             assert(math.abs(WoWCompanion.MinimapAngle(r[1], r[2], r[3], r[4], r[5]) - r[6]) < 1e-6, "row " .. i)
         end
     end },
-    { "settings page: plain frame fallback", function()
+    { "options window: the slash aliases toggle it; the fallback page stays hidden", function()
         fresh_client(nil)
-        assert(WoWCompanion.settingsMode == "frame" and not WoWCompanionSettings:IsShown())
-        SlashCmdList.WOWC("settings")
-        assert(WoWCompanionSettings:IsShown())
-        SlashCmdList.WOWC("settings")
-        assert(not WoWCompanionSettings:IsShown())
+        assert(WoWCompanion.settingsMode == "frame" and not WoWCompanionSettings:IsShown() and not WoWCompanionOptions:IsShown())
+        for _, alias in ipairs({ "options", "config", "settings" }) do
+            SlashCmdList.WOWC(alias)
+            assert(WoWCompanionOptions:IsShown(), alias)
+            SlashCmdList.WOWC(alias)
+            assert(not WoWCompanionOptions:IsShown(), alias)
+        end
     end },
     { "settings page: client Settings API", function()
         WITH_SETTINGS_API = true
         fresh_client(nil)
         WITH_SETTINGS_API = nil
         assert(WoWCompanion.settingsMode == "settings" and Settings.registered.frame == WoWCompanionSettings)
-        SlashCmdList.WOWC("settings")
+        WoWCompanion.OpenSettings()
         assert(Settings.opened[1] == 42)
+        WoWCompanionOpenOptions.scripts.OnClick(WoWCompanionOpenOptions)
+        assert(WoWCompanionOptions:IsShown(), "the AddOns page button opens the window")
     end },
 }
 for _, c in ipairs(settings_cases) do cases[#cases + 1] = c end
@@ -451,7 +455,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("quest tracker", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("options window", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -499,7 +503,7 @@ local tracker_cases = {
     end },
     { "enabling the tracker shows the first step", function()
         digest_client("full")
-        click(WoWCompanionSettings.checks[3])
+        click(WoWCompanionOptionTracker)
         assert(settings().tracker == true and WoWCompanionTracker:IsShown())
         assert(WoWCompanionTracker.label:GetText() == "Next up: Turn in The Hungry Ettin (+1 more)")
     end },
@@ -538,13 +542,16 @@ local tracker_cases = {
         assert(sizes.small[1] == 10 and sizes.small[2] == 10 and sizes.small[3] == 10)
         assert(sizes.normal[1] == 12 and sizes.large[1] == 15 and sizes.large[2] == 15 and sizes.large[3] == 15)
     end },
-    { "font size button cycles and bad values repair", function()
+    { "font size radios pick a size and bad values repair", function()
         digest_client("full")
-        local b = WoWCompanionOptionFont
         local seen = {}
-        for i = 1, 3 do b.scripts.OnClick(b); seen[i] = settings().fontSize end
+        for i, id in ipairs({ "large", "small", "normal" }) do
+            local r = _G["WoWCompanionOptionFont_" .. id]
+            r.scripts.OnClick(r)
+            seen[i] = settings().fontSize
+            assert(r.checked == true and _G["WoWCompanionOptionFont_" .. (id == "large" and "small" or "large")].checked == false)
+        end
         assert(seen[1] == "large" and seen[2] == "small" and seen[3] == "normal")
-        assert(b:GetText() == "Text size: Normal")
         fresh_client({ settings = { fontSize = "huge", tracker = "yes" } })
         assert(settings().fontSize == "normal" and settings().tracker == false)
     end },
@@ -599,8 +606,7 @@ local combat_cases = {
     end },
     { "hide in combat checkboxes save the setting", function()
         fresh_client(nil)
-        local checks = WoWCompanionSettings.checks
-        click(checks[#checks - 1]); click(checks[#checks])
+        click(WoWCompanionOptionHideTracker); click(WoWCompanionOptionHidePanel)
         assert(settings().hideInCombat.tracker == false and settings().hideInCombat.panel == true)
     end },
 }
@@ -671,9 +677,9 @@ end }
 local tip_rows = {
     { "2.0 file without this character", {}, { schema = "2.0", generated = NOW0, characters = {} }, { "Digest: none yet" } },
     { "1.2 file for another character", {}, { schema = "1.2", character = "Jaina", generated = NOW0 }, { "Digest: none yet" } },
-    { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions queued: 0", "Click to open" } },
+    { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions queued: 0", "Left-click", "Right-click: open the options" } },
     { "digest and queue", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } },
-      { character = "Thrall", generated = NOW0 - 7200 }, { "(2 h ago)", "Questions queued: 2", "Click to open" } },
+      { character = "Thrall", generated = NOW0 - 7200 }, { "(2 h ago)", "Questions queued: 2", "Left-click" } },
 }
 local outdated_rows = {
     { "fresh, capture seconds later", { generated = 1000 }, 1100, 1010, false },
@@ -710,7 +716,9 @@ cases[#cases + 1] = { "button hover fills and hides the tooltip on both button k
         local lines = {}
         for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then lines[#lines + 1] = c[2] end end
         assert(GameTooltip.calls[1][1] == "SetOwner" and GameTooltip.calls[#GameTooltip.calls][1] == "Show")
-        assert(lines[#lines] == "Click to open" and lines[2] == "Digest: none yet")
+        local all = table.concat(lines, "\n")
+        assert(lines[2] == "Digest: none yet" and all:find("Left-click: show or hide the panel", 1, true))
+        assert(all:find("Right-click: open the options", 1, true))
         leave(owner)
         assert(GameTooltip.calls[#GameTooltip.calls][1] == "Hide")
     end
@@ -1000,8 +1008,10 @@ cases[#cases + 1] = { "plan: corner tags are 0.75 of a badge with the full font;
     assert(f:find("GameFontNormal\"", 1, true) and not f:find("SetFontObject(\"GameFontNormalSmall\")", 1, true))
     assert(not f:find("SetVertexColor(0.05, 0.04, 0.02, 0.95)", 1, true))
     assert(WC.BADGE_FILL[4] == 0.80 and WC.BADGE_FILL[2] == 0.22)
-    local _, n = f:gsub("WC%.BADGE_FILL%[", "")
-    assert(n >= 4, "fill is read from the one constant, by BadgeParts, which all three badge kinds use")
+    local fr, fg, fb, fa = WC.BadgeFillColor()
+    assert(fr == WC.BADGE_FILL[1] and fg == WC.BADGE_FILL[2] and fb == WC.BADGE_FILL[3] and fa == WC.BADGE_FILL[4], "default fill is the shipped constant")
+    local _, n = f:gsub("WC%.ApplyBadgeFill%(", "")
+    assert(n >= 4, "fill is read from the settings, by BadgeParts, which all three badge kinds use")
     local _, parts = f:gsub("WC%.BadgeParts%(", "")
     assert(parts == 3, "definition + map pin + minimap pin")
 end }
@@ -1647,6 +1657,242 @@ cases[#cases + 1] = { "the panel code never mentions another addon's frames or c
     for _, file in ipairs({ "Panel.lua", "Digest.lua" }) do
         local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
         assert(not src:lower():find("questie", 1, true), file)
+    end
+end }
+
+
+-- The options window and the settings rows behind it.
+local function set_path(t, key, v)
+    local head, rest = key:match("^([^.]+)%.(.+)$")
+    if not head then t[key] = v return end
+    t[head] = type(t[head]) == "table" and t[head] or {}
+    t[head][rest] = v
+end
+local function get_path(t, key)
+    local head, rest = key:match("^([^.]+)%.(.+)$")
+    if not head then return t[key] end
+    return t[head] and t[head][rest]
+end
+local function same(a, b)
+    if type(a) == "table" then return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
+    return a == b
+end
+local function valid(def, v)
+    local t = def.type
+    if t == "bool" then return type(v) == "boolean" end
+    if t == "range" then return type(v) == "number" and v >= def.min and v <= def.max end
+    if t == "choice" then for _, c in ipairs(def.choices) do if c == v then return true end end return false end
+    if t == "color" then return type(v) == "table" and #v == 3 and v[1] >= 0 and v[1] <= 1 and v[2] >= 0 and v[3] <= 1 end
+    if t == "limit" then return v == "all" or (type(v) == "number" and v >= 1 and v == math.floor(v)) end
+    return type(v) == "number"
+end
+-- Moves every row off its default to some other valid value.
+local function off_default(def)
+    if def.type == "bool" then return not def.default end
+    if def.type == "range" then return def.default == def.max and def.min or def.max end
+    if def.type == "choice" then return def.choices[def.default == def.choices[1] and 2 or 1] end
+    if def.type == "color" then return { 0.9, 0.9, 0.9 } end
+    if def.type == "limit" then return 7 end
+    return 33
+end
+
+cases[#cases + 1] = { "options: InitSettings repairs every row from bad types and out-of-range values", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(#WC.DEFS >= 40)
+    local bad = { "junk", 12345, -99999, {}, true, false, { 5, "x" }, 0 / 0, 1e12 }
+    for _, def in ipairs(WC.DEFS) do
+        for i, v in ipairs(bad) do
+            local saved = {}
+            set_path(saved, def.key, v)
+            fresh_client({ settings = saved })
+            local got = get_path(settings(), def.key)
+            assert(valid(def, got), def.key .. " from bad value " .. i .. " gave " .. tostring(got))
+        end
+        fresh_client({ settings = "junk" })
+        assert(same(get_path(settings(), def.key), def.default), def.key .. " default")
+    end
+    fresh_client({ settings = { panelWidth = 5000, bgOpacity = -3, lineWidth = 0, mergeDistance = 99, planShow = 0.5, timeFormat = "13" } })
+    local s = settings()
+    assert(s.panelWidth == 520 and s.bgOpacity == 0 and s.lineWidth == 1 and s.mergeDistance == 5 and s.planShow == "all" and s.timeFormat == "client")
+end }
+
+cases[#cases + 1] = { "options: a page's Defaults resets only that page; Reset all resets everything", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, page in ipairs(WC.PAGES) do
+        fresh_client(nil)
+        WC = WoWCompanion
+        for _, def in ipairs(WC.DEFS) do set_path(settings(), def.key, off_default(def)) end
+        local btn = _G["WoWCompanionOptionsDefaults_" .. page]
+        btn.scripts.OnClick(btn)
+        for _, def in ipairs(WC.DEFS) do
+            local got = get_path(settings(), def.key)
+            if def.page == page then
+                assert(same(got, def.default), page .. " resets " .. def.key)
+            else
+                assert(same(got, off_default(def)), page .. " left " .. def.key)
+            end
+        end
+    end
+    fresh_client(nil)
+    WC = WoWCompanion
+    for _, def in ipairs(WC.DEFS) do set_path(settings(), def.key, off_default(def)) end
+    WoWCompanionOptionsResetAll.scripts.OnClick(WoWCompanionOptionsResetAll)
+    for _, def in ipairs(WC.DEFS) do assert(same(get_path(settings(), def.key), def.default), def.key) end
+    assert(settings().show.notes == true and settings().hideInCombat.tracker == true)
+end }
+
+cases[#cases + 1] = { "options: settings reads give the old constants by default and follow a change", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local want = { lineWidth = 2.5, lineOpacity = 0.7, arrowSize = 14, nextGrow = 1.3, tagScale = 0.75, mergeDistance = 1.2,
+        badgeOpacity = 0.80, scale = 1, bgOpacity = 0.45, panelWidth = 340, minimapPin = true, arrivalPulse = true, nextPulse = true }
+    for k, v in pairs(want) do assert(settings()[k] == v and WC.Setting(k) == v, k) end
+    assert(same(settings().lineColor, { 1, 0.82, 0 }) and same(settings().badgeFill, { 0.05, 0.22, 0.13 }))
+    assert(WC.PinSize("normal", false) == 28 and WC.PinSize("large", true) == 47 and WC.TagDiameter(28) == 21)
+    local steps = { { n = 1, map = 7, x = 10, y = 10 }, { n = 2, map = 7, x = 10.9, y = 10 }, { n = 3, map = 7, x = 30, y = 30 } }
+    assert(#WC.PinGroups(steps, 7, {}, nil) == 2)
+    settings().mergeDistance = 0.5
+    assert(#WC.PinGroups(steps, 7, {}, nil) == 3)
+    settings().badgeScale, settings().nextGrow, settings().tagScale = 1.5, 2, 0.5
+    assert(WC.PinSize("normal", false) == 42 and WC.PinSize("normal", true) == 84 and WC.TagDiameter(42) == 21)
+    settings().badgeFill, settings().badgeOpacity = { 1, 0, 0 }, 0.5
+    local r, g, b, a = WC.BadgeFillColor()
+    assert(r == 1 and g == 0 and b == 0 and a == 0.5)
+    local p = { fill = { SetVertexColor = function(self, ...) self.v = { ... } end } }
+    WC.ApplyBadgeFill(p)
+    assert(p.fill.v[1] == 1 and p.fill.v[4] == 0.5)
+end }
+
+cases[#cases + 1] = { "options: a change saves, repairs and calls both refresh paths", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local calls = { 0, 0 }
+    local refresh, plan = WC.Refresh, WC.RefreshPlan
+    WC.Refresh = function() calls[1] = calls[1] + 1 end
+    WC.RefreshPlan = function() calls[2] = calls[2] + 1 end
+    assert(WC.SetSetting("badgeOpacity", 0.52) == 0.5 and settings().badgeOpacity == 0.5)
+    assert(calls[1] == 1 and calls[2] == 1)
+    assert(WC.SetSetting("lineWidth", 99) == 6 and WC.SetSetting("planShow", "x") == "all")
+    WoWCompanionOptionTagScale.scripts.OnValueChanged(WoWCompanionOptionTagScale, 0.6)
+    assert(settings().tagScale == 0.6 and calls[1] == 4)
+    WoWCompanionOptionTagScale.scripts.OnValueChanged(WoWCompanionOptionTagScale, 0.6)
+    assert(calls[1] == 4, "an unchanged value does not redraw")
+    WoWCompanionOptionPlanShow.scripts.OnValueChanged(WoWCompanionOptionPlanShow, 25)
+    assert(settings().planShow == "all")
+    WoWCompanionOptionPlanShow.scripts.OnValueChanged(WoWCompanionOptionPlanShow, 8)
+    assert(settings().planShow == 8)
+    WC.Refresh, WC.RefreshPlan = refresh, plan
+    -- the colour picker: each swatch change is saved at once and cancelling restores the old colour
+    local info
+    local cur = { 0.2, 0.4, 0.6 }
+    ColorPickerFrame = { SetupColorPickerAndShow = function(_, i) info = i end, GetColorRGB = function() return cur[1], cur[2], cur[3] end }
+    WoWCompanionOptionBadgeFill.scripts.OnClick(WoWCompanionOptionBadgeFill)
+    assert(info.r == 0.05 and info.g == 0.22 and info.b == 0.13)
+    info.swatchFunc()
+    assert(same(settings().badgeFill, cur))
+    info.cancelFunc()
+    assert(same(settings().badgeFill, { 0.05, 0.22, 0.13 }))
+    ColorPickerFrame = nil
+end }
+
+cases[#cases + 1] = { "options: every entry point opens the window", function()
+    fresh_client(nil)
+    local opt = WoWCompanionOptions
+    assert(not opt:IsShown() and opt.title.text == "WoW Companion")
+    local gear = WoWCompanionGearButton
+    gear.scripts.OnClick(gear)
+    assert(opt:IsShown())
+    gear.scripts.OnClick(gear)
+    assert(not opt:IsShown())
+    local b = WoWCompanionMinimapButton
+    b.scripts.OnClick(b, "RightButton")
+    assert(opt:IsShown() and not WoWCompanionPanel:IsShown())
+    b.scripts.OnClick(b, "LeftButton")
+    assert(WoWCompanionPanel:IsShown())
+    opt:Hide()
+    WITH_COMPARTMENT = true
+    fresh_client(nil)
+    WITH_COMPARTMENT = nil
+    local reg = AddonCompartmentFrame.registered[1]
+    reg.func("WoWCompanion", { buttonName = "RightButton" })
+    assert(WoWCompanionOptions:IsShown())
+    WoWCompanionOptions:Hide()
+    reg.func("WoWCompanion", { buttonName = "LeftButton" })
+    assert(WoWCompanionPanel:IsShown() and not WoWCompanionOptions:IsShown())
+    -- pages switch, each with its own Defaults button; the minimap page resets the button position
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, id in ipairs(WC.PAGES) do
+        _G["WoWCompanionOptionsTab_" .. id].scripts.OnClick()
+        assert(WC.options.page == id and WC.options.pages[id]:IsShown() and WC.options.subtitle.text ~= nil)
+    end
+    settings().minimap.angle = 10
+    WoWCompanionOptionsResetButton.scripts.OnClick()
+    assert(settings().minimap.angle == 215)
+end }
+
+cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local L = WC.L
+    local function has(k) assert(rawget(L, k) ~= nil, "missing string " .. k) end
+    for _, def in ipairs(WC.DEFS) do
+        if def.label then has(def.label) end
+        if def.box then has("BOX_" .. def.page .. "_" .. def.box) end
+        for _, c in ipairs(def.choices or {}) do has(def.choiceKey .. c) end
+    end
+    for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
+    for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
+    assert(TOC_VERSION == "0.4.1" and WC.CHANGELOG["0.4.1"])
+end }
+
+cases[#cases + 1] = { "options: panel and digest settings change what is drawn", function()
+    local p = digest_client("v13")
+    PLAYER_NAME = nil
+    local WC = WoWCompanion
+    local function plain_now() WC.Refresh(); return p.plain end
+    WC.SetSetting("bgOpacity", 0.8)
+    assert(p.backdropColor[4] == 0.8)
+    WC.SetSetting("panelWidth", 400)
+    plain_now()
+    assert(p.w == 400 and p.content.w == 352)
+    WC.SetSetting("panelWidth", 340)
+    local rows = WC.QuestEntryRows({ kind = "progress", title = "T", level = 5, npc = "Bob", objectives = {
+        { text = "Find X", have = 0, need = 1 }, { text = "Chat", have = 0, need = 1, optional = true } } }, nil, nil, 5)
+    assert(rows[1].text == "[5] T" and #rows == 3 and rows[1].color ~= WC.COLORS.gold)
+    WC.SetSetting("showLevels", false); WC.SetSetting("colorByDifficulty", false); WC.SetSetting("showOptional", false)
+    rows = WC.QuestEntryRows({ kind = "progress", title = "T", level = 5, objectives = {
+        { text = "Find X", have = 0, need = 1 }, { text = "Chat", have = 0, need = 1, optional = true } } }, nil, nil, 5)
+    assert(rows[1].text == "T" and rows[1].color == WC.COLORS.gold and #rows == 2)
+    WC.SetSetting("showNpcLines", false)
+    rows = WC.QuestEntryRows({ kind = "turnin", title = "T", level = 5, npc = "Bob" }, nil, nil, 5)
+    for _, r in ipairs(rows) do assert(not r.text:find("Bob", 1, true)) end
+    WC.SetSetting("showNpcLines", true)
+    rows = WC.QuestEntryRows({ kind = "turnin", title = "T", level = 5, npc = "Bob" }, nil, nil, 5)
+    assert(rows[#rows].text:find("Bob", 1, true))
+    local ts = 1800000000 + 15 * 3600
+    WC.SetSetting("timeFormat", "24")
+    assert(WC.FormatClock(ts):match("^%d%d:%d%d$"))
+    WC.SetSetting("timeFormat", "12")
+    assert(WC.FormatClock(ts):match(" [AP]M$"))
+    GetCVar = function() return "1" end
+    WC.SetSetting("timeFormat", "client")
+    assert(WC.FormatClock(ts):match("^%d%d:%d%d$"))
+    GetCVar = nil
+    -- the box stays away when its setting is off, and the version is still noted
+    fresh_client({ lastSeenVersion = "0.0.0", settings = { showWhatsNew = false } })
+    assert(WoWCompanion.whatsNew == nil and WoWCompanionDB.lastSeenVersion == TOC_VERSION)
+end }
+
+cases[#cases + 1] = { "options: the minimap pin and pulses follow their settings", function()
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    for _, key in ipairs({ "minimapPin", "arrivalPulse", "nextPulse", "planChevrons", "lineColor", "lineWidth", "lineOpacity", "arrowSize" }) do
+        assert(src:find('WC.Setting("' .. key .. '")', 1, true), key)
+    end
+    for _, old in ipairs({ "local NEXT_GROW", "local MERGE_DISTANCE", "local TAG_SCALE", "local LINE_WIDTH", "local ARROW_SIZE" }) do
+        assert(not src:find(old, 1, true), old .. " is a setting now")
     end
 end }
 

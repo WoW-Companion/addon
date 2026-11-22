@@ -43,6 +43,10 @@ end
 
 -- Local wall-clock time of a unix timestamp, in the client's 12- or 24-hour format. military overrides the CVar.
 function WC.FormatClock(ts, military)
+    if military == nil then
+        local pref = WC.Setting("timeFormat")
+        if pref == "24" then military = true elseif pref == "12" then military = false end
+    end
     if military == nil then military = GetCVar and GetCVar("timeMgrUseMilitaryTime") == "1" end
     local fmt = date or os.date
     if military then return fmt("%H:%M", ts) end
@@ -148,12 +152,13 @@ local function objective_row(o, optional_names)
     local have, need = tonumber(o.have), tonumber(o.need)
     local text = (have and need) and string.format("%d/%d %s", have, need, name) or name
     local done = o.finished == true or (have ~= nil and need ~= nil and have >= need)
-    return { kind = "obj", indent = 2, text = plain(text), color = done and WC.COLORS.dim or WC.COLORS.white, done = done }
+    return { kind = "obj", indent = 2, text = plain(text), color = done and WC.COLORS.dim or WC.COLORS.white, done = done }, opt and true or false
 end
 
 -- The rows of one structured next-quest line: the title row (state icon, collapse button, [level]
 -- Title, (Class), right-aligned (Elite)) and, unless collapsed, its objective and status rows.
 -- Live quest state overrides the digest's. Returns nil when the quest is already turned in.
+local LEVEL_TAG = "[%d] "
 function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     local state = quest and WC.PlanQuestState and WC.PlanQuestState(quest) or "none"
     if state == "turnedin" then return nil end
@@ -166,11 +171,13 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     if state == "ready" then kind = "turnin" elseif state == "active" then kind = "progress" end
     local id = "q" .. tostring(quest or title)
     local closed = collapsed and collapsed[id] == true
-    local text = (level and string.format("[%d] ", math.floor(level)) or "") .. title
+    local tag = (level and WC.Setting("showLevels")) and string.format(LEVEL_TAG, math.floor(level)) or ""
+    local text = tag .. title
     if line.class then text = text .. " (" .. L.CLASS .. ")" end
+    local color = WC.Setting("colorByDifficulty") and WC.DifficultyColor(level, playerLevel) or WC.COLORS.gold
     local head = {
         kind = "quest", id = id, quest = quest, closed = closed, icon = WC.ICONS[kind],
-        text = plain(text), color = WC.DifficultyColor(level, playerLevel),
+        text = plain(text), color = color,
         right = line.elite and ("(" .. L.ELITE .. ")") or nil,
         ask = { kind = "quest", subject = ask_subject(title) },
     }
@@ -191,13 +198,13 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     if kind == "progress" or kind == "turnin" then
         for _, o in ipairs(objs) do
             if type(o) == "table" and o.text then
-                local r = objective_row(o, optional_names)
+                local r, opt = objective_row(o, optional_names)
                 if kind == "turnin" then r.color, r.done = WC.COLORS.dim, true end
-                out[#out + 1] = r
+                if not opt or WC.Setting("showOptional") then out[#out + 1] = r end
             end
         end
     end
-    local npc = line.npc and plain(line.npc) or nil
+    local npc = (line.npc and WC.Setting("showNpcLines")) and plain(line.npc) or nil
     if kind == "turnin" then
         out[#out + 1] = { kind = "status", indent = 2, text = L.READY_LINE, color = WC.COLORS.green }
         if npc then out[#out + 1] = { kind = "status", indent = 2, text = string.format(L.TURN_IN_TO, npc), color = WC.COLORS.grey } end
