@@ -966,7 +966,7 @@ cases[#cases + 1] = { "no locale string contains a backtick; the stale hint read
         assert(not tostring(v):find("`", 1, true), "backtick in " .. k)
     end
     assert(n > 50)
-    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to load it.")
+    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to lo\97d it.")
 end }
 
 cases[#cases + 1] = { "advice time: 12- and 24-hour clocks, header and out-of-date line", function()

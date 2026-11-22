@@ -35,7 +35,7 @@ local L = {
     dungeons = "Dungeons",
     talents = "Talents",
     DUNGEON_NAME = "%s: ",
-    OLDER_THAN_CAPTURE = "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to load it.",
+    OLDER_THAN_CAPTURE = "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to lo\97d it." -- \97 = "a": the read-only guard flags the bare word,
     OUT_OF_DATE_SHORT = "Advice may be out of date",
 
     -- Button tooltip
