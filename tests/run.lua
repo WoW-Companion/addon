@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("round numbered", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("corner", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1071,7 +1071,7 @@ cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next o
     local p = {}
     for _, f in ipairs(frames) do if f.planGroup then p[#p + 1] = f end end
     assert(#p == 2 and p[1].shown and p[1].w > p[2].w and p[1].num.text == "1\194\1833") -- steps 1 and 3 share a spot
-    assert(p[2].points[1][4] == 600 and p[2].points[1][5] == -250)
+    assert(p[2].anchor.points[1][4] == 600 and p[2].anchor.points[1][5] == -250)
     WorldMapFrame.GetMapID = function() return 1 end
     WC.RefreshMapPins()
     assert(not p[1].shown)
@@ -1101,6 +1101,29 @@ cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", funct
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
     assert(text[1] == "Step 2 \226\128\148 Kill 5 boars" and text[2] == "Quest 10" and text[3] == "Objective")
     WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: badges coincide with client markers by radius, scaled by zoom", function()
+    local WC = plan_client("full")
+    local g = { steps = { { n = 1, x = 50, y = 50, questID = 7 } } }
+    local r = WC.MarkerRadius(1)
+    assert(r == 2.5 and WC.MarkerRadius(2) == 1.25 and WC.MarkerRadius(nil) == 2.5)
+    assert(WC.GroupMarker(g, { { questID = 7, x = 51, y = 51 } }, r), "same quest, inside")
+    assert(WC.GroupMarker(g, { { questID = 9, x = 52, y = 50 } }, r), "any marker, inside")
+    assert(not WC.GroupMarker(g, { { questID = 7, x = 54, y = 50 } }, r), "outside")
+    assert(not WC.GroupMarker(g, { { questID = 7, x = 52, y = 50 } }, WC.MarkerRadius(4)), "zoom shrinks the radius")
+    local m = WC.GroupMarker(g, { { questID = 9, x = 51, y = 50 }, { questID = 7, x = 50, y = 51 } }, r)
+    assert(m.questID == 7, "same quest wins a tie")
+    assert(not WC.GroupMarker(g, {}, r) and not WC.GroupMarker(g, nil, r))
+    assert(WC.PinLabel({ { n = 4 }, { n = 5 } }) == "4\194\1835", "merged tag text")
+end }
+
+cases[#cases + 1] = { "plan: no OnUpdate on world-map pin frames", function()
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    local _, n = src:gsub('SetScript%("OnUpdate"', "")
+    assert(n == 1, "only the driver frame has an OnUpdate")
+    local pf = src:match("local function pinFor.-\nend\n")
+    assert(pf and not pf:find("OnUpdate", 1, true) and not src:match("function WC.RefreshMapPins.-\nend\n"):find("OnUpdate", 1, true))
 end }
 
 cases[#cases + 1] = { "plan: badge text, kind notch, next-step state and done steps", function()
