@@ -31,9 +31,9 @@ local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
 local MINIMAP_YARDS_INDOORS = { [0] = 150, 125, 100, 75, 50, 25 }
 local MM_RIM = 14 -- the badge centre stays this far inside the minimap edge so the arrow fits outside it
 local MM_LIFT = { 8, 8 } -- pixels the badge sits up and right of the true spot, so the NPC icon stays visible
+local MM_ARROW_SIZE = 10 -- the rim arrow's length in pixels
 local MM_ARROW_GAP = 13 -- the edge arrow sits this far from the badge centre, toward the target
 local ARRIVE_YARDS = 5 -- pick-ups and turn-ins pulse within this distance
-local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 
 -- Corner tags: a step that sits on one of the client's own quest markers is drawn as a small tag on that
 -- marker's top-right corner instead of a full badge that would hide underneath it.
@@ -321,9 +321,16 @@ function WC.ArrowPlace(x1, y1, x2, y2, radius, gap)
     return (math.atan2 or math.atan)(dy, dx), x2 - ux * back, y2 - uy * back, len
 end
 
--- The art points up, so the texture rotation for a direction angle is the angle less a quarter turn.
-function WC.ArrowRotation(angle)
-    return angle - math.pi / 2
+-- An arrowhead is two short strokes drawn as client lines (no texture art, which a client may not have). For a head
+-- centred on (cx, cy) pointing along angle (radians, counter-clockwise from east, y up) and size pixels long, returns
+-- the tip then the two wing ends as x1, y1, x2, y2, x3, y3.
+function WC.ArrowheadPoints(cx, cy, angle, size)
+    local ux, uy = math.cos(angle), math.sin(angle)
+    local half = size / 2
+    local tx, ty = cx + ux * half, cy + uy * half
+    local bx, by = cx - ux * half, cy - uy * half
+    local px, py = -uy * half * 0.8, ux * half * 0.8
+    return tx, ty, bx + px, by + py, bx - px, by - py
 end
 
 -- How many chevrons a segment gets: none up to LONG_SEGMENT of the map width, one up to twice that, else two.
@@ -341,25 +348,21 @@ function WC.ChevronSpots(n)
     return out
 end
 
-local function arrowTex(i, layer, sub)
-    local t = arrows[i]
-    if not t then
-        t = arrowLayer:CreateTexture(nil, layer)
-        t:SetTexture(MINIMAP_ARROW)
-        arrows[i] = t
+-- Draws one arrowhead (two line pieces, pool slots i and i + 1) on layer, centred on canvas offset (cx, cy) from
+-- the layer's top left (y up, so below the top is negative) and pointing along angle.
+local function placeArrow(layer, list, i, cx, cy, size, angle, rgba, sub, thickness)
+    local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(cx, cy, angle, size)
+    local ends = { { x1, y1 }, { x2, y2 } }
+    for k = 1, 2 do
+        local ln = list[i + k - 1] or layer:CreateLine()
+        list[i + k - 1] = ln
+        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", sub) end
+        ln:SetThickness(thickness)
+        ln:SetColorTexture(rgba[1], rgba[2], rgba[3], rgba[4])
+        ln:SetStartPoint("TOPLEFT", layer, tx, ty)
+        ln:SetEndPoint("TOPLEFT", layer, ends[k][1], ends[k][2])
+        ln:Show()
     end
-    if t.SetDrawLayer then t:SetDrawLayer(layer, sub) end
-    return t
-end
-
-local function placeArrow(i, cx, cy, size, rot, rgba, sub)
-    local t = arrowTex(i, "ARTWORK", sub)
-    t:SetSize(size, size)
-    t:ClearAllPoints()
-    t:SetPoint("CENTER", arrowLayer, "TOPLEFT", cx, cy)
-    if t.SetRotation then t:SetRotation(rot) end
-    t:SetVertexColor(rgba[1], rgba[2], rgba[3], rgba[4])
-    t:Show()
 end
 
 -- The steps to draw: all of them, or only the first n undone ones in plan order (n = 5, 10 or "all").
@@ -393,6 +396,13 @@ function WC.PlanDebug()
         if WC.PinWanted(s, mapID, WC.plan.done) then lines[#lines + 1] = WC.PlanDebugLine(s, stepPin[s.n]) end
     end
     print(string.format(L.PLAN_DEBUG_HEAD, tostring(mapID), #lines))
+    local drawn = 0
+    for _, a in ipairs(arrows) do if a:IsShown() then drawn = drawn + 1 end end
+    print(string.format(L.PLAN_ARROW_DEBUG, drawn))
+    local legacy = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
+    local id = GetFileIDFromPath and GetFileIDFromPath(legacy)
+    local found = id and tostring(id) or L.PLAN_ARROW_DEBUG_NONE
+    print(string.format(L.PLAN_ARROW_DEBUG_LEGACY, legacy, found))
     for _, l in ipairs(lines) do print(l) end
 end
 
@@ -525,20 +535,19 @@ function WC.RefreshMapPins()
                 end
                 if wantArrows and arrowLayer.CreateTexture then
                     local a, b = spot[prev.n], spot[s.n]
-                    -- canvas y grows downward, the maths wants it up
-                    local ang, tx, ty, len = WC.ArrowPlace(a[1], -a[2], b[1], -b[2], rad[s.n], ARROW_GAP + arrowSize / 2)
+                    -- spots are offsets from the canvas's top left (y up, so negative below it): the maths' own frame
+                    local ang, tx, ty, len = WC.ArrowPlace(a[1], a[2], b[1], b[2], rad[s.n], ARROW_GAP + arrowSize / 2)
                     if ang then
-                        local rot = WC.ArrowRotation(ang)
+                        local headC = isNext and { nextC[1], nextC[2], nextC[3], 1 } or { lineC[1], lineC[2], lineC[3], 1 }
                         local function put(cx, cy, size, sub)
-                            na = na + 1
-                            placeArrow(na, cx, -cy, size * scale, rot, outline, sub)
-                            na = na + 1
-                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { nextC[1], nextC[2], nextC[3], 1 } or { lineC[1], lineC[2], lineC[3], 1 }, sub + 1)
+                            placeArrow(arrowLayer, arrows, na + 1, cx, cy, size * scale, ang, outline, sub, (lineW + OUTLINE_PAD + 1) * scale)
+                            placeArrow(arrowLayer, arrows, na + 3, cx, cy, size * scale, ang, headC, sub + 1, (lineW + 1) * scale)
+                            na = na + 4
                         end
                         put(tx, ty, arrowSize, 3)
                         local chevrons = WC.Setting("planChevrons") and WC.ChevronCount(len, w) or 0
                         for _, f in ipairs(WC.ChevronSpots(chevrons)) do
-                            put(a[1] + (b[1] - a[1]) * f, -a[2] + (-b[2] + a[2]) * f, chevronSize, 3)
+                            put(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, chevronSize, 3)
                         end
                     end
                 end
@@ -607,12 +616,16 @@ local function placeMinimap(m, mapID, px, py, step)
     b:ClearAllPoints()
     b:SetPoint("CENTER", m, "CENTER", ox, oy)
     m.spot:SetShown(not edge)
-    m.arrow:SetShown(edge and WC.Setting("minimapArrow"))
-    if edge and WC.Setting("minimapArrow") then
-        local ax, ay, rot = WC.MinimapArrow(angle)
-        m.arrow:ClearAllPoints()
-        m.arrow:SetPoint("CENTER", b, "CENTER", ax, ay)
-        if m.arrow.SetRotation then m.arrow:SetRotation(rot) end
+    local wantRim = edge and WC.Setting("minimapArrow")
+    for _, ln in ipairs(m.arrow) do ln:SetShown(wantRim) end
+    if wantRim then
+        local ax, ay = WC.MinimapArrow(angle)
+        local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(ax, ay, (math.atan2 or math.atan)(ay, ax), MM_ARROW_SIZE)
+        local ends = { { x1, y1 }, { x2, y2 } }
+        for k, ln in ipairs(m.arrow) do
+            ln:SetStartPoint("CENTER", b, tx, ty)
+            ln:SetEndPoint("CENTER", b, ends[k][1], ends[k][2])
+        end
     end
     b.num:SetText(tostring(step.n))
     local notch = WC.PinNotch(step.kind)
@@ -637,6 +650,7 @@ local function tick()
         return
     end
     if f and f:IsShown() then f.label:SetText(WC.PlanText(step, mapID, px, py)) end
+    if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
     local m = WC.planMinimap
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
@@ -767,10 +781,15 @@ function WC.CreatePlanUI()
         b.pulse, b.pulseAnim = ag, a
     end
     m.badge = b
-    m.arrow = b:CreateTexture(nil, "OVERLAY")
-    m.arrow:SetSize(10, 10)
-    m.arrow:SetTexture(MINIMAP_ARROW)
-    m.arrow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
+    m.arrow = {} -- the rim arrow: two line pieces, no texture art
+    for k = 1, 2 do
+        local ln = b:CreateLine()
+        if ln.SetDrawLayer then ln:SetDrawLayer("OVERLAY", 2) end
+        ln:SetThickness(2)
+        ln:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
+        ln:Hide()
+        m.arrow[k] = ln
+    end
     m:Hide()
     WC.planMinimap = m
 

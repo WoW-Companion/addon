@@ -31,13 +31,45 @@ function WC.ApplyPanelLook()
     f.title:SetTextColor(hc[1], hc[2], hc[3])
     f.title:ClearAllPoints()
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -8)
+    WC.LayoutPanelHeader()
+end
+
+-- Places the next-step line under the title (it wraps), the advice time under it and the scroll area below both.
+-- The scroll area's offset from the frame's top is kept in f.scrollTop.
+function WC.LayoutPanelHeader()
+    local f = WC.panel
+    if not f then return end
+    local pad = WC.Setting("padding")
+    local text = f.step:GetText()
     f.step:ClearAllPoints()
     f.step:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -26)
+    f.step:SetWidth(panel_width() - 2 * pad - 24)
+    local h1 = 0
+    if text and text ~= "" then
+        h1 = (f.step.GetStringHeight and f.step:GetStringHeight()) or WC.LINE_HEIGHT
+        if not h1 or h1 <= 0 then h1 = WC.LINE_HEIGHT end
+        h1 = h1 + 2
+    end
     f.header:ClearAllPoints()
-    f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -26)
+    f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -(26 + h1))
+    f.scrollTop = SCROLL_TOP + h1
     f.scroll:ClearAllPoints()
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -SCROLL_TOP)
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -f.scrollTop)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(pad + 18), pad)
+end
+
+-- Sets the next-step line from the plan and where the player stands. Re-lays the header only when the text changed,
+-- so movement (every tick) costs one string comparison.
+function WC.RefreshNextLine()
+    local f = WC.panel
+    if not f then return end
+    local mapID, px, py
+    if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
+    local text = WC.NextStepLine(WC.PlanNext(), mapID, px, py)
+    if f.step:GetText() == text then return end
+    f.step:SetText(text)
+    WC.LayoutPanelHeader()
+    if f:IsShown() and WC.view.mode == "next" then WC.Refresh() end
 end
 
 -- Which sections are temporarily expanded in compact mode.
@@ -103,7 +135,7 @@ function WC.CreatePanel()
     c.label:SetPoint("RIGHT", c, "RIGHT", 0, 0)
     c.label:SetJustifyH("RIGHT")
     shadow(c.label)
-    c:SetScript("OnClick", function() WC.SetCompact(not WC.db.settings.compact) end)
+    c:SetScript("OnClick", function() WC.SetCompact(WC.ViewMode() == "full") end)
     c.SetText = function(self, t) self.label:SetText(t) end
     c.GetText = function(self) return self.label:GetText() end
     c:SetText(L.COMPACT)
@@ -200,7 +232,7 @@ local function show_tooltip(row)
 end
 
 local function toggle_section(id)
-    if WC.db.settings.compact then
+    if WC.ViewMode() == "compact" then
         WC.view.expanded[id] = (not WC.view.expanded[id]) or nil
         WC.Refresh()
         return
@@ -241,10 +273,14 @@ function WC.Refresh()
     WC.StyleText(f.step)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
     f.header:SetText(meta and meta.advice or header)
-    local done, total = WC.PlanCounts()
-    f.step:SetText(total > 0 and string.format(L.STEP_COUNT, math.min(done + 1, total), total) or "")
-    local compact = WC.db.settings.compact
-    if compact then rows = WC.CompactRows(rows, WC.view.expanded) end
+    local mode = WC.ViewMode()
+    WC.view.mode = mode
+    local mapID, px, py
+    if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
+    f.step:SetText(WC.NextStepLine(WC.PlanNext(), mapID, px, py))
+    WC.LayoutPanelHeader()
+    rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
+    local compact = mode ~= "full"
     f.compactButton:SetText(compact and L.FULL or L.COMPACT)
 
     local y = 0
@@ -292,7 +328,7 @@ function WC.Refresh()
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)
     f.content:SetHeight(y)
-    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, SCROLL_TOP + WC.Setting("padding") + y)) or FULL_HEIGHT)
+    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT)
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end

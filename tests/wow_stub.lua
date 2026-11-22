@@ -46,6 +46,7 @@ local function new_region(kind)
         end
         return true
     end
+    function r:GetFontString() self.fontString = self.fontString or new_region("FontString"); return self.fontString end
     function r:SetText(t) self.text = t end
     function r:GetText() return self.text end
     function r:SetHeight(h) self.h = h end
