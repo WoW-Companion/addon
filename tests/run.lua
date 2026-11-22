@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("round numbered", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("corner", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1071,7 +1071,7 @@ cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next o
     local p = {}
     for _, f in ipairs(frames) do if f.planGroup then p[#p + 1] = f end end
     assert(#p == 2 and p[1].shown and p[1].w > p[2].w and p[1].num.text == "1\194\1833") -- steps 1 and 3 share a spot
-    assert(p[2].points[1][4] == 600 and p[2].points[1][5] == -250)
+    assert(p[2].anchor.points[1][4] == 600 and p[2].anchor.points[1][5] == -250)
     WorldMapFrame.GetMapID = function() return 1 end
     WC.RefreshMapPins()
     assert(not p[1].shown)
