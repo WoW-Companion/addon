@@ -21,7 +21,7 @@ local NEXT_LEVEL = 50 -- the next step sits this many levels above the rest of i
 local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 3000, 3001, 3010
 WC.PLAN_LEVELS = { line = LINE_LEVEL, arrow = ARROW_LEVEL, pin = PIN_LEVEL }
 local OUTLINE_PAD = 2 -- the outline is 1 px wider each side; the line's width, colour and opacity, and the outline's, are settings
-local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (14 px) is the arrowSize setting
+local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (8 px) is the arrowSize setting
 local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
 local DISC = "Interface\\Minimap\\UI-Minimap-Background"

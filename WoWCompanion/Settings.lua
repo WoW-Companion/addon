@@ -57,7 +57,7 @@ local D = {
     { key = "lineColor", visual = true, type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
     { key = "lineWidth", visual = true, type = "range", default = 2.5, min = 1, max = 6, step = 0.5, page = "map", box = "route", label = "LINE_WIDTH_LABEL", name = "LineWidth", show = "num1" },
     { key = "lineOpacity", visual = true, type = "range", default = 0.7, min = 0.1, max = 1, step = 0.05, page = "map", box = "route", label = "LINE_OPACITY_LABEL", name = "LineOpacity", show = "pct" },
-    { key = "arrowSize", visual = true, type = "range", default = 14, min = 8, max = 24, step = 1, page = "map", box = "route", label = "ARROW_SIZE_LABEL", name = "ArrowSize", show = "int" },
+    { key = "arrowSize", visual = true, type = "range", default = 8, min = 2, max = 24, step = 1, page = "map", box = "route", label = "ARROW_SIZE_LABEL", name = "ArrowSize", show = "int" },
     -- Badges
     { key = "planSize", visual = true, type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "badges", box = "size", label = "PLAN_SIZE_LABEL", name = "PlanSize", choiceKey = "PLAN_SIZE_" },
     { key = "badgeScale", visual = true, type = "range", default = 1, min = 0.7, max = 1.5, step = 0.05, page = "badges", box = "size", label = "BADGE_SCALE_LABEL", name = "BadgeScale", show = "num2" },
@@ -204,6 +204,11 @@ function WC.InitSettings(db)
     if not db.migrated.planTrackerOff then
         s.planTracker = false
         db.migrated.planTrackerOff = true
+    end
+    -- 0.4.6: arrowheads got smaller; a save still on the old default of 14 moves to 8 once, a chosen value stays.
+    if not db.migrated.arrowSize8 then
+        if s.arrowSize == nil or s.arrowSize == 14 then s.arrowSize = 8 end
+        db.migrated.arrowSize8 = true
     end
     for _, def in ipairs(D) do set_at(s, def.key, WC.Repair(def, get_at(s, def.key))) end
 end
