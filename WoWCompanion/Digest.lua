@@ -26,6 +26,15 @@ function WC.FormatAge(seconds)
     return string.format(L.AGE_DAYS, math.floor(seconds / 86400))
 end
 
+-- Local wall-clock time of a unix timestamp, in the client's 12- or 24-hour format. military overrides the CVar.
+function WC.FormatClock(ts, military)
+    if military == nil then military = GetCVar and GetCVar("timeMgrUseMilitaryTime") == "1" end
+    local fmt = date or os.date
+    if military then return fmt("%H:%M", ts) end
+    local h = tonumber(fmt("%I", ts))
+    return string.format("%d:%s %s", h, fmt("%M", ts), fmt("%p", ts))
+end
+
 local function plain(s)
     return (tostring(s):gsub("|", "||"))
 end
@@ -185,7 +194,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
         return "", text_rows(string.format(L.UNKNOWN_SCHEMA, plain(d.schema)))
     end
     local age = math.max(0, now - (tonumber(d.generated) or 0))
-    local header = string.format(L.DIGEST_HEADER, plain(d.character or player), WC.FormatAge(age))
+    local header = string.format(L.DIGEST_HEADER, plain(d.character or player), WC.FormatClock(tonumber(d.generated) or 0), WC.FormatAge(age))
 
     local out = {}
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
@@ -220,7 +229,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     end
     if #out == 0 then out = text_rows(WC.NO_ADVICE) end
     if captured and captured - (tonumber(d.generated) or 0) > WC.CAPTURE_GRACE then
-        table.insert(out, 1, { kind = "text", text = L.OLDER_THAN_CAPTURE })
+        table.insert(out, 1, { kind = "text", text = string.format(L.OLDER_THAN_CAPTURE, WC.FormatClock(captured)) })
     end
     if age > WC.STALE_SECONDS then table.insert(out, 1, { kind = "text", text = WC.STALE_NOTE }) end
     return header, out

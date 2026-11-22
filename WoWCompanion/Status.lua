@@ -32,8 +32,8 @@ function WC.StatusLines(info)
         out[#out + 1] = L.STATUS_DIGEST_NONE
     else
         local gen = tonumber(d.generated)
-        local age = gen and WC.FormatAge(math.max(0, info.now - gen)) or L.STATUS_UNKNOWN
-        out[#out + 1] = string.format(L.STATUS_DIGEST, age, tostring(file.schema))
+        local when = gen and string.format("%s (%s)", WC.FormatClock(gen), WC.FormatAge(math.max(0, info.now - gen))) or L.STATUS_UNKNOWN
+        out[#out + 1] = string.format(L.STATUS_DIGEST, when, tostring(file.schema))
     end
     if d and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = "  " .. L.OUT_OF_DATE_SHORT end
     out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))

@@ -95,10 +95,10 @@ local cases = {
     end },
     { "digest over 12 hours old shows its age and the refresh note", function()
         local p = digest_client("stale")
-        assert(p.header:GetText():find("updated 1 d ago", 1, true))
+        assert(p.header:GetText():find("advice from ", 1, true) and p.header:GetText():find("(1 d ago)", 1, true))
         assert(p.plain:find("Ask your AI client to refresh your digest, then /reload.", 1, true))
         local fresh = digest_client("full")
-        assert(fresh.header:GetText():find("updated 1 h ago", 1, true) and not fresh.plain:find("refresh your digest", 1, true))
+        assert(fresh.header:GetText():find("(1 h ago)", 1, true) and not fresh.plain:find("refresh your digest", 1, true))
     end },
     { "digest for another character is refused", function()
         local p = digest_client("wrongchar")
@@ -619,7 +619,7 @@ end
 local NOW0 = 1800000000
 local status_rows = {
     { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "Questions queued: 0", "WoWCompanion_Digest: installed" } },
-    { "digest age and schema", {}, { schema = 1, character = "Thrall", generated = NOW0 - 7200 }, {}, { "Digest: updated 2 h ago, schema 1" } },
+    { "digest age and schema", {}, { schema = 1, character = "Thrall", generated = NOW0 - 7200 }, {}, { "(2 h ago), schema 1" } },
     { "digest with unknown schema", {}, { schema = 9, generated = NOW0 }, {}, { "schema 9" } },
     { "queued count", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } }, nil, {}, { "Questions queued: 2" } },
     { "missing slot addon", {}, nil, { WoWCompanion_Digest = true }, { "WoWCompanion_Digest: not installed" } },
@@ -673,7 +673,7 @@ local tip_rows = {
     { "1.2 file for another character", {}, { schema = "1.2", character = "Jaina", generated = NOW0 }, { "Digest: none yet" } },
     { "no digest, empty queue", {}, nil, { "Digest: none yet", "Questions queued: 0", "Click to open" } },
     { "digest and queue", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } },
-      { character = "Thrall", generated = NOW0 - 7200 }, { "Digest: updated 2 h ago", "Questions queued: 2", "Click to open" } },
+      { character = "Thrall", generated = NOW0 - 7200 }, { "(2 h ago)", "Questions queued: 2", "Click to open" } },
 }
 local outdated_rows = {
     { "fresh, capture seconds later", { generated = 1000 }, 1100, 1010, false },
@@ -811,7 +811,7 @@ cases[#cases + 1] = { "schema 2 digest drives the tracker, status and tooltip", 
         local d = WoWCompanionDigest
         assert(WoWCompanion.TrackerText(d, "Testchar") == "Next up: Turn in The Hungry Ettin (+1 more)")
         assert(WoWCompanion.TrackerText(d, "Missingchar") == "No digest for Missingchar")
-        assert(status_text({}, d):find("Digest: updated", 1, true))
+        assert(status_text({}, d):find("Digest: advice from", 1, true))
         PLAYER_NAME = "Missingchar"
         assert(status_text({}, d):find("Digest: none yet", 1, true))
     end)
@@ -966,7 +966,44 @@ cases[#cases + 1] = { "no locale string contains a backtick; the stale hint read
         assert(not tostring(v):find("`", 1, true), "backtick in " .. k)
     end
     assert(n > 50)
-    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Advice may be out of date: /reload (the overlay refreshes it) or run wowc-advisor digest.")
+    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to load it.")
+end }
+
+cases[#cases + 1] = { "advice time: 12- and 24-hour clocks, header and out-of-date line", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local ts = os.time({ year = 2026, month = 11, day = 22, hour = 15, min = 5 })
+    assert(WC.FormatClock(ts, true) == "15:05" and WC.FormatClock(ts, false) == "3:05 PM")
+    local am = os.time({ year = 2026, month = 11, day = 22, hour = 0, min = 9 })
+    assert(WC.FormatClock(am, true) == "00:09" and WC.FormatClock(am, false) == "12:09 AM")
+    local clock = WC.FormatClock(ts)
+    local d = { schema = 1, character = "Thrall", generated = ts, sections = { { id = "next", lines = { { text = "x" } } } } }
+    local header, rows = WC.RenderDigest(d, ts + 49 * 60, "Thrall", nil, nil, ts + 20 * 60)
+    assert(header == "Thrall \226\128\148 advice from " .. clock .. " (49 min ago)", header)
+    local want = "Your last save (" .. WC.FormatClock(ts + 20 * 60) .. ") is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to load it."
+    assert(rows[1].text == want, rows[1].text)
+end }
+
+cases[#cases + 1] = { "plan: corner tags are 0.75 of a badge with the full font; one green fill; tag clears the marker", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, setting in ipairs({ "small", "normal", "large" }) do
+        local full = WC.PinSize(setting, false)
+        local d = WC.TagDiameter(full)
+        assert(math.abs(d / full - 0.75) <= 0.5 / full + 1e-9, setting)
+        assert(WC.TagWidth(d, "2") == d and WC.TagWidth(d, "14\194\183116") > d, "label widens the tag, never the font")
+    end
+    assert(WC.TagDiameter(WC.PinSize("normal", false)) == 21 and WC.TagOffset() == 18)
+    -- The tag's nearest edge to the marker centre stays beyond a marker glyph's half size (about 8 px).
+    assert(WC.TagOffset() - WC.TagDiameter(WC.PinSize("small", false)) / 2 >= 8)
+    local f = io.open("WoWCompanion/PlanUI.lua"):read("*a")
+    assert(f:find("GameFontNormal\"", 1, true) and not f:find("SetFontObject(\"GameFontNormalSmall\")", 1, true))
+    assert(not f:find("SetVertexColor(0.05, 0.04, 0.02, 0.95)", 1, true))
+    assert(WC.BADGE_FILL[4] == 0.80 and WC.BADGE_FILL[2] == 0.22)
+    local _, n = f:gsub("WC%.BADGE_FILL%[", "")
+    assert(n >= 4, "fill is read from the one constant, by BadgeParts, which all three badge kinds use")
+    local _, parts = f:gsub("WC%.BadgeParts%(", "")
+    assert(parts == 3, "definition + map pin + minimap pin")
 end }
 
 -- The quest plan: parsing, completion from quest events, distance maths, controls.
