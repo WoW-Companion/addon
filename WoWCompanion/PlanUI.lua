@@ -11,12 +11,13 @@ local NOTCH = { pickup = "!", turnin = "?" } -- objective and travel steps show 
 local PIN_SIZES = { small = 22, normal = 28, large = 36 }
 local PIN_ORDER = { "small", "normal", "large" }
 WC.PIN_SIZES, WC.PIN_ORDER = PIN_SIZES, PIN_ORDER
+local NEXT_LEVEL = 50 -- the next step sits this many levels above the rest of its kind
 local NEXT_GROW = 1.3 -- the next step's badge is this much bigger
 local MERGE_DISTANCE = 1.2 -- steps closer than this (0-100 map units) share one badge
 -- Frame levels above the canvas, lowest first: route lines, their arrowheads, then our badges. They sit well
 -- above other addons' small map icons (which use the default low levels) but stay below the tags
 -- (TAG_LEVEL) and the map's own quest markers.
-local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 1000, 1001, 1010
+local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 3000, 3001, 3010
 WC.PLAN_LEVELS = { line = LINE_LEVEL, arrow = ARROW_LEVEL, pin = PIN_LEVEL }
 local OUTLINE = { 0, 0, 0, 0.6 } -- dark edge under the gold line
 local LINE_WIDTH, OUTLINE_PAD = 2.5, 2 -- the outline is 1 px wider each side
@@ -41,10 +42,11 @@ local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 local COINCIDE_RADIUS = 2.5 -- map percent at 1x zoom; shrinks as the map zooms in (markers keep their pixel size)
 local TAG_SCALE = 0.45 -- tag diameter relative to the full badge
 local TAG_OFFSET = 16 -- pixels up and right of the marker centre, clear of its glyph
-local TAG_LEVEL = 2500 -- above the client's marker frames, which stay below this on the canvas
+local TAG_LEVEL = 3500 -- above the client's marker frames, which stay below this on the canvas
 
 local EMPTY = ""
 local pins, lines, arrows = {}, {}, {}
+local stepPin = {} -- step.n -> the badge or tag frame drawn for it in the last refresh
 local lineLayer, arrowLayer
 
 local function mapShown()
@@ -292,6 +294,49 @@ local function placeArrow(i, cx, cy, size, rot, rgba, sub)
     t:Show()
 end
 
+-- The steps to draw: all of them, or only the first n undone ones in plan order (n = 5, 10 or "all").
+function WC.ShownSteps(steps, done, limit)
+    local n = tonumber(limit)
+    if not n then return steps end
+    local out = {}
+    for _, s in ipairs(steps) do
+        if not (done and done[s.n]) then
+            if #out >= n then break end
+            out[#out + 1] = s
+        end
+    end
+    return out
+end
+
+-- One line per undone step on the shown map, for /wowc plan debug: number, kind, x/y, badge or tag, level, shown.
+function WC.PlanDebugLine(s, p)
+    local drawn = p and (p.isTag and "tag" or "badge") or "none"
+    local level = p and p.GetFrameLevel and p:GetFrameLevel() or "-"
+    local vis = p and p:IsShown() and "yes" or "no"
+    return string.format("step %s %s x=%s y=%s %s level=%s shown=%s", tostring(s.n), tostring(s.kind),
+        tostring(s.x), tostring(s.y), drawn, tostring(level), vis)
+end
+
+function WC.PlanDebug()
+    if not WC.plan then return print(L.PLAN_DEBUG_NONE) end
+    local mapID = WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    local lines = {}
+    for _, s in ipairs(WC.plan.steps) do
+        if WC.PinWanted(s, mapID, WC.plan.done) then lines[#lines + 1] = WC.PlanDebugLine(s, stepPin[s.n]) end
+    end
+    print(string.format(L.PLAN_DEBUG_HEAD, tostring(mapID), #lines))
+    for _, l in ipairs(lines) do print(l) end
+end
+
+-- /wowc plan show <n|all>: limit the map to the next n undone steps.
+function WC.SetPlanShow(arg)
+    local n = tonumber(arg)
+    WC.db.settings.planShow = (n and n >= 1) and math.floor(n) or "all"
+    print(string.format(L.PLAN_SHOW_SET, tostring(WC.db.settings.planShow)))
+    if WC.settingsFrame then WC.settingsFrame.sync() end
+    WC.RefreshPlan()
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     hideAll(pins)
@@ -304,7 +349,9 @@ function WC.RefreshMapPins()
     local mapID = WorldMapFrame:GetMapID()
     local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
     local setting = WC.db.settings.planSize
-    local groups = WC.PinGroups(WC.plan.steps, mapID, WC.plan.done, WC.PlanNext())
+    stepPin = {}
+    local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
+    local groups = WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext())
     local markers = #groups > 0 and WC.ClientMarkers(mapID) or {}
     local radius = WC.MarkerRadius(WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale())
     local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
@@ -325,7 +372,7 @@ function WC.RefreshMapPins()
         if marker then
             local d = math.floor(size * TAG_SCALE + 0.5)
             p:SetSize(math.max(d, 5 * #label), d)
-            if p.SetFrameLevel then p:SetFrameLevel(base + TAG_LEVEL + (g.isNext and 1 or 0)) end
+            if p.SetFrameLevel then p:SetFrameLevel(base + TAG_LEVEL + (g.isNext and NEXT_LEVEL or 0)) end
             p:SetPoint("CENTER", a, "CENTER", TAG_OFFSET, TAG_OFFSET)
             WC.SetBadgeInset(p, 1.5)
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormalSmall") end
@@ -333,7 +380,7 @@ function WC.RefreshMapPins()
             p.mark:SetText("")
         else
             p:SetSize(size, size)
-            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and 1 or 0)) end
+            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and NEXT_LEVEL or 0)) end
             p:SetPoint("CENTER", a, "CENTER", 0, 0)
             WC.SetBadgeInset(p, 3)
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
@@ -353,6 +400,7 @@ function WC.RefreshMapPins()
         p:Show()
         if g.isNext and p.pulse then p.pulse:Play() end
         local r = size * (marker and TAG_SCALE or 1) * scale / 2
+        for _, s in ipairs(g.steps) do stepPin[s.n] = p end
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
     end
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
@@ -373,7 +421,7 @@ function WC.RefreshMapPins()
     -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
     -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
     local prev, n, na = nil, 0, 0
-    for _, s in ipairs(WC.plan.steps) do
+    for _, s in ipairs(shown) do
         if not (WC.plan.done and WC.plan.done[s.n]) then
             if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then
                 local isNext = nextAnchor ~= nil and where[s.n] == nextAnchor
@@ -548,6 +596,10 @@ function WC.TogglePlan(what, arg)
     elseif what == "arrows" then
         s.planArrows = not s.planArrows
         print(s.planArrows and L.PLAN_ARROWS_ON or L.PLAN_ARROWS_OFF)
+    elseif what == "debug" then
+        return WC.PlanDebug()
+    elseif what == "show" then
+        return WC.SetPlanShow(arg)
     elseif what == "size" then
         if PIN_SIZES[arg] then return WC.SetPlanSize(arg) end
         return WC.CyclePlanSize()
@@ -633,7 +685,14 @@ function WC.CreatePlanUI()
 
     -- The world map exists from the start; redraw whenever it changes map, size or is opened.
     if WorldMapFrame then
-        if hooksecurefunc and WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", WC.RefreshMapPins) end
+        if hooksecurefunc and WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", WC.RefreshMapPins)
+        if hooksecurefunc and WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", function() if C_Timer and C_Timer.After then C_Timer.After(0, WC.RefreshMapPins) end end) end end
+        -- Other addons may raise their pins on a refresh, so draw again (and once more next frame) after it.
+        local function again()
+            WC.RefreshMapPins()
+            if C_Timer and C_Timer.After then C_Timer.After(0, WC.RefreshMapPins) end
+        end
+        if hooksecurefunc and WorldMapFrame.RefreshAllData then hooksecurefunc(WorldMapFrame, "RefreshAllData", again) end
         if hooksecurefunc and WorldMapFrame.OnCanvasScaleChanged then hooksecurefunc(WorldMapFrame, "OnCanvasScaleChanged", WC.RefreshMapPins) end
         if WorldMapFrame.HookScript then WorldMapFrame:HookScript("OnShow", WC.RefreshMapPins) end
         local canvas = WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
