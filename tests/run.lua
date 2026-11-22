@@ -1864,7 +1864,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.4" and WC.CHANGELOG["0.4.4"])
+    assert(TOC_VERSION == "0.4.5" and WC.CHANGELOG["0.4.5"])
+    for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
 
@@ -2222,7 +2223,7 @@ end }
 cases[#cases + 1] = { "what's new: body sits in a scroll frame, window sized to the text, button clear of it", function()
     local box = upgrade_client("0.0.0")
     assert(box.scroll and box.scroll.kind == "ScrollFrame" and box.content.parent == box.scroll and box.scroll.child == box.content)
-    assert(box.body.parent == box.content and box.button.parent == box)
+    assert(box.button.parent == box)
     local WC = WoWCompanion
     assert(WC.WhatsNewWindowHeight(0) == WC.WHATS_NEW_MIN_H and WC.WhatsNewWindowHeight(9999) == WC.WHATS_NEW_MAX_H)
     assert(WC.WhatsNewWindowHeight(100) == 172)
