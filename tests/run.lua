@@ -1078,6 +1078,18 @@ cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next o
     WorldMapFrame = nil
 end }
 
+cases[#cases + 1] = { "plan: pin placement is normalised and filtered by map", function()
+    local WC = plan_client("full")
+    local x, y = WC.PinOffset(50, 25, 1000, 400, 1)
+    assert(x == 500 and y == -100)
+    x, y = WC.PinOffset(50, 25, 1000, 400, 0.5) -- a pin scaled 0.5 shows its offset halved, so double it
+    assert(x == 1000 and y == -200)
+    assert(WC.PinWanted({ map = 7, n = 1 }, 7, {}) and not WC.PinWanted({ map = 7, n = 1 }, 8, {}))
+    assert(not WC.PinWanted({ map = 7, n = 1 }, 7, { [1] = true }))
+    local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
+    assert(not src:find("WorldMapFrame:GetWidth", 1, true) and not src:find("WorldMapFrame:GetHeight", 1, true))
+end }
+
 cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", function()
     local WC = plan_client("full")
     local canvas = CreateFrame("Frame", nil, UIParent)
