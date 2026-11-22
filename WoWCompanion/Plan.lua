@@ -41,7 +41,7 @@ function WC.ParsePlan(plan, player)
         if type(s) == "table" and KINDS[s.kind] and tonumber(s.map) and tonumber(s.x) and tonumber(s.y) then
             steps[#steps + 1] = {
                 n = #steps + 1, kind = s.kind, questID = tonumber(s.questID) or 0,
-                quest = plain(s.quest or ""), label = plain(s.label or ""),
+                quest = plain(s.quest or ""), label = plain(s.label or ""), approx = s.approx == true,
                 map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100),
             }
         end
