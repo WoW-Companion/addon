@@ -100,7 +100,7 @@ local function new_region(kind)
     function r:SetVerticalScroll(v) self.vscroll = v end
     function r:GetVerticalScroll() return self.vscroll or 0 end
     function r:GetCenter() return 0, 0 end
-    function r:GetChildren() return table.unpack(self.children or {}) end
+    function r:GetChildren() return (table.unpack or unpack)(self.children or {}) end
     function r:GetEffectiveScale() return 1 end
     return r
 end
