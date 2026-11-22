@@ -18,7 +18,7 @@ function WC.TooltipLines(info)
     local out = { L.ADDON_NAME }
     local d = WC.EntryFor(info.digest, info.player)
     local gen = type(d) == "table" and tonumber(d.generated)
-    out[#out + 1] = gen and string.format(L.TIP_DIGEST, WC.FormatAge(math.max(0, info.now - gen))) or L.TIP_DIGEST_NONE
+    out[#out + 1] = gen and string.format(L.TIP_DIGEST, WC.FormatClock(gen), WC.FormatAge(math.max(0, info.now - gen))) or L.TIP_DIGEST_NONE
     if type(d) == "table" and gen and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = L.TIP_OUT_OF_DATE end
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))
     out[#out + 1] = L.TIP_CLICK

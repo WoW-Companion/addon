@@ -16,7 +16,7 @@ Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else
 | Field | Type | Meaning |
 | ----- | ---- | ------- |
 | `schema` | number or string | Format version. This document is `"1.2"`. The panel accepts `1`, `"1.0"`, `"1.1"` and `"1.2"` and refuses any other major version. |
-| `generated` | number | Unix time (seconds) the digest was computed. The panel shows its age ("updated 3 h ago"); the panel adds a note to refresh the digest and `/reload` only when the digest is older than 12 hours, or the character's last capture is more than 15 minutes newer than `generated` (a `/reload` right after a fresh digest does not count). |
+| `generated` | number | Unix time (seconds) the digest was computed. The panel shows its time and age ("advice from 11:23 (3 h ago)"); the panel adds a note to refresh the digest and `/reload` only when the digest is older than 12 hours, or the character's last capture is more than 15 minutes newer than `generated` (a `/reload` right after a fresh digest does not count). |
 | `build` | string | Game build it was computed for, e.g. `"1.60.0.64000"`. |
 | `character` | string | Character name it is for. The panel refuses a digest for a different character. |
 | `sections` | list | Ordered list of sections, shown in this order. |

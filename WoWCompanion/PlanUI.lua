@@ -41,8 +41,11 @@ local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 -- Corner tags: a step that sits on one of the client's own quest markers is drawn as a small tag on that
 -- marker's top-right corner instead of a full badge that would hide underneath it.
 local COINCIDE_RADIUS = 2.5 -- map percent at 1x zoom; shrinks as the map zooms in (markers keep their pixel size)
-local TAG_SCALE = 0.45 -- tag diameter relative to the full badge
-local TAG_OFFSET = 16 -- pixels up and right of the marker centre, clear of its glyph
+local TAG_SCALE = 0.75 -- tag diameter relative to the full badge
+local TAG_OFFSET = 18 -- pixels up and right of the marker centre; the tag's edge clears the glyph centre
+local TAG_CHAR_WIDTH = 8 -- pixels per label character, so a merged label widens the tag into a pill
+-- The dark green, slightly see-through fill every badge kind uses (map badge, corner tag, minimap badge).
+WC.BADGE_FILL = { 0.05, 0.22, 0.13, 0.80 }
 local TAG_LEVEL = 3500 -- above the client's marker frames, which stay below this on the canvas
 
 local EMPTY = ""
@@ -88,7 +91,7 @@ function WC.BadgeParts(p, inset, notch, font, notchInset)
     p.fill:SetTexture(DISC)
     p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", inset, -inset)
     p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -inset, inset)
-    p.fill:SetVertexColor(0.05, 0.04, 0.02, 0.95)
+    p.fill:SetVertexColor(WC.BADGE_FILL[1], WC.BADGE_FILL[2], WC.BADGE_FILL[3], WC.BADGE_FILL[4])
     p.num = p:CreateFontString(nil, "OVERLAY", font)
     p.num:SetPoint("CENTER", p, "CENTER", 0, 0)
     p.notchBg = p:CreateTexture(nil, "OVERLAY")
@@ -279,6 +282,19 @@ function WC.PinSize(setting, isNext)
     return isNext and math.floor(d * NEXT_GROW + 0.5) or d
 end
 
+-- A corner tag's diameter for a full badge of `size`, and its width for `label` (a pill when merged).
+function WC.TagDiameter(size)
+    return math.floor(size * TAG_SCALE + 0.5)
+end
+
+function WC.TagWidth(d, label)
+    return math.max(d, TAG_CHAR_WIDTH * #label + 6)
+end
+
+function WC.TagOffset()
+    return TAG_OFFSET
+end
+
 -- Arrowhead maths, pure. Points are canvas coordinates (y grows upward here; callers flip), radius is the
 -- destination badge radius. Returns the direction angle (radians, counter-clockwise from east), the arrowhead
 -- tip (stopping gap pixels outside the badge ring) and the segment length; nil for a zero-length segment.
@@ -408,12 +424,12 @@ function WC.RefreshMapPins()
         p:ClearAllPoints()
         local label = WC.PinLabel(g.steps)
         if marker then
-            local d = math.floor(size * TAG_SCALE + 0.5)
-            p:SetSize(math.max(d, 5 * #label), d)
+            local d = WC.TagDiameter(size)
+            p:SetSize(WC.TagWidth(d, label), d)
             if p.SetFrameLevel then p:SetFrameLevel(base + TAG_LEVEL + (g.isNext and NEXT_LEVEL or 0)) end
             p:SetPoint("CENTER", a, "CENTER", TAG_OFFSET, TAG_OFFSET)
             WC.SetBadgeInset(p, 1.5)
-            if p.num.SetFontObject then p.num:SetFontObject("GameFontNormalSmall") end
+            if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
             p.notchBg:Hide()
             p.mark:SetText("")
         else
@@ -425,7 +441,8 @@ function WC.RefreshMapPins()
         end
         p.isTag = marker ~= nil
         if g.isNext then p.ring:SetVertexColor(1, 0.95, 0.6, 1) else p.ring:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1) end
-        p.glow:SetSize(size * (marker and TAG_SCALE or 1) * 1.7, size * (marker and TAG_SCALE or 1) * 1.7)
+        local gd = (marker and WC.TagDiameter(size) or size) * 1.7
+        p.glow:SetSize(gd, gd)
         p.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.5)
         p.glow:SetShown(g.isNext)
         p.num:SetText(label)
@@ -437,7 +454,7 @@ function WC.RefreshMapPins()
         a:Show()
         p:Show()
         if g.isNext and p.pulse then p.pulse:Play() end
-        local r = size * (marker and TAG_SCALE or 1) * scale / 2
+        local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
     end
