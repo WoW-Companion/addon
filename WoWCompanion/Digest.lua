@@ -181,7 +181,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     local optional_names = {}
     for _, o in ipairs(digest_objs) do
         if type(o) == "table" and (o.optional == true or is_optional(o.text)) then
-            optional_names[strip_count(o.text):gsub("%s*%(optional%)%s*$", ""):lower()] = true
+            optional_names[(strip_count(o.text):lower():gsub("%s*%(optional%)%s*$", ""))] = true
         end
     end
     local objs = digest_objs
@@ -422,7 +422,12 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             if line.slot then meta[#meta + 1] = plain(line.slot) end
                             if tonumber(line.ilvl) then meta[#meta + 1] = string.format(L.ILVL, tonumber(line.ilvl)) end
                             if tonumber(line.atLevel) then meta[#meta + 1] = string.format(L.AT_LEVEL, tonumber(line.atLevel)) end
-                            row.right = #meta > 0 and table.concat(meta, ", ") or nil
+                            lines[#lines + 1] = row
+                            if #meta > 0 then -- slot and item level sit dim on a line of their own, so nothing needs cutting
+                                row = { kind = "status", indent = 2, text = table.concat(meta, ", "), color = WC.COLORS.dim }
+                            else
+                                row = nil
+                            end
                         end
                         lines[#lines + 1] = row
                     end

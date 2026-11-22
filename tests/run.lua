@@ -1513,7 +1513,7 @@ cases[#cases + 1] = { "tracker rows: each entry kind renders with its icon, colo
     local tal = row_of(rows, "1 unspent talent point")
     assert(tal.icon == WC.ICONS.talent and tal.kind == "line")
     local up = row_of(rows, "Hammer of Fate")
-    assert(up.right == "Main Hand, ilvl 25" and up.item == 5678)
+    assert(up.item == 5678 and up.kind == "line" and row_of(rows, "Main Hand, ilvl 25").color == WC.COLORS.dim)
     assert(row_of(rows, "Linen Cloth").indent == 1 and row_of(rows, "Bank has 3").kind == "line")
     assert(row_of(rows, "Next quests").color == WC.COLORS.grey and row_of(rows, "Next quests").kind == "header")
     UnitLevel = nil
@@ -1611,7 +1611,7 @@ cases[#cases + 1] = { "live state overrides the digest's objectives, title and l
     local OBJ = { { text = "Find Aamelia Windfield: 1/1", numFulfilled = 1, numRequired = 1, finished = true },
         { text = "Listen to Alvarion Windfield's Story: 0/1", numFulfilled = 0, numRequired = 1, finished = false } }
     C_QuestLog.GetQuestObjectives = function() return OBJ end
-    C_QuestLog.GetTitleForQuestID = function() return "Blood Tithe!" end
+    C_QuestLog.GetTitleForQuestID = function(id) return id == 7002 and "Blood Tithe!" or nil end
     C_QuestLog.GetInfo = function() return { level = 11 } end
     assert(loadfile("tests/fixtures/digest_v13.lua"))()
     local function rows() WC.Refresh(); return v13_rows() end
@@ -1626,7 +1626,7 @@ cases[#cases + 1] = { "live state overrides the digest's objectives, title and l
     QUESTS[7002] = "turnedin"
     assert(not WC.RowsText(rows()):find("Blood Tithe", 1, true))
     QUESTS[7001] = "active"
-    assert(row_of(rows(), "[10] The Skybreaker Bulwark").icon == WC.ICONS.progress, "accepted: no longer a pick-up")
+    assert(row_of(rows(), "[11] The Skybreaker Bulwark").icon == WC.ICONS.progress, "accepted: no longer a pick-up")
     PLAYER_NAME = nil
 end }
 

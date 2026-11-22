@@ -194,7 +194,7 @@ function WC.Refresh()
     local f = WC.panel
     if not f then return end
     WC.StyleText(f.title)
-    WC.StyleText(f.header, -1)
+    WC.StyleText(f.header)
     local collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
     local player = UnitName("player")
     local show = WC.db.settings.show
