@@ -7,13 +7,37 @@ local FULL_HEIGHT, COMPACT_MIN = 320, 150
 local WIDTH_MARGIN = 48 -- the panel is this much wider than its text column; the width is the panelWidth setting (340)
 local function panel_width() return WC.Setting("panelWidth") end
 local function content_width() return panel_width() - WIDTH_MARGIN end
-local SCROLL_TOP, SCROLL_BOTTOM = 44, 10 -- the scroll area's offsets from the frame's top and bottom
+local SCROLL_TOP = 44 -- the scroll area's offset from the frame's top; the other edges follow the padding setting
 local STEP, TITLE_X, RIGHT_W = 16, 32, 64 -- indent step; where a quest title starts; width kept for a right-aligned note
 
 -- Text shadow so lines read over the world.
 local function shadow(fs)
     if fs.SetShadowOffset then fs:SetShadowOffset(1, -1) end
     if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, 1) end
+end
+
+-- Applies the look settings (background, border, header colour, padding) to the panel; called on every redraw.
+function WC.ApplyPanelLook()
+    local f = WC.panel
+    if not f then return end
+    local pad = WC.Setting("padding")
+    if f.SetBackdropColor then
+        local bg = WC.Setting("bgColor")
+        f:SetBackdropColor(bg[1], bg[2], bg[3], WC.Setting("bgOpacity"))
+        local bc = WC.Setting("borderColor")
+        f:SetBackdropBorderColor(bc[1], bc[2], bc[3], WC.Setting("borderShow") and WC.Setting("borderOpacity") or 0)
+    end
+    local hc = WC.Setting("headerColor")
+    f.title:SetTextColor(hc[1], hc[2], hc[3])
+    f.title:ClearAllPoints()
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -8)
+    f.step:ClearAllPoints()
+    f.step:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -26)
+    f.header:ClearAllPoints()
+    f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -26)
+    f.scroll:ClearAllPoints()
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -SCROLL_TOP)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(pad + 18), pad)
 end
 
 -- Which sections are temporarily expanded in compact mode.
@@ -25,8 +49,6 @@ function WC.CreatePanel()
     f:SetSize(panel_width(), FULL_HEIGHT)
     if f.SetBackdrop then
         f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-        f:SetBackdropColor(0, 0, 0, WC.Setting("bgOpacity"))
-        f:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.5)
     end
     f:SetScale(WC.db.settings.scale)
     f:SetMovable(true)
@@ -49,17 +71,14 @@ function WC.CreatePanel()
     end
 
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal") -- gold
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
     f.title:SetText(L.ADDON_NAME)
     shadow(f.title)
 
     f.step = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.step:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -26)
     f.step:SetTextColor(unpack(WC.COLORS.grey))
     shadow(f.step)
 
     f.header = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") -- the advice time, dim, right-aligned
-    f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -26)
     f.header:SetJustifyH("RIGHT")
     f.header:SetTextColor(unpack(WC.COLORS.dim))
     shadow(f.header)
@@ -70,8 +89,6 @@ function WC.CreatePanel()
     f.close:SetScript("OnClick", function() f:Hide() end)
 
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionPanelScroll", f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -SCROLL_TOP)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -28, SCROLL_BOTTOM)
     f.content = CreateFrame("Frame", nil, f.scroll)
     f.content:SetSize(content_width(), 1)
     f.scroll:SetScrollChild(f.content)
@@ -112,6 +129,7 @@ function WC.CreatePanel()
 
     f:SetScript("OnShow", function() WC.Refresh() end)
     WC.panel = f
+    WC.ApplyPanelLook()
     WC.Refresh()
     f:Hide()
 end
@@ -211,7 +229,7 @@ function WC.Refresh()
     WC.RefreshTracker()
     local f = WC.panel
     if not f then return end
-    if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, WC.Setting("bgOpacity")) end
+    WC.ApplyPanelLook()
     f.content:SetWidth(content_width())
     WC.StyleText(f.title)
     WC.StyleText(f.header)
@@ -253,7 +271,7 @@ function WC.Refresh()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
         row:SetSize(content_width(), h)
-        y = y + h + (r.kind == "obj" and 0 or 1)
+        y = y + h + math.max(0, WC.Setting("lineSpacing") - (r.kind == "obj" and 1 or 0))
         row.link = (r.item and "item:" .. r.item) or (r.spell and "spell:" .. r.spell) or nil
         row.sectionId = r.id
         local interactive = row.link ~= nil or r.kind == "header" or r.kind == "quest" or r.ask ~= nil
@@ -274,7 +292,7 @@ function WC.Refresh()
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)
     f.content:SetHeight(y)
-    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, SCROLL_TOP + SCROLL_BOTTOM + y)) or FULL_HEIGHT)
+    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, SCROLL_TOP + WC.Setting("padding") + y)) or FULL_HEIGHT)
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end

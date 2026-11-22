@@ -276,6 +276,8 @@ local function scroll_top(p)
     return p.scroll.anchors.TOPLEFT[5]
 end
 local function settings() return WoWCompanion.db.settings end
+-- Colours are compared by value: the settings hand out their own copies.
+local function same_color(a, b) return a and b and a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
 -- Clicks like the client does: a check button flips before its handler runs.
 local function click(b)
     if b.get then b.checked = not b.checked end
@@ -353,7 +355,7 @@ local settings_cases = {
         WITH_COMPARTMENT = nil
         local reg = AddonCompartmentFrame.registered
         assert(#reg == 1 and reg[1].text == "WoW Companion" and WoWCompanion.buttonMode == "compartment")
-        assert(WoWCompanionMinimapButton == nil)
+        assert(WoWCompanionMinimapButton ~= nil, "the rim button is created as well")
         reg[1].func()
         assert(WoWCompanionPanel:IsShown())
         reg[1].func()
@@ -455,7 +457,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("options window", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("minimap", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1511,21 +1513,21 @@ cases[#cases + 1] = { "tracker rows: each entry kind renders with its icon, colo
     PLAYER_NAME = nil
     local pick = row_of(rows, "[10] The Skybreaker Bulwark (Class)")
     assert(pick.kind == "quest" and pick.icon == WC.ICONS.pickup and pick.right == nil)
-    assert(row_of(rows, "Pick up from Seena Skybreaker").color == WC.COLORS.grey)
+    assert(same_color(row_of(rows, "Pick up from Seena Skybreaker").color, WC.COLORS.grey))
     assert(not WC.RowsText(rows):find("Nighthaven", 1, true) or true)
     local prog = row_of(rows, "[9] Blood Tithe")
     assert(prog.icon == WC.ICONS.progress and prog.color[1] == 1 and prog.color[2] == 1 and prog.color[3] == 0)
     local o1, o2 = row_of(rows, "0/1 Find Aamelia Windfield"), row_of(rows, "1/1 Listen to Alvarion Windfield's Story (Optional)")
-    assert(o1.color == WC.COLORS.white and o1.indent == 2 and o2.color == WC.COLORS.dim)
+    assert(same_color(o1.color, WC.COLORS.white) and o1.indent == 2 and same_color(o2.color, WC.COLORS.dim))
     local turn = row_of(rows, "[12] Hollow Warning")
     assert(turn.icon == WC.ICONS.turnin and turn.right == "(Elite)")
-    assert(row_of(rows, "Ready to turn in").color == WC.COLORS.green and row_of(rows, "Turn in to Warden Ilyan").color == WC.COLORS.grey)
+    assert(same_color(row_of(rows, "Ready to turn in").color, WC.COLORS.green) and same_color(row_of(rows, "Turn in to Warden Ilyan").color, WC.COLORS.grey))
     local tal = row_of(rows, "1 unspent talent point")
     assert(tal.icon == WC.ICONS.talent and tal.kind == "line")
     local up = row_of(rows, "Hammer of Fate")
-    assert(up.item == 5678 and up.kind == "line" and row_of(rows, "Main Hand, ilvl 25").color == WC.COLORS.dim)
+    assert(up.item == 5678 and up.kind == "line" and same_color(row_of(rows, "Main Hand, ilvl 25").color, WC.COLORS.dim))
     assert(row_of(rows, "Linen Cloth").indent == 1 and row_of(rows, "Bank has 3").kind == "line")
-    assert(row_of(rows, "Next quests").color == WC.COLORS.grey and row_of(rows, "Next quests").kind == "header")
+    assert(same_color(row_of(rows, "Next quests").color, WC.COLORS.grey) and row_of(rows, "Next quests").kind == "header")
     UnitLevel = nil
 end }
 
@@ -1628,8 +1630,8 @@ cases[#cases + 1] = { "live state overrides the digest's objectives, title and l
     assert(row_of(rows(), "[9] Blood Tithe"), "not in the log: the digest's own")
     QUESTS[7002] = "active"
     local r = rows()
-    assert(row_of(r, "[11] Blood Tithe!") and row_of(r, "1/1 Find Aamelia Windfield").color == WC.COLORS.dim)
-    assert(row_of(r, "0/1 Listen to Alvarion Windfield's Story (Optional)").color == WC.COLORS.white, "digest marks it optional")
+    assert(row_of(r, "[11] Blood Tithe!") and same_color(row_of(r, "1/1 Find Aamelia Windfield").color, WC.COLORS.dim))
+    assert(row_of(r, "0/1 Listen to Alvarion Windfield's Story (Optional)").color[1] == 1, "digest marks it optional")
     QUESTS[7002] = "ready"
     r = rows()
     assert(row_of(r, "Ready to turn in") and row_of(r, "[11] Blood Tithe!").icon == WC.ICONS.turnin)
@@ -1845,7 +1847,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.1" and WC.CHANGELOG["0.4.1"])
+    assert(TOC_VERSION == "0.4.2" and WC.CHANGELOG["0.4.2"])
+    for _, k in ipairs({ "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
 
 cases[#cases + 1] = { "options: panel and digest settings change what is drawn", function()
@@ -1895,6 +1898,186 @@ cases[#cases + 1] = { "options: the minimap pin and pulses follow their settings
         assert(not src:find(old, 1, true), old .. " is a setting now")
     end
 end }
+
+cases[#cases + 1] = { "visuals: every visual row carries a default, a type and a range", function()
+    fresh_client(nil)
+    local n = 0
+    for _, def in ipairs(WoWCompanion.DEFS) do
+        if def.visual then
+            n = n + 1
+            assert(def.default ~= nil and def.type and def.label, def.key)
+            if def.type == "range" then assert(def.min and def.max and def.step and def.default >= def.min and def.default <= def.max, def.key) end
+        end
+    end
+    assert(n >= 38, "visual rows: " .. n)
+end }
+
+cases[#cases + 1] = { "visuals: a per-setting reset touches only its key", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, def in ipairs(WC.DEFS) do set_path(settings(), def.key, off_default(def)) end
+    WC.ResetSetting("lineColor")
+    for _, def in ipairs(WC.DEFS) do
+        local got = get_path(settings(), def.key)
+        if def.key == "lineColor" then assert(same(got, def.default)) else assert(same(got, off_default(def)), def.key) end
+    end
+end }
+
+cases[#cases + 1] = { "visuals: reset visuals leaves other keys alone, reset all keeps saved positions", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local function scramble() for _, def in ipairs(WC.DEFS) do set_path(settings(), def.key, off_default(def)) end end
+    scramble()
+    WC.ResetVisuals()
+    for _, def in ipairs(WC.DEFS) do
+        local got = get_path(settings(), def.key)
+        if def.visual then assert(same(got, def.default), def.key) else assert(same(got, off_default(def)), def.key) end
+    end
+    scramble()
+    WoWCompanionDB.position = { point = "CENTER", relPoint = "CENTER", x = 5, y = 6 }
+    WC.ResetEverything()
+    for _, def in ipairs(WC.DEFS) do
+        local got = get_path(settings(), def.key)
+        if def.position then assert(same(got, off_default(def)), def.key) else assert(same(got, def.default), def.key) end
+    end
+    assert(WoWCompanionDB.position.x == 5)
+end }
+
+cases[#cases + 1] = { "visuals: /wowc reset visuals and reset all ask first, in the addon's own dialog", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    settings().lineWidth, settings().locked, settings().minimap.angle = 5, true, 40
+    SlashCmdList.WOWC("reset visuals")
+    assert(WoWCompanionConfirm:IsShown() and settings().lineWidth == 5)
+    WoWCompanionConfirmNo.scripts.OnClick(WoWCompanionConfirmNo)
+    assert(not WoWCompanionConfirm:IsShown() and settings().lineWidth == 5)
+    SlashCmdList.WOWC("reset visuals")
+    WoWCompanionConfirmYes.scripts.OnClick(WoWCompanionConfirmYes)
+    assert(settings().lineWidth == 2.5 and settings().locked == true and not WoWCompanionConfirm:IsShown())
+    SlashCmdList.WOWC("reset all")
+    assert(settings().locked == true)
+    WoWCompanionConfirmYes.scripts.OnClick(WoWCompanionConfirmYes)
+    assert(settings().locked == false and settings().minimap.angle == 40)
+    assert(table.concat(WC.HELP, "\n"):find("reset visuals", 1, true))
+end }
+
+cases[#cases + 1] = { "visuals: a control's reset button shows only off the default and restores that value", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, def in ipairs(WC.DEFS) do
+        if not def.hidden then assert(_G["WoWCompanionOptionReset_" .. def.name], def.key) end
+    end
+    local b = WoWCompanionOptionReset_LineColor
+    WC.SyncOptions()
+    assert(not b:IsShown())
+    WC.SetSetting("lineColor", { 0.1, 0.2, 0.3 })
+    assert(b:IsShown() and not WoWCompanionOptionReset_BgColor:IsShown())
+    b.scripts.OnClick(b)
+    assert(same(settings().lineColor, { 1, 0.82, 0 }) and not b:IsShown())
+    WC.SetSetting("bgOpacity", 0.9)
+    assert(WoWCompanionOptionReset_BgOpacity:IsShown())
+    WoWCompanionOptionReset_BgOpacity.scripts.OnClick()
+    assert(settings().bgOpacity == 0.45)
+end }
+
+cases[#cases + 1] = { "visuals: panel, plan tracker and route follow their settings live", function()
+    PLAYER_NAME = "Genaenyu"
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    WC.SetSetting("bgColor", { 0.2, 0.3, 0.4 })
+    WC.SetSetting("bgOpacity", 0.8)
+    assert(same(p.backdropColor, { 0.2, 0.3, 0.4, 0.8 }))
+    WC.SetSetting("borderShow", false)
+    assert(p.borderColor[4] == 0)
+    WC.SetSetting("borderShow", true)
+    WC.SetSetting("borderColor", { 1, 0, 0 })
+    WC.SetSetting("borderOpacity", 0.9)
+    assert(same(p.borderColor, { 1, 0, 0, 0.9 }))
+    WC.SetSetting("headerColor", { 0, 1, 0 })
+    assert(same(p.title.color, { 0, 1, 0 }))
+    WC.SetSetting("sectionColor", { 0, 0, 1 })
+    WC.Refresh()
+    local h = row_with(p, "Next quests")
+    assert(same(h.label.color, { 0, 0, 1 }), table.concat(h.label.color or {}, ","))
+    local y1 = p.content.h
+    WC.SetSetting("lineSpacing", 6)
+    assert(p.content.h > y1)
+    WC.SetSetting("padding", 20)
+    assert(p.scroll.anchors.TOPLEFT[4] == 20)
+    WC.SetSetting("planBgColor", { 1, 1, 0 })
+    WC.SetSetting("planBgOpacity", 0.3)
+    WC.SetSetting("planTextSize", 16)
+    WC.plan = { steps = {}, done = {} }
+    WC.RefreshPlan()
+    local t = WC.planTracker
+    assert(same(t.bg.colorTexture, { 1, 1, 0, 0.3 }) and t.label.fontSize == 16)
+    WC.plan, PLAYER_NAME = nil, nil
+end }
+
+cases[#cases + 1] = { "visuals: the rim button exists beside the compartment entry and each switch works", function()
+    WITH_COMPARTMENT = true
+    fresh_client(nil)
+    WITH_COMPARTMENT = nil
+    local WC = WoWCompanion
+    local reg = AddonCompartmentFrame.registered
+    assert(WoWCompanionMinimapButton and WoWCompanionMinimapButton:IsShown() and #reg == 1)
+    WC.SetSetting("minimap.show", false)
+    assert(not WoWCompanionMinimapButton:IsShown() and #reg == 1)
+    WC.SetSetting("minimap.compartment", false)
+    assert(#reg == 0)
+    WC.SetSetting("minimap.show", true)
+    WC.SetSetting("minimap.compartment", true)
+    assert(WoWCompanionMinimapButton:IsShown() and #reg == 1)
+    -- saved off at load: no compartment entry at all
+    local saved = WoWCompanionDB
+    saved.settings.minimap.compartment = false
+    WITH_COMPARTMENT = true
+    fresh_client(saved)
+    WITH_COMPARTMENT = nil
+    assert(#AddonCompartmentFrame.registered == 0 and WoWCompanionMinimapButton)
+end }
+
+cases[#cases + 1] = { "visuals: clicks on the rim button route, and a locked button does not drag", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WoWCompanionMinimapButton
+    b.scripts.OnClick(b, "LeftButton")
+    assert(WoWCompanionPanel:IsShown() and not WoWCompanionOptions:IsShown())
+    b.scripts.OnClick(b, "RightButton")
+    assert(WoWCompanionOptions:IsShown())
+    local was = settings().planMap
+    SHIFT = true
+    b.scripts.OnClick(b, "LeftButton")
+    SHIFT = false
+    assert(settings().planMap == not was and WoWCompanionPanel:IsShown())
+    WC.SetSetting("minimap.locked", true)
+    b.scripts.OnDragStart(b)
+    assert(b.scripts.OnUpdate == nil)
+    WC.SetSetting("minimap.locked", false)
+    b.scripts.OnDragStart(b)
+    assert(b.scripts.OnUpdate)
+    local lines = WC.TooltipLines({ digest = {}, db = {}, player = "x", now = 1, minimap = true })
+    assert(table.concat(lines, "\n"):find("Shift-left-click", 1, true))
+    assert(WC.ICON:find("INV_Misc_Map_01", 1, true))
+end }
+
+cases[#cases + 1] = { "visuals: the drawing code reads settings, not constants", function()
+    local function slurp(f) return assert(io.open(f)):read("*a") end
+    local plan, panel, digest = slurp("WoWCompanion/PlanUI.lua"), slurp("WoWCompanion/Panel.lua"), slurp("WoWCompanion/Digest.lua")
+    for _, key in ipairs({ "ringColor", "nextRingColor", "numberColor", "glowColor", "glowOpacity", "pulseSpeed", "tagFillOpacity", "tagRingOpacity",
+        "nextLineColor", "outlineColor", "outlineOpacity", "chevronSize", "planBgColor", "planBgOpacity", "planTextSize",
+        "minimapBadgeSize", "minimapFill", "minimapFillOpacity", "minimapArrow" }) do
+        assert(plan:find('WC.Setting("' .. key .. '")', 1, true) or plan:find('"' .. key .. '"', 1, true), key)
+    end
+    for _, key in ipairs({ "bgColor", "bgOpacity", "borderShow", "borderColor", "borderOpacity", "headerColor", "lineSpacing", "padding" }) do
+        assert(panel:find('WC.Setting("' .. key .. '")', 1, true), key)
+    end
+    for _, key in ipairs({ "objectiveColor", "doneColor", "readyColor", "sectionColor" }) do assert(digest:find('"' .. key .. '"', 1, true), key) end
+    for _, old in ipairs({ "local OUTLINE =", "local CHEVRON_SIZE", "local MM_BADGE =", "WC.COLORS.green", "SetBackdropColor(0, 0, 0", "SetColorTexture(0, 0, 0, 0.5)" }) do
+        assert(not plan:find(old, 1, true) and not panel:find(old, 1, true) and not digest:find(old, 1, true), old .. " is a setting now")
+    end
+end }
+
 
 local failed = 0
 for _, c in ipairs(cases) do

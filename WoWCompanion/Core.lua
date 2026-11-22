@@ -52,7 +52,7 @@ end
 WC.Ask = ask
 
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_RESET_VISUALS, L.HELP_RESET_ALL, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
@@ -70,7 +70,14 @@ SlashCmdList["WOWC"] = function(msg)
     elseif cmd == "status" then
         WC.PrintStatus()
     elseif cmd == "reset" then
-        WC.ResetPanel()
+        local what = (msg:match("^%s*%S+%s+(%S+)") or ""):lower()
+        if what == "visuals" then
+            WC.Confirm(L.CONFIRM_RESET_VISUALS, WC.ResetVisuals)
+        elseif what == "all" then
+            WC.Confirm(L.CONFIRM_RESET_ALL, WC.ResetEverything)
+        else
+            WC.ResetPanel()
+        end
     else
         for _, line in ipairs(WC.HELP) do print(line) end
     end

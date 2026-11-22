@@ -152,7 +152,8 @@ local function objective_row(o, optional_names)
     local have, need = tonumber(o.have), tonumber(o.need)
     local text = (have and need) and string.format("%d/%d %s", have, need, name) or name
     local done = o.finished == true or (have ~= nil and need ~= nil and have >= need)
-    return { kind = "obj", indent = 2, text = plain(text), color = done and WC.COLORS.dim or WC.COLORS.white, done = done }, opt and true or false
+    local color = WC.Setting(done and "doneColor" or "objectiveColor")
+    return { kind = "obj", indent = 2, text = plain(text), color = color, done = done }, opt and true or false
 end
 
 -- The rows of one structured next-quest line: the title row (state icon, collapse button, [level]
@@ -199,14 +200,15 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         for _, o in ipairs(objs) do
             if type(o) == "table" and o.text then
                 local r, opt = objective_row(o, optional_names)
-                if kind == "turnin" then r.color, r.done = WC.COLORS.dim, true end
+                if kind == "turnin" then r.color, r.done = WC.Setting("doneColor"), true end
                 if not opt or WC.Setting("showOptional") then out[#out + 1] = r end
             end
         end
     end
     local npc = (line.npc and WC.Setting("showNpcLines")) and plain(line.npc) or nil
     if kind == "turnin" then
-        out[#out + 1] = { kind = "status", indent = 2, text = L.READY_LINE, color = WC.COLORS.green }
+        local ready = WC.Setting("readyColor")
+        out[#out + 1] = { kind = "status", indent = 2, text = L.READY_LINE, color = ready }
         if npc then out[#out + 1] = { kind = "status", indent = 2, text = string.format(L.TURN_IN_TO, npc), color = WC.COLORS.grey } end
     elseif kind == "pickup" and npc then
         local zone = line.zone and plain(line.zone) or nil
@@ -250,7 +252,7 @@ end
 -- A collapsible section header row followed by its lines (omitted when collapsed).
 function WC.SectionRows(out, id, title, lines, collapsed)
     local closed = collapsed and collapsed[id] == true
-    out[#out + 1] = { kind = "header", id = id, title = title, color = WC.COLORS.grey, text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
+    out[#out + 1] = { kind = "header", id = id, title = title, color = WC.Setting("sectionColor"), text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
     if closed then return end
     for _, line in ipairs(lines) do out[#out + 1] = line end
 end

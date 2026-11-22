@@ -9,8 +9,9 @@ local L = WC.L
 local WIDTH, HEIGHT = 480, 560
 local BODY_W = 410 -- the scrolling body's width; boxes are a little narrower
 local BOX_W, PAD = 396, 12
-local COL_W = 186 -- a checkbox column
 local ROW = { bool = 26, range = 44, choice = 28, color = 30 }
+local RESET_W = 46 -- the per-setting reset button, kept at the right edge of each row
+local RESET_X = BOX_W - 12 - RESET_W
 local PAGE_TOP = 28 -- room for the Defaults button above a page's first box
 
 -- The text a range row shows next to its label.
@@ -40,6 +41,18 @@ local function gold_title(parent, text)
     return t
 end
 
+-- A small "Reset" button for one row, shown only while the row differs from its default; it restores that
+-- one setting. x, y place it inside the box.
+local function add_reset(f, parent, def, x, y)
+    local b = CreateFrame("Button", "WoWCompanionOptionReset_" .. def.name, parent, "UIPanelButtonTemplate")
+    b:SetSize(RESET_W, 18)
+    b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    b:SetText(L.RESET_ONE)
+    b:SetScript("OnClick", function() WC.ResetSetting(def.key) end)
+    f.widgets[#f.widgets + 1] = { sync = function() b:SetShown(not WC.IsDefault(def.key)) end }
+    return b
+end
+
 -- One checkbox bound to a bool row.
 local function make_check(f, parent, def, x, y)
     local c = CreateFrame("CheckButton", "WoWCompanionOption" .. def.name, parent, "UICheckButtonTemplate")
@@ -52,6 +65,7 @@ local function make_check(f, parent, def, x, y)
     c.sync = function() c:SetChecked(WC.Setting(def.key) and true or false) end
     f.checks[#f.checks + 1] = c
     f.widgets[#f.widgets + 1] = c
+    add_reset(f, parent, def, RESET_X, y - 4)
 end
 
 -- A slider with its label above; a limit row's top step means "all".
@@ -87,6 +101,7 @@ local function make_slider(f, parent, def, y)
         s:SetValue(current())
     end
     f.widgets[#f.widgets + 1] = s
+    add_reset(f, parent, def, RESET_X, y - 18)
     return s
 end
 
@@ -98,7 +113,7 @@ local function make_choice(f, parent, def, y)
     local function pick(id) WC.SetSetting(def.key, id) end
     if def.widget == "dropdown" and UIDropDownMenu_Initialize and UIDropDownMenu_CreateInfo and UIDropDownMenu_AddButton then
         local dd = CreateFrame("Frame", name, parent, "UIDropDownMenuTemplate")
-        dd:SetPoint("TOPLEFT", parent, "TOPLEFT", 200, y)
+        dd:SetPoint("TOPLEFT", parent, "TOPLEFT", 120, y)
         if UIDropDownMenu_SetWidth then UIDropDownMenu_SetWidth(dd, 150) end
         UIDropDownMenu_Initialize(dd, function()
             for _, id in ipairs(def.choices) do
@@ -114,10 +129,11 @@ local function make_choice(f, parent, def, y)
             if UIDropDownMenu_SetText then UIDropDownMenu_SetText(dd, L[def.choiceKey .. WC.Setting(def.key)]) end
         end
         f.widgets[#f.widgets + 1] = dd
+        add_reset(f, parent, def, RESET_X, y - 4)
         return
     end
     local radios = {}
-    local x = 200
+    local x = 140
     for _, id in ipairs(def.choices) do
         local r = CreateFrame("CheckButton", name .. "_" .. id, parent, "UIRadioButtonTemplate")
         r:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y - 2)
@@ -135,6 +151,7 @@ local function make_choice(f, parent, def, y)
         for _, r in ipairs(radios) do r:SetChecked(r.id == cur) end
     end }
     f.widgets[#f.widgets + 1] = group
+    add_reset(f, parent, def, RESET_X, y - 4)
 end
 
 -- Opens the client's colour picker on the current colour; each change is saved and drawn at once, and
@@ -182,6 +199,7 @@ local function make_color(f, parent, def, y)
         b.swatch:SetColorTexture(c[1], c[2], c[3], 1)
     end
     f.widgets[#f.widgets + 1] = b
+    add_reset(f, parent, def, RESET_X, y - 3)
 end
 
 local function make_button(name, parent, text, w, point, x, y, onclick)
@@ -220,14 +238,12 @@ local function build_page(f, page, body)
         end
         local title = gold_title(box, L["BOX_" .. page .. "_" .. id])
         title:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, -8)
-        local y, col = -30, 0
+        local y = -30
         for _, def in ipairs(boxes[id]) do
             if def.type == "bool" then
-                make_check(f, box, def, PAD - 4 + col * COL_W, y)
-                if col == 1 then y = y - ROW.bool end
-                col = 1 - col
+                make_check(f, box, def, PAD - 4, y)
+                y = y - ROW.bool
             else
-                if col == 1 then y = y - ROW.bool; col = 0 end
                 if def.type == "range" or def.type == "limit" then
                     make_slider(f, box, def, y)
                 elseif def.type == "choice" then
@@ -238,8 +254,7 @@ local function build_page(f, page, body)
                 y = y - ROW[def.type == "limit" and "range" or def.type]
             end
         end
-        if col == 1 then y = y - ROW.bool end
-        if page == "minimap" then
+        if page == "minimap" and id == "button" then
             make_button("WoWCompanionOptionsResetButton", box, L.RESET_BUTTON, 190, "TOPLEFT", PAD, y - 2, function() WC.ResetMinimapButton() end)
             y = y - 30
         end
@@ -249,6 +264,39 @@ local function build_page(f, page, body)
     end
     pf:SetHeight(-top + 4)
     return pf
+end
+
+-- The addon's own yes/no dialog: shows text and runs onYes only when the player confirms.
+function WC.Confirm(text, onYes)
+    local f = WC.confirm
+    if not f then
+        f = CreateFrame("Frame", "WoWCompanionConfirm", UIParent, "BasicFrameTemplateWithInset")
+        f:SetSize(340, 130)
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+        if f.SetFrameStrata then f:SetFrameStrata("FULLSCREEN_DIALOG") end
+        f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        f.title:SetPoint("TOP", f, "TOP", 0, -5)
+        f.title:SetText(L.ADDON_NAME)
+        f.message = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        f.message:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -34)
+        f.message:SetWidth(308)
+        f.message:SetJustifyH("LEFT")
+        f.yes = make_button("WoWCompanionConfirmYes", f, L.CONFIRM_YES, 110, "BOTTOMLEFT", 40, 14, function()
+            local go = f.onYes
+            f.onYes = nil
+            f:Hide()
+            if go then go() end
+        end)
+        f.no = make_button("WoWCompanionConfirmNo", f, L.CONFIRM_NO, 110, "BOTTOMRIGHT", -40, 14, function()
+            f.onYes = nil
+            f:Hide()
+        end)
+        if UISpecialFrames then table.insert(UISpecialFrames, "WoWCompanionConfirm") end
+        WC.confirm = f
+    end
+    f.message:SetText(text)
+    f.onYes = onYes
+    f:Show()
 end
 
 function WC.ResetMinimapButton()
