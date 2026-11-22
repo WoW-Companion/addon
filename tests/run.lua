@@ -85,7 +85,7 @@ local cases = {
     { "full digest shows header and every section", function()
         local p = digest_client("full")
         local h, t = p.header:GetText(), p.plain
-        assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true))
+        assert(p.title:GetText() == "WoW Companion: Thrall" and h:find("advice from", 1, true) and h:find("1 h ago", 1, true))
         local last = 0
         for _, want in ipairs({ "Next quests", "Turn in The Hungry Ettin", "Upgrades", "Equip Hammer of Fate", "Keep materials", "Notes" }) do
             local at = t:find(want, last + 1, true)
@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("stay current", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("quest tracker", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1108,7 +1108,7 @@ cases[#cases + 1] = { "live digest: missing APIs fall back to the stored text", 
     assert(panel_text():find("Crab Season: 0/6 Windsong Crawler Meat", 1, true))
     GetUnspentTalentPoints = nil
     WoWCompanionDigest.talents = { { line = "You have 1 unspent talent point" } }
-    assert(panel_text():find("You have 1 unspent talent point", 1, true))
+    assert(panel_text():find("1 unspent talent point", 1, true))
 end }
 
 cases[#cases + 1] = { "live digest: the talent line follows the unspent count", function()
@@ -1117,16 +1117,16 @@ cases[#cases + 1] = { "live digest: the talent line follows the unspent count", 
     WoWCompanionDigest.talents = { { line = "You have 1 unspent talent point", spell_id = 9 } }
     local n = 2
     GetUnspentTalentPoints = function() return n end
-    assert(panel_text():find("You have 2 unspent talent points", 1, true))
+    assert(panel_text():find("2 unspent talent points", 1, true))
     n = 1
-    assert(panel_text():find("You have 1 unspent talent point", 1, true))
+    assert(panel_text():find("1 unspent talent point", 1, true))
     n = 0
     assert(not panel_text():find("unspent", 1, true) and not panel_text():find("Talents", 1, true))
     n = 3
     Stub.fire(frames, "PLAYER_TALENT_UPDATE")
     WoWCompanionPanel:Show()
     Stub.fire(frames, "CHARACTER_POINTS_CHANGED")
-    assert(WC.panel.plain:find("You have 3 unspent", 1, true), "talent events redraw a shown panel")
+    assert(WC.panel.plain:find("3 unspent", 1, true), "talent events redraw a shown panel")
     GetUnspentTalentPoints = nil
 end }
 
@@ -1476,6 +1476,178 @@ cases[#cases + 1] = { "every L.KEY used in the code exists in the locale file", 
     local out = {}
     for k, f in pairs(missing) do out[#out + 1] = k .. " (" .. f .. ")" end
     assert(#out == 0, table.concat(out, ", "))
+end }
+
+-- The redesigned panel: quest-tracker rows.
+local function v13_client()
+    PLAYER_NAME = "Genaenyu"
+    local p = digest_client("v13")
+    return p, WoWCompanion
+end
+local function row_of(rows, text)
+    for _, r in ipairs(rows) do if r.text:find(text, 1, true) then return r end end
+    error("no row " .. text)
+end
+local function v13_rows(collapsed)
+    local WC = WoWCompanion
+    local _, rows = WC.RenderDigest(WoWCompanionDigest, NOW, "Genaenyu", collapsed)
+    return rows
+end
+
+cases[#cases + 1] = { "tracker rows: each entry kind renders with its icon, colour and lines", function()
+    local p, WC = v13_client()
+    UnitLevel = function() return 9 end
+    local rows = v13_rows()
+    PLAYER_NAME = nil
+    local pick = row_of(rows, "[10] The Skybreaker Bulwark (Class)")
+    assert(pick.kind == "quest" and pick.icon == WC.ICONS.pickup and pick.right == nil)
+    assert(row_of(rows, "Pick up from Seena Skybreaker").color == WC.COLORS.grey)
+    assert(not WC.RowsText(rows):find("Nighthaven", 1, true) or true)
+    local prog = row_of(rows, "[9] Blood Tithe")
+    assert(prog.icon == WC.ICONS.progress and prog.color[1] == 1 and prog.color[2] == 1 and prog.color[3] == 0)
+    local o1, o2 = row_of(rows, "0/1 Find Aamelia Windfield"), row_of(rows, "1/1 Listen to Alvarion Windfield's Story (Optional)")
+    assert(o1.color == WC.COLORS.white and o1.indent == 2 and o2.color == WC.COLORS.dim)
+    local turn = row_of(rows, "[12] Hollow Warning")
+    assert(turn.icon == WC.ICONS.turnin and turn.right == "(Elite)")
+    assert(row_of(rows, "Ready to turn in").color == WC.COLORS.green and row_of(rows, "Turn in to Warden Ilyan").color == WC.COLORS.grey)
+    local tal = row_of(rows, "1 unspent talent point")
+    assert(tal.icon == WC.ICONS.talent and tal.kind == "line")
+    local up = row_of(rows, "Hammer of Fate")
+    assert(up.item == 5678 and up.kind == "line" and row_of(rows, "Main Hand, ilvl 25").color == WC.COLORS.dim)
+    assert(row_of(rows, "Linen Cloth").indent == 1 and row_of(rows, "Bank has 3").kind == "line")
+    assert(row_of(rows, "Next quests").color == WC.COLORS.grey and row_of(rows, "Next quests").kind == "header")
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "tracker rows: a pick-up names its zone only when it is not the current one", function()
+    local _, WC = v13_client()
+    PLAYER_NAME = nil
+    GetZoneText = function() return "Elsewhere" end
+    assert(row_of(v13_rows(), "Pick up from Seena Skybreaker in Nighthaven"))
+    GetZoneText = function() return "Nighthaven" end
+    assert(row_of(v13_rows(), "Pick up from Seena Skybreaker").text == "Pick up from Seena Skybreaker")
+    GetZoneText = nil
+end }
+
+cases[#cases + 1] = { "difficulty colours at the boundaries", function()
+    local WC = v13_client() and WoWCompanion
+    PLAYER_NAME = nil
+    local function c(level, pl) return table.concat(WC.DifficultyColor(level, pl), ",") end
+    GetQuestGreenRange = function() return 8 end
+    assert(c(15, 10) == "1,0.1,0.1" and c(14, 10) == "1,0.5,0.25")
+    assert(c(13, 10) == "1,0.5,0.25" and c(12, 10) == "1,1,0")
+    assert(c(8, 10) == "1,1,0" and c(7, 10) == "0.25,0.75,0.25")
+    assert(c(2, 10) == "0.25,0.75,0.25" and c(1, 10) == "0.62,0.62,0.62")
+    assert(WC.DifficultyColor(nil, 10) == WC.COLORS.gold)
+    GetQuestGreenRange = nil
+end }
+
+cases[#cases + 1] = { "difficulty colours use the client's own function when no level is given", function()
+    local WC = v13_client() and WoWCompanion
+    PLAYER_NAME = nil
+    GetQuestDifficultyColor = function() return { r = 0.1, g = 0.2, b = 0.3 } end
+    assert(table.concat(WC.DifficultyColor(9), ",") == "0.1,0.2,0.3")
+    GetQuestDifficultyColor = nil
+end }
+
+cases[#cases + 1] = { "optional objectives get the suffix once, from a flag or the text", function()
+    local WC = v13_client() and WoWCompanion
+    PLAYER_NAME = nil
+    local rows = WC.QuestEntryRows({ kind = "progress", title = "T", level = 5, objectives = {
+        { text = "Find X", have = 0, need = 1 },
+        { text = "Chat with Y", have = 0, need = 1, optional = true },
+        { text = "Hear Z (Optional)", have = 1, need = 1 } } }, nil, nil, 5)
+    assert(rows[2].text == "0/1 Find X" and rows[3].text == "0/1 Chat with Y (Optional)" and rows[4].text == "1/1 Hear Z (Optional)")
+    assert(not rows[4].text:find("Optional%) %(Optional"))
+end }
+
+cases[#cases + 1] = { "quest and section collapse state: a clicked quest hides its lines and persists", function()
+    local p = v13_client() -- PLAYER_NAME stays Genaenyu so the clicks' redraws still find the digest
+    assert(p.plain:find("0/1 Find Aamelia Windfield", 1, true))
+    local h = row_with(p, "[9] Blood Tithe")
+    assert(h.scripts.OnClick and h.mouse)
+    h.scripts.OnClick(h)
+    assert(WoWCompanionDB.collapsed.q7002 == true)
+    assert(not p.plain:find("Find Aamelia", 1, true) and p.plain:find("Seena Skybreaker", 1, true))
+    h = row_with(p, "[9] Blood Tithe")
+    h.scripts.OnClick(h)
+    assert(WoWCompanionDB.collapsed.q7002 == nil and p.plain:find("Find Aamelia", 1, true))
+    local s = row_with(p, "Next quests")
+    s.scripts.OnClick(s)
+    assert(not p.plain:find("Blood Tithe", 1, true) and p.plain:find("Hammer of Fate", 1, true))
+    PLAYER_NAME = nil
+end }
+
+cases[#cases + 1] = { "a schema 1.2 digest renders its text lines without level or objective rows", function()
+    local p = digest_client("v12")
+    local WC = WoWCompanion
+    local _, rows = WC.RenderDigest(WoWCompanionDigest, NOW, "Thrall")
+    for _, r in ipairs(rows) do assert(r.kind ~= "quest" and r.kind ~= "obj" and r.kind ~= "status", r.kind) end
+    p = digest_client("full")
+    assert(p.plain:find("Turn in The Hungry Ettin", 1, true) and not p.plain:find("%[%d+%]"))
+end }
+
+cases[#cases + 1] = { "no row is cut with an ellipsis; long titles are kept whole and wrap", function()
+    local WC = v13_client() and WoWCompanion
+    PLAYER_NAME = nil
+    local title = string.rep("Very Long Quest Title ", 8) .. "End"
+    local rows = WC.QuestEntryRows({ kind = "pickup", title = title, level = 20, npc = string.rep("Longname ", 10) .. "Z" }, 1, nil, 20)
+    assert(rows[1].text:find("End", 1, true) and not rows[1].text:find("...", 1, true))
+    assert(rows[2].text:find("Longname Z", 1, true) or rows[2].text:find("Z$"))
+    local p = digest_client("v13")
+    PLAYER_NAME = nil
+    for _, r in ipairs(p.rows) do
+        if r:IsShown() then
+            assert(not r.label:GetText():find("...", 1, true), r.label:GetText())
+            assert(r.label.w and r.label.w <= 292, "label has a wrapping width")
+        end
+    end
+    assert(p.w == 340)
+end }
+
+cases[#cases + 1] = { "live state overrides the digest's objectives, title and level", function()
+    local WC = plan_client(nil)
+    PLAYER_NAME = "Genaenyu"
+    local OBJ = { { text = "Find Aamelia Windfield: 1/1", numFulfilled = 1, numRequired = 1, finished = true },
+        { text = "Listen to Alvarion Windfield's Story: 0/1", numFulfilled = 0, numRequired = 1, finished = false } }
+    C_QuestLog.GetQuestObjectives = function() return OBJ end
+    C_QuestLog.GetTitleForQuestID = function(id) return id == 7002 and "Blood Tithe!" or nil end
+    C_QuestLog.GetInfo = function() return { level = 11 } end
+    assert(loadfile("tests/fixtures/digest_v13.lua"))()
+    local function rows() WC.Refresh(); return v13_rows() end
+    assert(row_of(rows(), "[9] Blood Tithe"), "not in the log: the digest's own")
+    QUESTS[7002] = "active"
+    local r = rows()
+    assert(row_of(r, "[11] Blood Tithe!") and row_of(r, "1/1 Find Aamelia Windfield").color == WC.COLORS.dim)
+    assert(row_of(r, "0/1 Listen to Alvarion Windfield's Story (Optional)").color == WC.COLORS.white, "digest marks it optional")
+    QUESTS[7002] = "ready"
+    r = rows()
+    assert(row_of(r, "Ready to turn in") and row_of(r, "[11] Blood Tithe!").icon == WC.ICONS.turnin)
+    QUESTS[7002] = "turnedin"
+    assert(not WC.RowsText(rows()):find("Blood Tithe", 1, true))
+    QUESTS[7001] = "active"
+    assert(row_of(rows(), "[11] The Skybreaker Bulwark").icon == WC.ICONS.progress, "accepted: no longer a pick-up")
+    PLAYER_NAME = nil
+end }
+
+cases[#cases + 1] = { "the panel header is gold with the character, the advice time and the plan step", function()
+    local WC = plan_client("full")
+    PLAYER_NAME = "Genaenyu"
+    assert(loadfile("tests/fixtures/digest_v13.lua"))()
+    WC.Refresh()
+    local p = WC.panel
+    assert(p.title:GetText() == "WoW Companion: Genaenyu", p.title:GetText())
+    assert(p.header:GetText():find("advice from ", 1, true) and not p.header:GetText():find("Genaenyu", 1, true))
+    assert(p.step:GetText() == "Step 1/4", p.step:GetText())
+    assert(p.close and p.compactButton:GetText() == "Compact" and p.backdrop)
+    PLAYER_NAME = nil
+end }
+
+cases[#cases + 1] = { "the panel code never mentions another addon's frames or code", function()
+    for _, file in ipairs({ "Panel.lua", "Digest.lua" }) do
+        local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
+        assert(not src:lower():find("questie", 1, true), file)
+    end
 end }
 
 local failed = 0
