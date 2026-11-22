@@ -7,7 +7,7 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local CARD_W, PAD, BOX_H, ANSWER_H = 300, 10, 72, 84
+local CARD_W, PAD, BOX_H, ANSWER_H = 300, 10, 60, 84
 local GREY, GOLD, GREEN = { 0.72, 0.72, 0.72 }, { 1, 0.82, 0 }, { 0.25, 0.9, 0.25 }
 local ART = "Interface\\Icons\\"
 local KIND_ICON = {
@@ -122,7 +122,12 @@ end
 -- The ask the card pre-fills: the entry's own prompt, else the ASK_ABOUT template for its kind, else its title.
 function WC.CardPrompt(entry)
     if entry.prompt then return entry.prompt:sub(1, WC.MAX_ASK_LEN) end
-    local ask = entry.ask or { kind = entry.kind, subject = tostring(entry.title or ""):gsub("|", "") }
+    local ask = entry.ask
+    if entry.kind == "talent" and (not ask or ask.kind == "talent_points") then -- the count is live
+        local n = WC.UnspentTalentPoints() or tonumber(entry.points)
+        ask = { kind = "talent_points", subject = WC.UnspentText(n) or (ask and ask.subject) or "" }
+    end
+    ask = ask or { kind = entry.kind, subject = tostring(entry.title or ""):gsub("|", "") }
     local q = WC.AskTemplate({ ask = ask })
     return (q or tostring(entry.title or "")):sub(1, WC.MAX_ASK_LEN)
 end
@@ -162,6 +167,27 @@ local function quest_rows(entry, rows)
     return st
 end
 
+-- Removes body rows that say what the header already says, or what an earlier row said.
+local function same_words(a)
+    return (tostring(a):lower():gsub("^you have ", ""):gsub("[%s%p]+", " "):gsub("^ ", ""):gsub(" $", ""))
+end
+local function drop_repeats(rows, ...)
+    local seen = {}
+    for i = 1, select("#", ...) do
+        local t = select(i, ...)
+        if t then seen[same_words(t)] = true end
+    end
+    local out = {}
+    for _, r in ipairs(rows) do
+        local k = same_words(r.text)
+        if not seen[k] then
+            seen[k] = true
+            out[#out + 1] = r
+        end
+    end
+    for i = 1, math.max(#rows, #out) do rows[i] = out[i] end
+end
+
 -- The card for an entry as data: { title, icon, subtitle, rows = { {text, color} }, link, actions, hints, prompt, answer }.
 --  quest/pickup: details, live state and objectives; Open in quest log (in the log), Show on map (a plan step).
 --  training: each spell not yet known with its rank and "new"/"upgrade"; a Spellbook key hint.
@@ -199,9 +225,15 @@ function WC.CardModel(entry)
     elseif kind == "talent" then
         m.icon = WC.ICONS.talent
         local n = WC.UnspentTalentPoints() or tonumber(entry.points)
-        if n and n > 0 then rows[#rows + 1] = row(string.format(n == 1 and L.UNSPENT_ONE or L.UNSPENT_MANY, math.floor(n)), GOLD) end
-        if entry.nextPick then rows[#rows + 1] = row(string.format(L.CARD_NEXT_PICK, entry.nextPick), WC.COLORS.white) end
-        m.hints[#m.hints + 1] = string.format(L.CARD_TALENTS_KEY, WC.BindingKey("TOGGLETALENTS", "N"))
+        -- the count is shown once, in the title; the body gives the plan's next pick or points at the talents
+        if n and n > 0 then m.title = string.format(n == 1 and L.CARD_UNSPENT_TITLE_ONE or L.CARD_UNSPENT_TITLE_MANY, math.floor(n)) end
+        local key = WC.BindingKey("TOGGLETALENTS", "N")
+        if entry.nextPick and entry.nextPick ~= m.title and entry.nextPick ~= entry.title then
+            rows[#rows + 1] = row(string.format(L.CARD_NEXT_PICK, entry.nextPick), WC.COLORS.white)
+            m.hints[#m.hints + 1] = string.format(L.CARD_TALENTS_KEY, key)
+        else
+            m.hints[#m.hints + 1] = string.format(L.CARD_OPEN_TALENTS_KEY, key)
+        end
     elseif kind == "upgrade" then
         local meta = {}
         if entry.slot then meta[#meta + 1] = entry.slot end
@@ -216,7 +248,8 @@ function WC.CardModel(entry)
     elseif kind == "dungeon" and entry.line then
         if #rows == 0 then rows[#rows + 1] = row(entry.line, WC.COLORS.white) end
     end
-    if #rows == 0 then rows[#rows + 1] = row(L.CARD_NO_DETAILS) end
+    drop_repeats(rows, m.title, entry.title)
+    if #rows == 0 and (kind ~= "talent" or #m.hints == 0) then rows[#rows + 1] = row(L.CARD_NO_DETAILS) end
     m.icon = m.icon or KIND_ICON.note
     m.prompt = WC.CardPrompt(entry)
     m.answer = WC.AnswerFor(entry.key)
@@ -259,13 +292,63 @@ function WC.CardSend()
     return sent
 end
 
--- Selects all the text and focuses the box so the player can press Ctrl+C. Addons cannot write the clipboard.
+-- Copy. Addons cannot write the clipboard, so "copy" leaves the whole prompt selected in a focused edit box
+-- and the player's own Ctrl+C does the rest. The button's mouse-up can undo a single SetFocus/HighlightText, so
+-- the selection is made again on the next frame, whenever the box gains focus, and on a click into the box.
+-- It keeps focus until Ctrl+C (or Cmd+C), typing, or Esc; after a copy the box lets go a few seconds later so
+-- the movement keys return to the game.
+local COPIED_SECONDS = 3
+
+local function copy_select(c)
+    c.box:SetFocus()
+    c.box:HighlightText()
+    c.copyHint:Show()
+end
+
+local function copy_end(c)
+    c.copying = nil
+    c.copyHint:Hide()
+end
+
 function WC.CardCopy()
     local c = card
     if not c then return end
-    c.box:SetFocus()
-    c.box:HighlightText()
-    c.status:SetText(L.CARD_COPY_HINT)
+    c.copying = true
+    c.copyToken = (c.copyToken or 0) + 1
+    c.status:SetText("")
+    copy_select(c)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0, function()
+            if c.copying then copy_select(c) end
+        end)
+    end
+end
+
+-- Called on a key press in the box: Ctrl+C (Cmd+C on a Mac client) confirms, then frees the keyboard.
+function WC.CardKeyDown(key)
+    local c = card
+    if not (c and c.copying and type(key) == "string" and key:upper() == "C") then return false end
+    if not ((IsControlKeyDown and IsControlKeyDown()) or (IsMetaKeyDown and IsMetaKeyDown())) then return false end
+    copy_end(c)
+    c.status:SetText(L.CARD_COPIED)
+    local token = c.copyToken
+    if C_Timer and C_Timer.After then
+        C_Timer.After(COPIED_SECONDS, function()
+            if c.copyToken == token and not c.copying then
+                c.box:ClearFocus()
+                c.status:SetText("")
+            end
+        end)
+    end
+    return true
+end
+
+-- Esc in the box: let go of the keyboard and stop re-selecting.
+function WC.CardEscape()
+    local c = card
+    if not c then return end
+    copy_end(c)
+    c.box:ClearFocus()
 end
 
 local function create_card()
@@ -315,12 +398,27 @@ local function create_card()
         c.box:SetBackdropColor(0, 0, 0, 0.5)
         c.box:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.8)
     end
-    c.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    c.box:SetScript("OnTextChanged", function(_, user) if user and c.send then c.send:SetEnabled(true) end end)
+    c.box:SetScript("OnEscapePressed", function() WC.CardEscape() end)
+    c.box:SetScript("OnKeyDown", function(_, key) WC.CardKeyDown(key) end)
+    c.box:SetScript("OnEditFocusGained", function() if c.copying then c.box:HighlightText() end end)
+    c.box:SetScript("OnMouseUp", function()
+        if not c.copying then return end
+        c.box:HighlightText()
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() if c.copying then c.box:HighlightText() end end) end
+    end)
+    c.box:SetScript("OnTextChanged", function(_, user)
+        if not user then return end
+        copy_end(c) -- the player is editing the prompt: stop selecting it all
+        if c.send then c.send:SetEnabled(true) end
+    end)
     c.send = make_button("WoWCompanionCardSend", c, L.CARD_SEND, 80)
     c.send:SetScript("OnClick", function() WC.CardSend() end)
     c.copy = make_button("WoWCompanionCardCopy", c, L.CARD_COPY, 80)
     c.copy:SetScript("OnClick", function() WC.CardCopy() end)
+    c.copyHint = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    c.copyHint:SetText(L.CARD_COPY_HINT)
+    c.copyHint:SetJustifyH("LEFT")
+    c.copyHint:Hide()
     c.status = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     c.status:SetJustifyH("LEFT")
     c.status:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
@@ -334,7 +432,7 @@ local function create_card()
     c.answer:SetPoint("TOPLEFT", c.answerBody, "TOPLEFT", 0, 0)
     c.answer:SetWidth(CARD_W - PAD * 2 - 24)
     c.answer:SetJustifyH("LEFT")
-    c:SetScript("OnHide", function() c.entry = nil end)
+    c:SetScript("OnHide", function() c.entry = nil c.copying = nil c.copyHint:Hide() end)
     c:Hide()
     if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "WoWCompanionCard") end -- Esc closes it
     return c
@@ -457,14 +555,18 @@ local function fill_card(entry, keepText)
     c.box:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
     if not keepText then
         c.box:SetText(m.prompt)
+        c.copying = nil
+        c.copyHint:Hide()
         c.status:SetText("")
         c.send:SetEnabled(true)
     end
-    y = y + BOX_H + 6
+    y = y + BOX_H + 3
     c.send:ClearAllPoints()
     c.send:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
     c.copy:ClearAllPoints()
     c.copy:SetPoint("TOPLEFT", c, "TOPLEFT", PAD + 86, -y)
+    c.copyHint:ClearAllPoints()
+    c.copyHint:SetPoint("LEFT", c.copy, "RIGHT", 8, 0)
     y = y + 26
     c.status:SetWidth(width)
     c.status:ClearAllPoints()

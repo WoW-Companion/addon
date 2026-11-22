@@ -880,18 +880,29 @@ cases[#cases + 1] = { "ask about this: right-click opens the card with each line
     local before = #WoWCompanionDB.asks
     local notes = row_with(p, "Bank has")
     notes.scripts.OnClick(notes, "RightButton")
-    assert(WoWCompanionCardAsk:GetText() == "Tell me more about this: Bank has 3 unused bags" and #WoWCompanionDB.asks == before)
+    assert(WoWCompanionCardAsk:GetText() == "I'm a player. My plan says: \"Bank has 3 unused bags\". What should I do about that?" and #WoWCompanionDB.asks == before)
     local h = row_with(p, "Upgrades")
     h.scripts.OnClick(h, "RightButton")
     assert(not WoWCompanionDB.collapsed and #WoWCompanionDB.asks == before)
 end }
 cases[#cases + 1] = { "ask about this: AskTemplate by line type", function()
     local T = WoWCompanion.AskTemplate
-    assert(T({ ask = { kind = "quest", subject = "Q" } }) == "Where do I go for Q, and what's the fastest route?")
-    assert(T({ ask = { kind = "upgrade", subject = "I" } }) == "Where does I drop, and is it worth farming?")
-    assert(T({ ask = { kind = "material", subject = "M" } }) == "What should I make with M?")
-    assert(T({ ask = { kind = "dungeon", subject = "D" } }) == "Should I run D now, and what should I bring?")
-    assert(T({ ask = { kind = "talent", subject = "T" } }) == "Why T next for my spec?")
+    UnitLevel = function() return 10 end
+    UnitClass = function() return "Warrior", "WARRIOR" end
+    local who = "I'm a level 10 warrior"
+    assert(T({ ask = { kind = "quest", subject = "Q" } }) == who .. ". Where do I go for Q, and what's the fastest way to finish it?")
+    assert(T({ ask = { kind = "upgrade", subject = "I" } }) == who .. ". Where does I come from, and is it worth getting now?")
+    assert(T({ ask = { kind = "material", subject = "M" } }) == who .. ". What should I make with M, and is it worth keeping?")
+    assert(T({ ask = { kind = "dungeon", subject = "D" } }) == who .. ". Should I run D now, and what should I bring?")
+    assert(T({ ask = { kind = "talent_pick", subject = "Next point: T" } }) == who .. ". Why is T the right next pick for me?")
+    assert(T({ ask = { kind = "talent_points", subject = "1 unspent talent point" } }) == who .. " with 1 unspent talent point. Which talent should I take next, and why?")
+    assert(T({ ask = { kind = "training", subject = "A, B" } }) == who .. ". I can now train A, B. Which should I train first, and how do they fit my rotation?")
+    assert(T({ ask = { kind = "note", subject = "Bank full" } }) == who .. '. My plan says: "Bank full". What should I do about that?')
+    UnitLevel, UnitClass = nil, nil
+    assert(T({ ask = { kind = "quest", subject = "Q" } }):find("^I'm a player%. Where do I go for Q"))
+    UnitClass = function() return "Mage", "MAGE" end
+    assert(T({ ask = { kind = "quest", subject = "Q" } }):find("^I'm a mage%."))
+    UnitClass = nil
     assert(T({}) == nil and T(nil) == nil and T({ ask = { kind = "bogus", subject = "x" } }) == nil)
 end }
 cases[#cases + 1] = { "panel content and rows follow the panel's visibility, and carry no id tags", function()
@@ -1919,7 +1930,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.7" and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.4.8" and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2555,7 +2567,7 @@ cases[#cases + 1] = { "card: the rows for a quest, a pick-up, training, talents 
     assert(card_text(WC, entry_of(p, "New at level 10")) == "New: Thunder Clap\nCharge (Rank 2) - upgrade\nThunder Clap - new")
     assert(train.hints[1] == "Spellbook (P)" and #train.actions == 0 and train.subtitle == "Level 10 - Class training")
     local tal = WC.CardModel(entry_of(p, "unspent talent"))
-    assert(card_text(WC, entry_of(p, "unspent talent")) == "Spend them soon\n2 unspent talent points\nPlan's next pick: Next point: Mortal Strike")
+    assert(card_text(WC, entry_of(p, "unspent talent")) == "Spend them soon\nPlan's next pick: Next point: Mortal Strike" and tal.title == "You have 2 unspent talent points")
     assert(tal.hints[1] == "Talents (N)" and tal.prompt == "Which talents first?")
     local up = WC.CardModel(entry_of(p, "Hammer of Fate"))
     assert(card_text(WC, entry_of(p, "Hammer of Fate")) == "Drops in Deadmines\nMain Hand, ilvl 25" and up.link == "item:5678")
@@ -2576,7 +2588,8 @@ cases[#cases + 1] = { "card: live facts follow the client, and the card sits on 
     assert(card_text(WC, entry_of(p, "Blood Tithe")):find("Ready to turn in", 1, true))
     UnitLevel = nil
     GetUnspentTalentPoints = function() return 5 end
-    assert(card_text(WC, entry_of(p, "unspent talent")):find("5 unspent talent points", 1, true))
+    assert(WC.CardModel(entry_of(p, "unspent talent")).title == "You have 5 unspent talent points")
+    assert(WC.CardPrompt({ kind = "talent", points = 2, title = "t", ask = { kind = "talent_points", subject = "2 unspent talent points" } }):find("with 5 unspent talent points%.", 1))
     GetUnspentTalentPoints = nil
     local c = open_card(p, "Quest 10", "RightButton")
     assert(c.points[1][1] == "TOPLEFT" and c.points[1][2] == p and c.points[1][3] == "TOPRIGHT")
@@ -2627,7 +2640,7 @@ cases[#cases + 1] = { "card: the ask box holds the prompt (or the template fallb
     local copy = WoWCompanionCardCopy
     copy.scripts.OnClick(copy)
     assert(WoWCompanionCardAsk.focused == true and WoWCompanionCardAsk.highlighted == true)
-    assert(WoWCompanionCard.status:GetText() == "Press Ctrl+C, then paste into the overlay's Ask box.")
+    assert(WoWCompanionCard.copyHint:IsShown() and WoWCompanionCard.copyHint:GetText() == "Press Ctrl+C to copy")
     assert(#WoWCompanionDB.asks == 1, "copy queues nothing")
     -- an empty box queues nothing
     WoWCompanionCardAsk:SetText("   ")
@@ -2656,17 +2669,138 @@ cases[#cases + 1] = { "card: schema 1.3 and 1.2 digests open cards with the temp
     local p = ask_row_client()
     local WC = WoWCompanion
     local m = WC.CardModel(entry_of(p, "Hammer of Fate"))
-    assert(m.prompt:find("^Where does") and m.prompt:find("Equip Hammer of Fate", 1, true) and m.prompt:find("drop, and is it worth farming?", 1, true))
+    assert(m.prompt:find("%. Where does ") and m.prompt:find("Equip Hammer of Fate", 1, true) and m.prompt:find("come from, and is it worth getting now?", 1, true))
     assert(#m.rows == 1 and m.rows[1].text == "No more details for this entry.")
     p = v13_client()
     WC = WoWCompanion
     local q = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
     assert(q.prompt:find("Where do I go for Blood Tithe", 1, true) and q.rows[1].text == "No more details for this entry.")
     local t = WC.CardModel(entry_of(p, "unspent talent"))
-    assert(t.prompt == "Why You have 1 unspent talent point next for my spec?" and t.hints[1] == "Talents (N)")
+    assert(t.prompt:find("^I'm a %l+ with 1 unspent talent point%. Which talent should I take next, and why%?$") or t.prompt:find("^I'm a player with 1 unspent talent point%."))
+    assert(t.hints[1] == "Open your talents (N)" and t.title == "You have 1 unspent talent point" and #t.rows == 0)
     local train = WC.CardModel(WC.TrainingEntry({ text = "x", level = 5 }).entry)
     assert(train.rows[1].text == "No more details for this entry.")
     PLAYER_NAME = nil
+end }
+
+cases[#cases + 1] = { "card copy: focus and select-all on click and next frame, again on focus and click; Ctrl+C confirms and releases; Esc ends it", function()
+    local p, WC = card_client()
+    local c = open_card(p, "Quest 10")
+    local box, copy = WoWCompanionCardAsk, WoWCompanionCardCopy
+    local queued = {}
+    C_Timer = { After = function(sec, fn) queued[#queued + 1] = { sec, fn } end }
+    copy.scripts.OnClick(copy)
+    assert(box.focused and box.highlighted and c.copyHint:IsShown())
+    assert(#queued == 1 and queued[1][1] == 0, "a zero-delay timer selects again")
+    box.focused, box.highlighted = false, false -- the button's mouse-up undid it
+    queued[1][2]()
+    assert(box.focused and box.highlighted, "the next frame restores focus and the selection")
+    -- focus gained and a click into the box select all again
+    local h = box.highlightCalls
+    box.scripts.OnEditFocusGained(box)
+    assert(box.highlightCalls == h + 1)
+    box.scripts.OnMouseUp(box)
+    assert(box.highlightCalls == h + 2 and #queued == 2)
+    queued[2][2]()
+    assert(box.highlightCalls == h + 3)
+    -- Ctrl+C: other keys do nothing; Ctrl+C confirms, then the box lets go a few seconds later
+    IsControlKeyDown = function() return false end
+    box.scripts.OnKeyDown(box, "C")
+    assert(c.status:GetText() == "" and c.copying)
+    IsControlKeyDown = function() return true end
+    box.scripts.OnKeyDown(box, "X")
+    assert(c.status:GetText() == "" and c.copying)
+    box.scripts.OnKeyDown(box, "C")
+    assert(c.status:GetText() == "Copied, now paste it into the overlay's Ask box" and not c.copying and not c.copyHint:IsShown())
+    assert(box.focused and #queued == 3 and queued[3][1] >= 2 and queued[3][1] <= 5, "focus is kept for a few seconds")
+    queued[3][2]()
+    assert(not box.focused and c.status:GetText() == "")
+    -- Cmd+C on a Mac client
+    IsControlKeyDown, IsMetaKeyDown = function() return false end, function() return true end
+    copy.scripts.OnClick(copy)
+    box.scripts.OnKeyDown(box, "C")
+    assert(c.status:GetText():find("^Copied"))
+    -- a later Copy cancels the pending release
+    local pending = queued[#queued][2]
+    copy.scripts.OnClick(copy)
+    pending()
+    assert(box.focused and c.copying)
+    -- Esc ends the copy and frees the keyboard; a click then no longer selects
+    box.scripts.OnEscapePressed(box)
+    assert(not box.focused and not c.copying and not c.copyHint:IsShown())
+    h = box.highlightCalls
+    box.scripts.OnMouseUp(box)
+    assert(box.highlightCalls == h)
+    -- typing ends the select-all too
+    copy.scripts.OnClick(copy)
+    box.scripts.OnTextChanged(box, true)
+    assert(not c.copying and not c.copyHint:IsShown())
+    -- without a timer API the immediate selection still happens
+    C_Timer = nil
+    copy.scripts.OnClick(copy)
+    assert(box.focused and box.highlighted)
+    IsControlKeyDown, IsMetaKeyDown = nil, nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "fallback prompts: every kind reads as a sentence, within the cap, with no doubled words or capitalised subject", function()
+    UnitLevel = function() return 10 end
+    UnitClass = function() return "Warrior", "WARRIOR" end
+    local WC = WoWCompanion
+    local subjects = {
+        quest = "The Hungry Ettin", upgrade = "Hammer of Fate (item 5678)", material = "Linen Cloth", dungeon = "Deadmines",
+        talent_points = "1 unspent talent point", talent_pick = "Next point: Mortal Strike", training = "Charge (Rank 2), Thunder Clap",
+        note = "Bank has 3 unused bags",
+    }
+    local n = 0
+    for kind, subject in pairs(subjects) do
+        n = n + 1
+        local q = WC.FallbackPrompt(kind, subject)
+        assert(q and #q <= WC.MAX_ASK_LEN and q:find("^I'm a level 10 warrior"), kind)
+        assert(q:find("[%.%?]$") and not q:find("%f[%a](%a+) %1%f[%A]"), kind .. ": " .. q)
+        assert(not q:find("Why You") and not q:find("[a-z] You have") and not q:find("Next point", 1, true), q)
+        local long = WC.FallbackPrompt(kind, ("x"):rep(2000))
+        assert(#long <= WC.MAX_ASK_LEN, kind)
+    end
+    assert(n == 8)
+    assert(WC.FallbackPrompt("talent_points", "1 unspent talent point") == "I'm a level 10 warrior with 1 unspent talent point. Which talent should I take next, and why?")
+    assert(WC.FallbackPrompt("talent_pick", "Mortal Strike") == "I'm a level 10 warrior. Why is Mortal Strike the right next pick for me?")
+    assert(WC.FallbackPrompt("training", "Charge") == "I'm a level 10 warrior. I can now train Charge. Which should I train first, and how do they fit my rotation?")
+    assert(WC.FallbackPrompt("bogus", "x") == nil and WC.FallbackPrompt(nil, "x") == nil)
+    -- every ASK_ABOUT string is a template with exactly who + subject
+    for k, v in pairs(WC.L) do
+        if k:find("^ASK_ABOUT_") then
+            local _, cnt = v:gsub("%%s", "")
+            assert(cnt == 2 and v:find("^%%s[%.%s]"), k)
+        end
+    end
+    UnitLevel, UnitClass = nil, nil
+end }
+
+cases[#cases + 1] = { "talent kinds: points and a named pick ask differently; the digest prompt wins; the card body does not repeat the header", function()
+    UnitLevel = function() return 10 end
+    UnitClass = function() return "Warrior", "WARRIOR" end
+    local p, WC = card_client()
+    local tal, pick = entry_of(p, "unspent talent"), entry_of(p, "Mortal Strike")
+    assert(tal.ask.kind == "talent_points" and tal.ask.subject == "2 unspent talent points")
+    assert(pick.ask.kind == "talent_pick" and pick.kind == "talent")
+    -- the digest's own prompt wins over either fallback
+    assert(WC.CardModel(tal).prompt == "Which talents first?")
+    tal.prompt = nil
+    assert(WC.CardModel(tal).prompt == "I'm a level 10 warrior with 2 unspent talent points. Which talent should I take next, and why?")
+    assert(WC.CardModel(pick).prompt == "I'm a level 10 warrior. Why is Mortal Strike the right next pick for me?")
+    pick.prompt = "From the digest"
+    assert(WC.CardModel(pick).prompt == "From the digest")
+    -- the count appears once; a body line equal to the header is dropped
+    local m = WC.CardModel(tal)
+    assert(m.title == "You have 2 unspent talent points" and m.hints[1] == "Talents (N)")
+    for _, r in ipairs(m.rows) do assert(not r.text:find("unspent", 1, true), r.text) end
+    local rep = WC.CardModel({ kind = "note", key = "n", title = "Bank is full", details = { "bank is full.", "Sell junk", "Sell junk" } })
+    assert(#rep.rows == 1 and rep.rows[1].text == "Sell junk")
+    local bare = WC.CardModel({ kind = "talent", key = "t", title = "You have 1 unspent talent point", points = 1, details = { "You have 1 unspent talent point" } })
+    assert(#bare.rows == 0 and bare.hints[1] == "Open your talents (N)")
+    UnitLevel, UnitClass = nil, nil
+    WoWCompanionCard = nil
 end }
 
 cases[#cases + 1] = { "training: the entry lists unknown spells with ranks and hides when all are known", function()
