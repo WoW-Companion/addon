@@ -349,6 +349,7 @@ local L = {
     WHATS_NEW_0_3_0_3 = "Type /wowc plan to hide or show the tracker and /wowc plan map for the pins.",
     WHATS_NEW_0_4_8_1 = "Copy on the detail card now works first time (press Ctrl+C, no clicking into the box), and every fallback question reads as a proper sentence.",
     WHATS_NEW_0_4_7_1 = "The minimap badge and every map badge now have a quest-tracker-style tooltip: [level] title (XP), who, live objectives, and the step.",
+    WHATS_NEW_0_4_9_1 = "The WoW Companion button on the world map is now a square side tab beside the map's other tabs.",
     WHATS_NEW_0_4_6_1 = "Route arrowheads on the world map are smaller by default (8), and the Arrowhead size slider now goes down to 2.",
     WHATS_NEW_0_4_5_1 = "Fixed a Lua error when the world map opens or changes zone, caused by the map button.",
     WHATS_NEW_0_4_5_2 = "This window now scrolls when the notes are long.",

@@ -86,13 +86,28 @@ function WC.ButtonClick(button, shift)
     end
 end
 
--- A click on the world map button: left shows or hides the plan on the map, right opens the options window.
+-- Is the plan shown on the map right now? The map tab looks pressed while it is.
+function WC.PlanShownOnMap()
+    return WC.db and WC.db.settings and WC.db.settings.planMap and true or false
+end
+
+-- Sets the tab's pressed (checked) look from the plan state: the client's tab method when it has one, else a texture.
+function WC.RefreshMapTab()
+    local b = WC.mapButton
+    if not b then return end
+    local on = WC.PlanShownOnMap()
+    if b.SetChecked then b:SetChecked(on) end
+    if b.checkedTex then b.checkedTex:SetShown(on) end
+end
+
+-- A click on the world map tab: left shows or hides the plan on the map, right opens the options window.
 function WC.MapButtonClick(button)
     if button == "RightButton" then
         WC.OpenOptions()
     else
         WC.TogglePlan("map")
     end
+    WC.RefreshMapTab()
 end
 
 local function show_map_tooltip(owner)
@@ -101,55 +116,111 @@ local function show_map_tooltip(owner)
     GameTooltip:Show()
 end
 
--- The map calls methods on every overlay frame (RefreshOverlayFrames runs them inside secureexecuterange),
--- so a frame handed to AddOverlayFrame must answer them. Ours has nothing to recompute when the map changes
--- (it is a fixed button), so each is a no-op. Only the methods the client is known to call are given: an
--- unknown one still errors, which is a real error to see rather than hide.
-WC.OVERLAY_METHODS = { "Refresh", "OnMapChanged", "RefreshAll" }
-function WC.MakeOverlayFrame(frame)
-    for _, name in ipairs(WC.OVERLAY_METHODS) do
-        if frame[name] == nil then frame[name] = function() end end
+-- The client's own large side-tab template (the one its Quests / Map legend tabs use) and the frame that
+-- parents that tab column.
+WC.MAP_TAB_TEMPLATE = "QuestLogTabButtonTemplate"
+WC.MAP_TAB_SIZE, WC.MAP_TAB_GAP = 44, 3
+WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y = -2, -100
+
+-- Pure: the top edge for a new tab of `size` in a column whose occupied tabs are rects { top =, bottom = }
+-- (screen units, y up). Starts at the column's highest top and steps below each tab it would overlap, so the
+-- first free slot wins. Nil when nothing occupies the column.
+function WC.PickTabSlot(rects, size, gap)
+    if #rects == 0 then return nil end
+    local top = -math.huge
+    for _, r in ipairs(rects) do if r.top > top then top = r.top end end
+    local moved = true
+    while moved do
+        moved = false
+        for _, r in ipairs(rects) do
+            if top > r.bottom and top - size < r.top then top = r.bottom - gap; moved = true end
+        end
     end
-    return frame
+    return top
 end
 
--- One round button in the world map's side column. The client's own overlay API (WorldMapFrame:AddOverlayFrame)
--- places it with the other map buttons; a client without it gets the button on the map frame's own edge.
+-- The rects of the other shown, tab-sized regions in `parent` (found by geometry only).
+local function column_rects(parent, mine)
+    local rects = {}
+    if not parent.GetChildren then return rects end
+    for _, c in ipairs({ parent:GetChildren() }) do
+        if c ~= mine and c.IsShown and c:IsShown() and c.GetTop and c.GetBottom then
+            local w, h = c:GetWidth() or 0, c:GetHeight() or 0
+            local t, bt = c:GetTop(), c:GetBottom()
+            if t and bt and w > 0 and w <= 80 and h > 0 and h <= 80 then
+                rects[#rects + 1] = { top = t, bottom = bt, left = c:GetLeft() }
+            end
+        end
+    end
+    return rects
+end
+
+-- Puts the tab in the first free slot of the column; re-run on map show and resize.
+function WC.PlaceMapTab()
+    local b, parent = WC.mapButton, WC.mapButtonParent
+    if not b or WC.mapButtonMode ~= "tab" or not parent then return end
+    local rects = column_rects(parent, b)
+    local top = WC.PickTabSlot(rects, WC.MAP_TAB_SIZE, WC.MAP_TAB_GAP)
+    b:ClearAllPoints()
+    if top and parent.GetTop and parent:GetTop() and rects[1].left and parent.GetLeft and parent:GetLeft() then
+        b:SetPoint("TOPLEFT", parent, "TOPLEFT", rects[1].left - parent:GetLeft(), top - parent:GetTop())
+    else
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y)
+    end
+end
+
+-- One square side tab in the world map's tab column, built from the client's own side-tab template. A client without
+-- the template or the column keeps the plain button on the map frame's own edge.
 function WC.CreateMapButton()
     local map = WorldMapFrame
     if not map or WC.mapButton then return end
     local b
-    if map.AddOverlayFrame then
-        local ok, frame = pcall(map.AddOverlayFrame, map, nil, "Button", "TOPRIGHT", map, "TOPRIGHT", -8, -110)
-        if ok and type(frame) == "table" then b, WC.mapButtonMode = frame, "overlay" end
+    local column = QuestMapFrame
+    if column and type(CreateFrame) == "function" then
+        local ok, frame = pcall(CreateFrame, "Button", "WoWCompanionMapTab", column, WC.MAP_TAB_TEMPLATE)
+        if ok and type(frame) == "table" then b, WC.mapButtonMode, WC.mapButtonParent = frame, "tab", column end
     end
     if not b then
         local ok, frame = pcall(CreateFrame, "Button", "WoWCompanionMapButton", map)
         if not ok then return end
         b = frame
         b:SetPoint("TOPRIGHT", map, "TOPRIGHT", -8, -110)
+        b:SetSize(31, 31)
         WC.mapButtonMode = "edge"
+        b.back = b:CreateTexture(nil, "BACKGROUND")
+        b.back:SetSize(20, 20)
+        b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -5)
+        b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+        b.border = b:CreateTexture(nil, "OVERLAY")
+        b.border:SetSize(53, 53)
+        b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+        b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+        b.checkedTex = b:CreateTexture(nil, "OVERLAY")
+        b.checkedTex:SetAllPoints()
+        b.checkedTex:SetColorTexture(1, 1, 1, 0.25)
+    else
+        b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
     end
-    WC.MakeOverlayFrame(b)
-    b:SetSize(31, 31)
     if b.SetFrameStrata then b:SetFrameStrata("HIGH") end
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    b.back = b:CreateTexture(nil, "BACKGROUND")
-    b.back:SetSize(20, 20)
-    b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -5)
-    b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetSize(17, 17)
-    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -6)
+    -- the template's own icon region when it has one, else ours
+    b.icon = b.Icon or b:CreateTexture(nil, "ARTWORK")
+    if b.icon.SetSize then b.icon:SetSize(26, 26) end
+    b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     b.icon:SetTexture(WC.ICON)
-    b.border = b:CreateTexture(nil, "OVERLAY")
-    b.border:SetSize(53, 53)
-    b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
-    b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    if WC.mapButtonMode == "edge" and b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square") end
     b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button) end)
     b:SetScript("OnEnter", show_map_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     WC.mapButton = b
+    if WC.mapButtonMode == "tab" then
+        if column.HookScript then column:HookScript("OnShow", function() WC.PlaceMapTab(); WC.RefreshMapTab() end) end
+        if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        if map.HookScript then map:HookScript("OnShow", function() WC.PlaceMapTab(); WC.RefreshMapTab() end) end
+        if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        WC.PlaceMapTab()
+    end
+    WC.RefreshMapTab()
 end
 
 local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false end
