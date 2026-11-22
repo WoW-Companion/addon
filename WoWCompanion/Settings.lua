@@ -110,6 +110,9 @@ local D = {
     { key = "minimapArrow", visual = true, type = "bool", default = true, page = "minimap", box = "minimap", label = "MM_ARROW", name = "MinimapArrow" },
     -- Tooltips
     { key = "tooltips", type = "bool", default = true, page = "tooltips", box = "tooltips", label = "SHOW_TOOLTIPS", name = "Tooltips" },
+    { key = "badgeTips", type = "bool", default = true, page = "tooltips", box = "tooltips", label = "SHOW_BADGE_TIPS", name = "BadgeTips" },
+    { key = "badgeTipsXP", type = "bool", default = true, page = "tooltips", box = "tooltips", label = "SHOW_BADGE_TIP_XP", name = "BadgeTipsXP" },
+    { key = "badgeTipsHideCombat", type = "bool", default = false, page = "tooltips", box = "tooltips", label = "HIDE_BADGE_TIPS_COMBAT", name = "BadgeTipsHideCombat" },
 }
 for _, sec in ipairs(WC.SECTIONS) do
     D[#D + 1] = { key = "show." .. sec[1], type = "bool", default = true, page = "panel", box = "sections", label = "SHOW_SECTION", labelArg = sec[2], name = "Show" .. sec[1] }

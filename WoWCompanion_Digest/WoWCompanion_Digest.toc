@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: WoW Companion Digest
 ## Notes: Data only. The WoW Companion writes your advice digest into this folder.
-## Version: 0.4.6
+## Version: 0.4.7
 ## Dependencies: WoWCompanion
 ## IconTexture: Interface\Icons\INV_Misc_Map_01
 
