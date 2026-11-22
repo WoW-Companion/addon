@@ -393,6 +393,7 @@ end
 
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
+    if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end -- the side panel follows the map shown and the plan
     hideAll(pins)
     hideAll(lines)
     hideAll(arrows)
@@ -628,6 +629,7 @@ local function tick()
     end
     if f and f:IsShown() then f.label:SetText(WC.PlanText(step, mapID, px, py)) end
     if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
+    if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
     local m = WC.planMinimap
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end

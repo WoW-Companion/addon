@@ -52,6 +52,9 @@ local D = {
     { key = "hoverMapLink", type = "bool", default = true, page = "map", box = "map", label = "HOVER_MAP_LINK", name = "HoverMapLink" },
     { key = "planLines", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_LINES", name = "PlanLines" },
     { key = "mapButton", type = "bool", default = true, page = "map", box = "map", label = "SHOW_MAP_BUTTON", name = "MapButton" },
+    { key = "panelOpenOnTab", type = "bool", default = false, page = "map", box = "map", label = "PANEL_OPEN_ON_TAB", name = "PanelOpenOnTab" },
+    { key = "panelZone", type = "choice", default = "shown", choices = { "shown", "all" }, page = "map", box = "map", label = "PANEL_ZONE_LABEL", name = "PanelZone", choiceKey = "PANEL_ZONE_", widget = "dropdown" },
+    { key = "panelShowDone", type = "bool", default = true, page = "map", box = "map", label = "PANEL_SHOW_DONE", name = "PanelShowDone" },
     { key = "planArrows", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_ARROWS", name = "PlanArrows" },
     { key = "planChevrons", type = "bool", default = true, page = "map", box = "route", label = "SHOW_CHEVRONS", name = "Chevrons" },
     { key = "lineColor", visual = true, type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
@@ -292,6 +295,7 @@ function WC.ApplySettings()
     if WC.ApplyButtons then WC.ApplyButtons() end
     WC.Refresh()
     if WC.RefreshPlan then WC.RefreshPlan() end
+    if WC.RefreshMapPanel then WC.RefreshMapPanel() end
 end
 
 -- The panel's view: "full", "compact" or "next" (the next step only).

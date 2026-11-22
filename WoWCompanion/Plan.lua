@@ -241,6 +241,7 @@ end
 function WC.LiveUpdate(event, a, b)
     WC.PlanOnQuestEvent(event, a, b)
     refresh_panel()
+    if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end
 end
 
 WC.LIVE_THROTTLE = 0.5 -- seconds; QUEST_LOG_UPDATE fires in bursts (looting), so it is coalesced

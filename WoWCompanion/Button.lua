@@ -86,33 +86,41 @@ function WC.ButtonClick(button, shift)
     end
 end
 
--- Is the plan shown on the map right now? The map tab looks pressed while it is.
+-- Is the plan shown on the map right now? (The eye in the side panel and shift-click on the tab flip it.)
 function WC.PlanShownOnMap()
     return WC.db and WC.db.settings and WC.db.settings.planMap and true or false
 end
 
--- Sets the tab's pressed (checked) look from the plan state: the client's tab method when it has one, else a texture.
+-- Sets the tab's pressed (checked) look: selected while its panel is up (a tab), or plan-on-map (the plain edge
+-- button, which has no panel). The client's tab method when it has one, else a texture.
 function WC.RefreshMapTab()
     local b = WC.mapButton
     if not b then return end
-    local on = WC.PlanShownOnMap()
+    local on
+    if WC.mapButtonMode == "tab" then on = WC.panelState.selected == true else on = WC.PlanShownOnMap() end
     if b.SetChecked then b:SetChecked(on) end
     if b.checkedTex then b.checkedTex:SetShown(on) end
 end
 
--- A click on the world map tab: left shows or hides the plan on the map, right opens the options window.
-function WC.MapButtonClick(button)
+-- A click on the world map tab: left selects (or deselects) the plan in the side panel, shift-left shows or hides
+-- the plan on the map, right opens the options window. The plain edge button has no panel: left flips the plan.
+function WC.MapButtonClick(button, shift)
     if button == "RightButton" then
         WC.OpenOptions()
-    else
+    elseif shift or WC.mapButtonMode ~= "tab" then
         WC.TogglePlan("map")
+        if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
+    else
+        WC.ToggleMapPanel()
     end
     WC.RefreshMapTab()
 end
 
+local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false end
+
 local function show_map_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
-    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_LEFT, WC.L.TIP_MAP_RIGHT }) do GameTooltip:AddLine(line) end
+    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_LEFT, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT }) do GameTooltip:AddLine(line) end
     GameTooltip:Show()
 end
 
@@ -167,6 +175,7 @@ function WC.PlaceMapTab()
     else
         b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y)
     end
+    if WC.HookClientTabs then WC.HookClientTabs() end
 end
 
 -- One square side tab in the world map's tab column, built from the client's own side-tab template. A client without
@@ -209,21 +218,20 @@ function WC.CreateMapButton()
     b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     b.icon:SetTexture(WC.ICON)
     if WC.mapButtonMode == "edge" and b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square") end
-    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button) end)
+    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button, shift_down()) end)
     b:SetScript("OnEnter", show_map_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     WC.mapButton = b
     if WC.mapButtonMode == "tab" then
         if column.HookScript then column:HookScript("OnShow", function() WC.PlaceMapTab(); WC.RefreshMapTab() end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
-        if map.HookScript then map:HookScript("OnShow", function() WC.PlaceMapTab(); WC.RefreshMapTab() end) end
+        if map.HookScript then map:HookScript("OnShow", function() WC.PlaceMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab() end) end
         if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         WC.PlaceMapTab()
+        WC.InitMapPanel()
     end
     WC.RefreshMapTab()
 end
-
-local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false end
 
 function WC.PlaceMinimapButton()
     local b = WC.minimapButton
