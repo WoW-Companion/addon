@@ -37,6 +37,7 @@ function WC.InitSettings(db)
     s.planTracker = s.planTracker ~= false
     s.planMap = s.planMap ~= false
     s.planLines = s.planLines ~= false
+    s.planArrows = s.planArrows ~= false
     s.planSize = WC.PIN_SIZES and WC.PIN_SIZES[s.planSize] and s.planSize or "normal"
     s.tooltips = s.tooltips ~= false
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
@@ -88,7 +89,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 600)
+    f:SetSize(320, 630)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -150,6 +151,7 @@ function WC.CreateSettings()
     check("PlanTracker", L.SHOW_PLAN_TRACKER, function() return s.planTracker end, function(v) s.planTracker = v end)
     check("PlanMap", L.SHOW_PLAN_MAP, function() return s.planMap end, function(v) s.planMap = v end)
     check("PlanLines", L.SHOW_PLAN_LINES, function() return s.planLines end, function(v) s.planLines = v end)
+    check("PlanArrows", L.SHOW_PLAN_ARROWS, function() return s.planArrows end, function(v) s.planArrows = v end)
     check("Tooltips", L.SHOW_TOOLTIPS, function() return s.tooltips end, function(v) s.tooltips = v end)
     check("Compact", L.COMPACT_PANEL, function() return s.compact end, function(v) s.compact = v; WC.view.expanded = {} end)
     for _, sec in ipairs(WC.SECTIONS) do
