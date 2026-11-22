@@ -2295,6 +2295,7 @@ cases[#cases + 1] = { "migration: arrowhead size default 8, clamp 2..24, old def
     fresh_client({ settings = { arrowSize = 14 }, migrated = { arrowSize8 = true } })
     assert(WoWCompanion.db.settings.arrowSize == 14)
     -- geometry at the smallest size: tip and wings are distinct points, so no zero-length stroke
+    WC = plan_client("full")
     local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(0, 0, 0, 2)
     assert(tx == 1 and ty == 0 and x1 == -1 and x2 == -1 and math.abs(y1) > 0.7 and y1 == -y2)
 end }
