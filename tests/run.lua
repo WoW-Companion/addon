@@ -85,7 +85,7 @@ local cases = {
     { "full digest shows header and every section", function()
         local p = digest_client("full")
         local h, t = p.header:GetText(), p.plain
-        assert(h:find("Thrall", 1, true) and h:find("1 h ago", 1, true))
+        assert(p.title:GetText() == "WoW Companion: Thrall" and h:find("advice from", 1, true) and h:find("1 h ago", 1, true))
         local last = 0
         for _, want in ipairs({ "Next quests", "Turn in The Hungry Ettin", "Upgrades", "Equip Hammer of Fate", "Keep materials", "Notes" }) do
             local at = t:find(want, last + 1, true)
@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("stay current", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("quest tracker", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
