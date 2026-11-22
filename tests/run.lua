@@ -648,7 +648,7 @@ local function panel_text(fs)
     load_digest("tests/fixtures/digest_full.lua")
     return WoWCompanion.panel.plain
 end
-local HINT = "Advice may be out of date"
+local HINT = "is newer than this advice"
 local capture_rows = {
     { "capture 20 minutes after digest", fs_db(GEN + 1200), true },
     { "capture just over 15 minutes after", fs_db(GEN + 901), true },
@@ -966,7 +966,7 @@ cases[#cases + 1] = { "no locale string contains a backtick; the stale hint read
         assert(not tostring(v):find("`", 1, true), "backtick in " .. k)
     end
     assert(n > 50)
-    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to lo\97d it.")
+    assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Your last save (%s) is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to pick it up.")
 end }
 
 cases[#cases + 1] = { "advice time: 12- and 24-hour clocks, header and out-of-date line", function()
@@ -980,7 +980,7 @@ cases[#cases + 1] = { "advice time: 12- and 24-hour clocks, header and out-of-da
     local d = { schema = 1, character = "Thrall", generated = ts, sections = { { id = "next", lines = { { text = "x" } } } } }
     local header, rows = WC.RenderDigest(d, ts + 49 * 60, "Thrall", nil, nil, ts + 20 * 60)
     assert(header == "Thrall \226\128\148 advice from " .. clock .. " (49 min ago)", header)
-    local want = "Your last save (" .. WC.FormatClock(ts + 20 * 60) .. ") is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to load it."
+    local want = "Your last save (" .. WC.FormatClock(ts + 20 * 60) .. ") is newer than this advice. The overlay refreshes it seconds after each save: /reload once more to pick it up."
     assert(rows[1].text == want, rows[1].text)
 end }
 
@@ -1336,6 +1336,26 @@ cases[#cases + 1] = { "plan: no Questie asset or code is referenced", function()
         local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
         assert(not src:lower():find("questie", 1, true), file)
     end
+end }
+
+cases[#cases + 1] = { "every L.KEY used in the code exists in the locale file", function()
+    local lf = assert(loadfile("WoWCompanion/Locales/enUS.lua"))
+    assert(type(lf) == "function")
+    local src = assert(io.open("WoWCompanion/Locales/enUS.lua")):read("*a")
+    local missing = {}
+    for _, dir in ipairs({ "WoWCompanion" }) do
+        local p = io.popen("ls " .. dir .. "/*.lua")
+        for file in p:lines() do
+            local code = assert(io.open(file)):read("*a")
+            for key in code:gmatch("%f[%w_]L%.([A-Z][A-Z0-9_]*)%f[^%w_]") do
+                if not src:find("%f[%w_]" .. key .. "%s*=") then missing[key] = file end
+            end
+        end
+        p:close()
+    end
+    local out = {}
+    for k, f in pairs(missing) do out[#out + 1] = k .. " (" .. f .. ")" end
+    assert(#out == 0, table.concat(out, ", "))
 end }
 
 local failed = 0
