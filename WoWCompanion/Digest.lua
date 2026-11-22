@@ -65,6 +65,37 @@ local function ask_subject(text, id)
     return id and string.format(L.ASK_ITEM_SUBJECT, s, id) or s
 end
 
+-- Schema 1.4 text fields are data: the pipe (an escape code) is dropped and the length bounded.
+local function clean(s, max)
+    if type(s) ~= "string" then return nil end
+    s = s:gsub("|", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if s == "" then return nil end
+    return #s > max and s:sub(1, max) or s
+end
+
+-- The `details` lines of a digest entry: up to 6 strings of at most 160 characters; an empty list is nil.
+local function clean_details(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, d in ipairs(list) do
+        local t = clean(d, 160)
+        if t and #out < 6 then out[#out + 1] = t end
+    end
+    return #out > 0 and out or nil
+end
+
+-- The detail card's data for one digest entry. kind is "quest", "training", "talent", "upgrade", "dungeon",
+-- "material" or "note"; src is the digest line (schema 1.4 adds details and prompt; older digests have neither).
+-- The same table rides on every row of the entry (row.entry) so a click or hover finds it.
+function WC.MakeEntry(kind, key, src, fields)
+    local e = fields or {}
+    e.kind, e.key = kind, tostring(key)
+    src = type(src) == "table" and src or {}
+    e.details = clean_details(src.details)
+    e.prompt = clean(src.prompt, 2000)
+    return e
+end
+
 -- The client's live count of unspent talent points, or nil when it cannot say.
 function WC.UnspentTalentPoints()
     local fns = { GetUnspentTalentPoints, C_SpecializationInfo and C_SpecializationInfo.GetUnspentTalentPoints }
@@ -182,6 +213,11 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         right = line.elite and ("(" .. L.ELITE .. ")") or nil,
         ask = { kind = "quest", subject = ask_subject(title) },
     }
+    head.entry = WC.MakeEntry("quest", id, line, {
+        title = title, level = level, quest = quest, pickup = line.kind == "pickup" or nil, npc = line.npc and plain(line.npc) or nil,
+        zone = line.zone and plain(line.zone) or nil, class = line.class == true, ask = head.ask,
+    })
+    head.group = id
     local out = { head }
     if closed then return out end
 
@@ -216,17 +252,75 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         local t = (zone and zone ~= here) and string.format(L.PICK_UP_FROM_IN, npc, zone) or string.format(L.PICK_UP_FROM, npc)
         out[#out + 1] = { kind = "status", indent = 2, text = t, color = WC.COLORS.grey }
     end
+    for i = 2, #out do out[i].group = id end
     return out
 end
 
 -- The talent entry: the client's talent icon and "N unspent talent point(s)", live when the client can say.
 -- Returns nil when no points are left.
-function WC.TalentEntry(points, ask)
+function WC.TalentEntry(points, ask, entry)
     local n = WC.UnspentTalentPoints() or tonumber(points)
     if not n or n < 1 then return nil end
     n = math.floor(n)
-    return { kind = "line", indent = INDENT, icon = WC.ICONS.talent, ask = ask,
+    return { kind = "line", indent = INDENT, icon = WC.ICONS.talent, ask = ask, entry = entry, group = entry and entry.key or nil,
         text = string.format(n == 1 and L.UNSPENT_ONE or L.UNSPENT_MANY, n) }
+end
+
+-- True when the client says the player knows (or has trained) spell id; a missing check says no.
+function WC.SpellKnown(id)
+    id = tonumber(id)
+    if not id then return false end
+    local fns = { C_SpellBook and C_SpellBook.IsSpellKnown, IsSpellKnown, IsPlayerSpell }
+    for i = 1, 3 do
+        if type(fns[i]) == "function" then
+            local ok, v = pcall(fns[i], id)
+            if ok and v then return true end
+        end
+    end
+    return false
+end
+
+-- The class icon for the training entry, from the client's own art ("ClassIcon_<CLASS>"), else the talent icon.
+local function class_icon()
+    local token = UnitClass and select(2, UnitClass("player"))
+    if type(token) == "string" and token:match("^%u+$") then return "Interface\\Icons\\ClassIcon_" .. token end
+    return WC.ICONS.talent
+end
+
+-- "Charge (Rank 2)": a spell with its rank when it has one.
+function WC.SpellLabel(sp)
+    local name = plain(sp.name or L.UNKNOWN_SPELL)
+    local rank = tonumber(sp.rank)
+    return rank and string.format(L.SPELL_RANK, name, rank) or name
+end
+
+-- The training entry: the spells of a schema 1.4 `training` line that are not known yet, as one panel row
+-- ("New at level 10: Charge (Rank 2), Thunder Clap") with the class icon. A line whose spells are all known
+-- gives nil, so the entry hides itself; a line with no spell list shows its stored text.
+function WC.TrainingEntry(line)
+    local spells, left = {}, {}
+    for _, sp in ipairs(type(line.spells) == "table" and line.spells or {}) do
+        if type(sp) == "table" and tonumber(sp.id) and not WC.SpellKnown(sp.id) then
+            left[#left + 1] = { id = tonumber(sp.id), name = clean(sp.name, 80), rank = tonumber(sp.rank), new = sp.new ~= false }
+        end
+        spells[#spells + 1] = sp
+    end
+    if #spells > 0 and #left == 0 then return nil end
+    local level = tonumber(line.level)
+    local text
+    if #left > 0 then
+        local names = {}
+        for i, sp in ipairs(left) do names[i] = WC.SpellLabel(sp) end
+        names = table.concat(names, ", ")
+        text = level and string.format(L.TRAINING_LINE, math.floor(level), names) or string.format(L.TRAINING_LINE_NOLEVEL, names)
+    else
+        text = plain(line.text or L.TRAINING_FALLBACK)
+    end
+    local entry = WC.MakeEntry("training", "training" .. (level and math.floor(level) or ""), line, {
+        title = text, level = level, spells = left, ask = { kind = "training", subject = ask_subject(text) },
+        npc = line.npc and plain(line.npc) or nil, zone = line.zone and plain(line.zone) or nil,
+    })
+    return { kind = "line", indent = INDENT, icon = class_icon(), text = text, ask = entry.ask, entry = entry, group = entry.key }
 end
 
 -- The quality colour of an item, or nil when the client does not know the item yet.
@@ -330,7 +424,7 @@ end
 
 -- Builds the rows of the optional schema 1.2 lists: { text, id } per entry, at most MAX_EXTRA.
 -- build(entry) returns the line text and the id to link, or nil to skip the entry.
-local function extra_lines(list, kind, build)
+local function extra_lines(list, kind, build, ekind)
     local lines = {}
     for _, e in ipairs(type(list) == "table" and list or {}) do
         if #lines >= WC.MAX_EXTRA then break end
@@ -345,10 +439,12 @@ local function extra_lines(list, kind, build)
             end
         end
         if text then
-            local row = { kind = "line", indent = INDENT, text = text, [kind] = id and item_id(id) or nil, ask = ask }
+            local entry = WC.MakeEntry(ekind, ekind .. ":" .. (#lines + 1), e, { title = plain(e.name or e.line), line = plain(e.line), ask = ask,
+                [kind] = id and item_id(id) or nil, nextPick = ekind == "talent" and plain(e.line) or nil })
+            local row = { kind = "line", indent = INDENT, text = text, [kind] = id and item_id(id) or nil, ask = ask, entry = entry, group = entry.key }
             local n = text:match("^(%d+) unspent talent point") or text:match("^You have (%d+) unspent talent point")
             if n then
-                row = WC.TalentEntry(n, ask)
+                row = WC.TalentEntry(n, ask, entry)
                 if row then row[kind] = id and item_id(id) or nil end
             end
             if row then lines[#lines + 1] = row end
@@ -411,11 +507,19 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
         local hidden = show and show[WC.SECTION_OF[section.id]] == false
         local lines = {}
         if title and not hidden and type(section.lines) == "table" then
-            for _, line in ipairs(section.lines) do
+            for li, line in ipairs(section.lines) do
                 local quest = item_id(line.quest)
                 local id = item_id(line.item)
                 if section.id == "next_quests" and line.kind == "talent" then
-                    local t = WC.TalentEntry(line.points, { kind = "talent", subject = ask_subject(line.text) })
+                    local ask = { kind = "talent", subject = ask_subject(line.text) }
+                    local first = type(d.talents) == "table" and type(d.talents[1]) == "table" and d.talents[1] or {}
+                    local entry = WC.MakeEntry("talent", "talent", line, { title = plain(line.text), points = tonumber(line.points), ask = ask,
+                        nextPick = first.line and plain(first.line) or nil, spell = item_id(first.spell_id) })
+                    entry.prompt = entry.prompt or clean(first.prompt, 2000)
+                    local t = WC.TalentEntry(line.points, ask, entry)
+                    if t then lines[#lines + 1] = t end
+                elseif section.id == "next_quests" and line.kind == "training" then
+                    local t = WC.TrainingEntry(line)
                     if t then lines[#lines + 1] = t end
                 elseif section.id == "next_quests" and (line.kind == "pickup" or line.kind == "turnin" or line.kind == "progress") then
                     for _, r in ipairs(WC.QuestEntryRows(line, quest, collapsed, plevel) or {}) do lines[#lines + 1] = r end
@@ -424,7 +528,11 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                     if live then
                         local kind = ASK_KIND[section.id]
                         local ask = kind and { kind = kind, subject = ask_subject(line.text, kind ~= "quest" and id or nil) } or nil
-                        local row = { kind = "line", indent = INDENT, text = plain(live), item = id, quest = quest, ask = ask }
+                        local ekind = (section.id == "upgrades" and "upgrade") or (section.id == "keep_materials" and "material") or "note"
+                        local entry = WC.MakeEntry(ekind, section.id .. ":" .. (id or quest or li), line, {
+                            title = plain(line.text), item = id, quest = quest, ask = ask, slot = line.slot and plain(line.slot) or nil,
+                            ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel) })
+                        local row = { kind = "line", indent = INDENT, text = plain(live), item = id, quest = quest, ask = ask, entry = entry, group = entry.key }
                         if section.id == "upgrades" then
                             row.color = quality_color(id)
                             local meta = {}
@@ -433,7 +541,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             if tonumber(line.atLevel) then meta[#meta + 1] = string.format(L.AT_LEVEL, tonumber(line.atLevel)) end
                             lines[#lines + 1] = row
                             if #meta > 0 then -- slot and item level sit dim on a line of their own, so nothing needs cutting
-                                row = { kind = "status", indent = 2, text = table.concat(meta, ", "), color = WC.COLORS.dim }
+                                row = { kind = "status", indent = 2, text = table.concat(meta, ", "), color = WC.COLORS.dim, group = entry.key }
                             else
                                 row = nil
                             end
@@ -449,13 +557,13 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
         { "dungeons", d.dungeons, "item", function(e)
             local name = e.name and string.format(L.DUNGEON_NAME, plain(e.name)) or ""
             return name .. plain(e.line), e.item_id, { kind = "dungeon", subject = ask_subject(e.name or e.line) }
-        end },
+        end, "dungeon" },
         { "talents", d.talents, "spell", function(e)
             return plain(e.line), e.spell_id, { kind = "talent", subject = ask_subject(e.line) }
-        end },
+        end, "talent" },
     }
     for _, x in ipairs(extras) do
-        local lines = extra_lines(x[2], x[3], x[4])
+        local lines = extra_lines(x[2], x[3], x[4], x[5])
         if #lines > 0 and not (show and show[x[1]] == false) then
             WC.SectionRows(out, x[1], L[x[1]], lines, collapsed)
         end

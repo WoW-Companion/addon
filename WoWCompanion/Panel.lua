@@ -157,7 +157,12 @@ function WC.CreatePanel()
     g:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.gear = g
 
-    f:SetScript("OnHide", function() WC.view.expanded = {} end)
+    f:SetScript("OnHide", function()
+        WC.view.expanded = {}
+        WC.hover = { groups = {}, quests = {}, source = nil }
+        if WC.ApplyMapHover then WC.ApplyMapHover() end
+        if WC.CloseCard then WC.CloseCard() end
+    end)
 
     f:SetScript("OnShow", function() WC.Refresh() end)
     WC.panel = f
@@ -178,14 +183,26 @@ function WC.TogglePanel()
     if f:IsShown() then f:Hide() else f:Show() end
 end
 
+local toggle_quest -- defined below; the row buttons call it
+
 -- Returns the pooled row button at index i, creating it on first use.
 local function get_row(f, i)
     local row = f.rows[i]
     if row then return row end
     row = CreateFrame("Button", nil, f.content)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row.hl = row:CreateTexture(nil, "BACKGROUND") -- the hover bar behind the entry's rows
+    row.hl:SetPoint("TOPLEFT", row, "TOPLEFT", -2, 1)
+    row.hl:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 2, -1)
+    row.hl:Hide()
     row.toggle = row:CreateTexture(nil, "ARTWORK") -- the collapse button
     row.toggle:SetSize(12, 12)
+    -- The +/- square collapses a quest; the rest of the title row opens it (left-click) or its card (right-click).
+    row.tbtn = CreateFrame("Button", nil, row)
+    row.tbtn:SetSize(14, 14)
+    row.tbtn:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    row.tbtn:SetScript("OnClick", function() if row.sectionId then toggle_quest(row.sectionId) end end)
+    row.tbtn:Hide()
     row.icon = row:CreateTexture(nil, "ARTWORK") -- the state icon
     row.icon:SetSize(16, 16)
     row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -205,6 +222,7 @@ local function layout_row(row, r)
     row.icon:ClearAllPoints()
     row.toggle:Hide()
     row.icon:Hide()
+    row.tbtn:SetShown(r.kind == "quest")
     if r.kind == "quest" then
         row.toggle:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -1)
         row.toggle:SetTexture(r.closed and WC.ICONS.closed or WC.ICONS.open)
@@ -243,17 +261,10 @@ local function toggle_section(id)
 end
 
 -- A quest's own collapse state, kept with the section ones (its id starts with "q").
-local function toggle_quest(id)
+function toggle_quest(id)
     WC.db.collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
     WC.db.collapsed[id] = (not WC.db.collapsed[id]) or nil
     WC.Refresh()
-end
-
--- Right-click on a digest line: queues its templated question exactly like /ask.
--- The text only leaves the game through SavedVariables, and the overlay answers it.
-function WC.FillAsk(row)
-    local q = WC.AskTemplate(row)
-    if q then WC.Ask(q:sub(1, WC.MAX_ASK_LEN)) end
 end
 
 -- Re-reads the global digest table (data only) and redraws the panel.
@@ -284,6 +295,7 @@ function WC.Refresh()
     f.compactButton:SetText(compact and L.FULL or L.COMPACT)
 
     local y = 0
+    local entries = {} -- group key -> its entry, so every row of an entry opens the same card
     for i, r in ipairs(rows) do
         local row = get_row(f, i)
         row:Show()
@@ -291,7 +303,7 @@ function WC.Refresh()
         WC.StyleText(row.right, -1)
         local x = layout_row(row, r)
         row.label:SetText(r.text)
-        row.label:SetTextColor(unpack(r.color or WC.COLORS.white))
+        row.baseColor = r.color or WC.COLORS.white
         row.right:SetText(r.right or "")
         row.right:SetTextColor(unpack(WC.COLORS.dim))
         -- The text wraps at the panel width; it is never cut.
@@ -304,29 +316,39 @@ function WC.Refresh()
         local h = (row.label.GetStringHeight and row.label:GetStringHeight()) or WC.LINE_HEIGHT
         h = math.max(WC.LINE_HEIGHT * WC.FONT_SIZES[WC.db.settings.fontSize] / WC.FONT_SIZES.normal, h)
         if r.kind == "header" and i > 1 then y = y + 4 end -- a little air above each section
+        row.top, row.hh = y, h
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, -y)
         row:SetSize(content_width(), h)
         y = y + h + math.max(0, WC.Setting("lineSpacing") - (r.kind == "obj" and 1 or 0))
         row.link = (r.item and "item:" .. r.item) or (r.spell and "spell:" .. r.spell) or nil
         row.sectionId = r.id
-        local interactive = row.link ~= nil or r.kind == "header" or r.kind == "quest" or r.ask ~= nil
+        if r.entry then entries[r.group] = r.entry end
+        row.entry, row.group, row.quest = r.entry or (r.group and entries[r.group]) or nil, r.group, r.quest
+        local interactive = row.link ~= nil or r.kind == "header" or row.entry ~= nil or r.ask ~= nil
         row:EnableMouse(interactive)
-        row:SetScript("OnEnter", row.link and show_tooltip or nil)
-        row:SetScript("OnLeave", row.link and function() GameTooltip:Hide() end or nil)
+        row:SetScript("OnEnter", function(self)
+            if self.link then show_tooltip(self) end
+            if self.group then WC.HoverEnterRow(self) end
+        end)
+        row:SetScript("OnLeave", function(self)
+            if self.link then GameTooltip:Hide() end
+            if self.group then WC.HoverLeaveRow() end
+        end)
         row.ask = r.ask
         row:SetScript("OnClick", function(self, button)
-            if button == "RightButton" then
-                WC.FillAsk(self)
-            elseif r.kind == "header" then
-                toggle_section(r.id)
-            elseif r.kind == "quest" then
-                toggle_quest(r.id)
+            if r.kind == "header" then
+                if button ~= "RightButton" then toggle_section(r.id) end
+            elseif self.entry then
+                WC.EntryClick(self.entry, button)
             end
         end)
+        WC.ApplyRowHover(row)
     end
     for i = #rows + 1, #f.rows do f.rows[i]:Hide() end
     f.plain = WC.RowsText(rows)
+    WC.HoverCheck()
+    if WC.RefreshCard then WC.RefreshCard() end
     f.content:SetHeight(y)
     f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT)
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())

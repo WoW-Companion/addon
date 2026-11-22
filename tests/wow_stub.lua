@@ -93,6 +93,12 @@ local function new_region(kind)
     function r:SetShown(v) if v then self:Show() else self:Hide() end end
     function r:GetWidth() return self.w or 0 end
     function r:HookScript(name, fn) self.scripts[name] = fn end
+    function r:SetAlpha(a) self.alpha = a end
+    function r:SetMultiLine(v) self.multiLine = v end
+    function r:SetFontObject() end
+    function r:SetTextInsets() end
+    function r:SetVerticalScroll(v) self.vscroll = v end
+    function r:GetVerticalScroll() return self.vscroll or 0 end
     function r:GetCenter() return 0, 0 end
     function r:GetEffectiveScale() return 1 end
     return r

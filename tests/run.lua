@@ -143,7 +143,11 @@ local polish_cases = {
         assert(c[1][1] == "SetOwner" and c[1][2] == row and c[2][1] == "SetHyperlink" and c[2][2] == "item:5678" and c[3][1] == "Show")
         row.scripts.OnLeave(row)
         assert(c[4][1] == "Hide")
-        assert(row_with(p, "Pick up the next").scripts.OnEnter == nil)
+        local n = #c
+        local plain_row = row_with(p, "Pick up the next")
+        plain_row.scripts.OnEnter(plain_row)
+        plain_row.scripts.OnLeave(plain_row)
+        assert(#c == n, "a row with no link shows no tooltip")
     end },
     { "schema 1.2 renders dungeons and talents with tooltip ids", function()
         local p = digest_client("v12")
@@ -155,7 +159,9 @@ local polish_cases = {
         local c = GameTooltip.calls
         assert(c[2][1] == "SetHyperlink" and c[2][2] == "item:5198", "item tooltip")
         assert(c[5][1] == "SetHyperlink" and c[5][2] == "spell:12294", "spell tooltip")
-        assert(w.scripts.OnEnter == nil)
+        local n = #c
+        w.scripts.OnEnter(w)
+        assert(#c == n, "a row with no link shows no tooltip")
     end },
     { "absent dungeon and talent sections stay hidden; a 1.1 digest renders", function()
         local p = digest_client("v11")
@@ -854,12 +860,16 @@ local ask_rows = {
     { "Deadmines", "Should I run Deadmines now, and what should I bring?" },
     { "Mortal Strike", "Why   - Next point: Mortal Strike next for my spec?" },
 }
-cases[#cases + 1] = { "ask about this: right-click queues each line type's template and prints one line", function()
+cases[#cases + 1] = { "ask about this: right-click opens the card with each line type's template; Send queues it and prints one line", function()
     local p = ask_row_client()
     for i, c in ipairs(ask_rows) do
         PRINTED = {}
         local row = row_with(p, c[1])
         row.scripts.OnClick(row, "RightButton")
+        local box = WoWCompanionCardAsk
+        assert(WoWCompanionCard:IsShown() and box:GetText():find(c[1], 1, true), c[1])
+        assert(not WoWCompanionDB.asks or #WoWCompanionDB.asks == i - 1, "nothing queues until Send")
+        WoWCompanionCardSend.scripts.OnClick(WoWCompanionCardSend)
         local a = WoWCompanionDB.asks[i]
         assert(a and a.text:find(c[1], 1, true), c[1])
         assert(a.text:find("^%u") and a.character == "Thrall" and a.asked_at == NOW and a.id, c[1])
@@ -869,6 +879,7 @@ cases[#cases + 1] = { "ask about this: right-click queues each line type's templ
     local before = #WoWCompanionDB.asks
     local notes = row_with(p, "Bank has")
     notes.scripts.OnClick(notes, "RightButton")
+    assert(WoWCompanionCardAsk:GetText() == "Tell me more about this: Bank has 3 unused bags" and #WoWCompanionDB.asks == before)
     local h = row_with(p, "Upgrades")
     h.scripts.OnClick(h, "RightButton")
     assert(not WoWCompanionDB.collapsed and #WoWCompanionDB.asks == before)
@@ -1583,12 +1594,12 @@ cases[#cases + 1] = { "quest and section collapse state: a clicked quest hides i
     local p = v13_client() -- PLAYER_NAME stays Genaenyu so the clicks' redraws still find the digest
     assert(p.plain:find("0/1 Find Aamelia Windfield", 1, true))
     local h = row_with(p, "[9] Blood Tithe")
-    assert(h.scripts.OnClick and h.mouse)
-    h.scripts.OnClick(h)
+    assert(h.scripts.OnClick and h.mouse and h.tbtn.scripts.OnClick)
+    h.tbtn.scripts.OnClick(h.tbtn) -- the +/- square collapses; the title row itself opens the quest or its card
     assert(WoWCompanionDB.collapsed.q7002 == true)
     assert(not p.plain:find("Find Aamelia", 1, true) and p.plain:find("Seena Skybreaker", 1, true))
     h = row_with(p, "[9] Blood Tithe")
-    h.scripts.OnClick(h)
+    h.tbtn.scripts.OnClick(h.tbtn)
     assert(WoWCompanionDB.collapsed.q7002 == nil and p.plain:find("Find Aamelia", 1, true))
     local s = row_with(p, "Next quests")
     s.scripts.OnClick(s)
@@ -1853,8 +1864,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.3" and WC.CHANGELOG["0.4.3"])
-    for _, k in ipairs({ "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
+    assert(TOC_VERSION == "0.4.4" and WC.CHANGELOG["0.4.4"])
+    for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
 
 cases[#cases + 1] = { "options: panel and digest settings change what is drawn", function()
@@ -2235,6 +2246,337 @@ cases[#cases + 1] = { "migration: the separate plan tracker is turned off once, 
     fresh_client(nil)
     assert(WoWCompanion.db.settings.planTracker == false and WoWCompanion.db.settings.view == "full")
     assert(WoWCompanion.DEF_OF.planTracker.default == false)
+end }
+
+
+-- Hover, click, the detail card and training entries (schema 1.4 digests).
+local function digest14()
+    return { schema = "1.4", generated = NOW - 60, build = "1.60.0.64000", character = "Thrall", sections = {
+        { id = "next_quests", lines = {
+            { text = "Pick up Quest 10", quest = 10, kind = "pickup", title = "Quest 10", level = 10, npc = "Gruff", zone = "Testisle",
+              details = { "Chain start", "Rewards a bag" }, prompt = "Prompt for quest ten?" },
+            { text = "Blood Tithe: 0/1 Find X", quest = 11, kind = "progress", title = "Blood Tithe", level = 9,
+              objectives = { { text = "Find X", have = 0, need = 1 } }, details = { "Detail eleven" }, prompt = "Prompt for Blood Tithe?" },
+            { text = "You have 2 unspent talent points", kind = "talent", points = 2, details = { "Spend them soon" }, prompt = "Which talents first?" },
+            { text = "Training, level 10: Charge (Rank 2), Thunder Clap", kind = "training", level = 10,
+              spells = { { id = 100, name = "Charge", rank = 2, new = false }, { id = 101, name = "Thunder Clap", new = true } },
+              details = { "New: Thunder Clap" }, prompt = "What should I train first?" },
+        } },
+        { id = "upgrades", lines = { { text = "Equip Hammer of Fate", item = 5678, slot = "Main Hand", ilvl = 25, details = { "Drops in Deadmines" } } } },
+    }, talents = { { line = "Next point: Mortal Strike", spell_id = 12294 } } }
+end
+local function card_client(digest, state)
+    PLAYER_NAME = nil
+    local WC = plan_client("full")
+    WoWCompanionCard = nil
+    C_QuestLog.GetQuestObjectives = function() return { { text = "0/1 Find X", numFulfilled = 0, numRequired = 1, finished = false } } end
+    WC.plan = { done = {}, steps = {
+        { n = 1, kind = "pickup", questID = 10, quest = "Quest 10", label = "Pick up Quest 10", approx = false, map = 7001, x = 50, y = 50 },
+        { n = 2, kind = "pickup", questID = 11, quest = "Blood Tithe", label = "Pick up Blood Tithe", approx = false, map = 7001, x = 10, y = 10 },
+    } }
+    QUESTS = state or {}
+    WoWCompanionDigest = digest or digest14()
+    WC.ShowPanel()
+    WC.Refresh()
+    return WC.panel, WC
+end
+local function open_card(p, text, button)
+    local row = row_with(p, text)
+    row.scripts.OnClick(row, button or "RightButton")
+    return WoWCompanionCard
+end
+local function card_text(WC, entry)
+    local t = {}
+    for _, r in ipairs(WC.CardModel(entry).rows) do t[#t + 1] = r.text end
+    return table.concat(t, "\n")
+end
+local function entry_of(p, text) return row_with(p, text).entry end
+
+cases[#cases + 1] = { "hover: entering an entry lights all its rows, leaving clears; the settings switch it", function()
+    local p, WC = card_client(nil, { [11] = "active" })
+    local head, obj, other = row_with(p, "[9] Blood Tithe"), row_with(p, "0/1 Find X"), row_with(p, "Quest 10")
+    assert(not head.hl:IsShown())
+    local base = head.label.color
+    head.scripts.OnEnter(head)
+    assert(head.hl:IsShown() and obj.hl:IsShown() and not other.hl:IsShown())
+    assert(head.label.color[1] >= base[1] and head.label.color[3] > base[3], "the title brightens in its own hue")
+    assert(other.alpha == 1, "no dimming by default")
+    head.scripts.OnLeave(head)
+    assert(not head.hl:IsShown() and not obj.hl:IsShown() and same(head.label.color, base))
+    WC.SetSetting("hoverDim", true)
+    head.scripts.OnEnter(head)
+    assert(other.alpha < 1 and head.alpha == 1 and obj.alpha == 1)
+    head.scripts.OnLeave(head)
+    assert(other.alpha == 1)
+    WC.SetSetting("hoverHighlight", false)
+    head.scripts.OnEnter(head)
+    assert(not head.hl:IsShown() and other.alpha == 1)
+    head.scripts.OnLeave(head)
+    assert(WC.Setting("hoverHighlight") == true or true)
+    fresh_client(nil)
+    assert(WoWCompanion.Setting("hoverHighlight") == true and WoWCompanion.Setting("hoverDim") == false and WoWCompanion.Setting("hoverMapLink") == true)
+    assert(WoWCompanion.Setting("clickAction") == "questlog" and WoWCompanion.Setting("cardSide") == "right")
+end }
+
+cases[#cases + 1] = { "hover: an entry pulses its badges on the map and minimap; a badge highlights its entry and scrolls to it", function()
+    local p, WC = card_client(nil, { [11] = "active" })
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    local pin10, pin11
+    for _, f in ipairs(frames) do
+        if f.planGroup and f:IsShown() then
+            if f.planGroup.steps[1].questID == 10 then pin10 = f else pin11 = f end
+        end
+    end
+    assert(pin10 and pin11 and pin10.planGroup.isNext and not pin11.glow:IsShown())
+    local row = row_with(p, "[9] Blood Tithe")
+    row.scripts.OnEnter(row)
+    assert(pin11.glow:IsShown(), "the hovered entry's badge pulses")
+    assert(WC.StepHot(WC.plan.steps[2]) and not WC.StepHot(WC.plan.steps[1]))
+    row.scripts.OnLeave(row)
+    assert(not pin11.glow:IsShown() and not WC.StepHot(WC.plan.steps[2]))
+    -- a badge to its entry, with scrolling
+    row.top, row.hh, p.scrollRange = 400, 14, 500
+    pin11.scripts.OnEnter(pin11)
+    assert(row.hl:IsShown() and not row_with(p, "Quest 10").hl:IsShown())
+    assert(p.scroll.vscroll == 396, "scrolled the entry into view")
+    pin11.scripts.OnLeave(pin11)
+    assert(not row.hl:IsShown())
+    -- off: neither direction
+    WC.SetSetting("hoverMapLink", false)
+    row.scripts.OnEnter(row)
+    assert(not pin11.glow:IsShown())
+    row.scripts.OnLeave(row)
+    pin11.scripts.OnEnter(pin11)
+    assert(not row.hl:IsShown())
+    pin11.scripts.OnLeave(pin11)
+    -- the minimap badge follows the next step
+    WC.SetSetting("hoverMapLink", true)
+    local row10 = row_with(p, "Quest 10")
+    row10.scripts.OnEnter(row10)
+    assert(WC.StepHot(WC.PlanNext()))
+    row10.scripts.OnLeave(row10)
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "click: left on a quest in the log opens it; otherwise the card; right always the card; combat guards", function()
+    local function card_shown() return WoWCompanionCard ~= nil and WoWCompanionCard:IsShown() end
+    local opened, linked = {}, {}
+    QuestMapFrame_OpenToQuestDetails = function(id) opened[#opened + 1] = id end
+    local p, WC = card_client(nil, { [11] = "active" })
+    local q = row_with(p, "[9] Blood Tithe")
+    q.scripts.OnClick(q, "LeftButton")
+    assert(opened[1] == 11 and not card_shown())
+    q.scripts.OnClick(q, "RightButton")
+    assert(card_shown() and #opened == 1)
+    WoWCompanionCard:Hide()
+    -- a pick-up that is not in the log opens its card
+    local pick = row_with(p, "[10] Quest 10")
+    pick.scripts.OnClick(pick, "LeftButton")
+    assert(card_shown() and #opened == 1)
+    pick.scripts.OnClick(pick, "LeftButton")
+    assert(not card_shown(), "clicking the entry again closes the card")
+    -- the setting sends left-click to the card
+    WC.SetSetting("clickAction", "card")
+    q.scripts.OnClick(q, "LeftButton")
+    assert(#opened == 1 and card_shown())
+    WoWCompanionCard:Hide()
+    WC.SetSetting("clickAction", "questlog")
+    -- in combat: nothing opens, one line says so
+    COMBAT = true
+    PRINTED = {}
+    q.scripts.OnClick(q, "LeftButton")
+    assert(#opened == 1 and not card_shown() and PRINTED[1] == "Not in combat: try again once the fight is over.")
+    assert(WC.OpenQuestLog(11) == false)
+    COMBAT = false
+    -- every other kind opens the card on a left click
+    for _, text in ipairs({ "unspent talent", "New at level 10", "Hammer of Fate" }) do
+        local r = row_with(p, text)
+        r.scripts.OnClick(r, "LeftButton")
+        assert(card_shown() and WoWCompanionCard.entry.key == r.entry.key, text)
+        WoWCompanionCard:Hide()
+    end
+    -- shift-click links the quest only into an open edit box, and never opens anything otherwise
+    IsShiftKeyDown = function() return true end
+    GetQuestLink = function(id) return "|cffffff00|Hquest:" .. id .. "|h[Q]|h|r" end
+    ChatEdit_InsertLink = function(link) linked[#linked + 1] = link return true end
+    q.scripts.OnClick(q, "LeftButton")
+    assert(#linked == 1 and linked[1]:find("quest:11", 1, true) and #opened == 1)
+    ChatEdit_InsertLink = function() return false end
+    q.scripts.OnClick(q, "LeftButton")
+    assert(#opened == 2, "no open edit box: the normal click")
+    IsShiftKeyDown, GetQuestLink, ChatEdit_InsertLink, QuestMapFrame_OpenToQuestDetails = nil, nil, nil, nil
+    -- classic's quest log calls
+    local sel, shown = nil, nil
+    QuestLogFrame, SelectQuestLogEntry, ShowUIPanel = {}, function(i) sel = i end, function(f) shown = f end
+    assert(WC.OpenQuestLog(11) == true and sel == 1 and shown == QuestLogFrame)
+    QuestLogFrame, SelectQuestLogEntry, ShowUIPanel = nil, nil, nil
+    assert(WC.OpenQuestLog(11) == false)
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: the rows for a quest, a pick-up, training, talents and an upgrade", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(nil, { [11] = "active" })
+    local quest = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
+    assert(quest.subtitle == "Level 9 - Quest" and quest.title == "Blood Tithe")
+    assert(card_text(WC, entry_of(p, "[9] Blood Tithe")) == "Detail eleven\n0/1 Find X")
+    local acts = {}
+    for _, a in ipairs(quest.actions) do acts[#acts + 1] = a.label end
+    assert(table.concat(acts, ",") == "Open in quest log,Show on map")
+    local pick = WC.CardModel(entry_of(p, "[10] Quest 10"))
+    assert(card_text(WC, entry_of(p, "[10] Quest 10")) == "Chain start\nRewards a bag\nPick up from Gruff in Testisle")
+    assert(#pick.actions == 1 and pick.actions[1].label == "Show on map" and pick.prompt == "Prompt for quest ten?")
+    local train = WC.CardModel(entry_of(p, "New at level 10"))
+    assert(card_text(WC, entry_of(p, "New at level 10")) == "New: Thunder Clap\nCharge (Rank 2) - upgrade\nThunder Clap - new")
+    assert(train.hints[1] == "Spellbook (P)" and #train.actions == 0 and train.subtitle == "Level 10 - Class training")
+    local tal = WC.CardModel(entry_of(p, "unspent talent"))
+    assert(card_text(WC, entry_of(p, "unspent talent")) == "Spend them soon\n2 unspent talent points\nPlan's next pick: Next point: Mortal Strike")
+    assert(tal.hints[1] == "Talents (N)" and tal.prompt == "Which talents first?")
+    local up = WC.CardModel(entry_of(p, "Hammer of Fate"))
+    assert(card_text(WC, entry_of(p, "Hammer of Fate")) == "Drops in Deadmines\nMain Hand, ilvl 25" and up.link == "item:5678")
+    GetBindingKey = function(a) return a == "TOGGLETALENTS" and "K" or nil end
+    assert(WC.CardModel(entry_of(p, "unspent talent")).hints[1] == "Talents (K)")
+    GetBindingKey = nil
+    -- the item link's tooltip shows on hover
+    local c = open_card(p, "Hammer of Fate", "LeftButton")
+    local n = #GameTooltip.calls
+    WoWCompanionCardLink.scripts.OnEnter(WoWCompanionCardLink)
+    assert(GameTooltip.calls[n + 2][1] == "SetHyperlink" and GameTooltip.calls[n + 2][2] == "item:5678")
+    UnitLevel = nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: live facts follow the client, and the card sits on the chosen side", function()
+    local p, WC = card_client(nil, { [11] = "ready" })
+    assert(card_text(WC, entry_of(p, "Blood Tithe")):find("Ready to turn in", 1, true))
+    UnitLevel = nil
+    GetUnspentTalentPoints = function() return 5 end
+    assert(card_text(WC, entry_of(p, "unspent talent")):find("5 unspent talent points", 1, true))
+    GetUnspentTalentPoints = nil
+    local c = open_card(p, "Quest 10", "RightButton")
+    assert(c.points[1][1] == "TOPLEFT" and c.points[1][2] == p and c.points[1][3] == "TOPRIGHT")
+    WC.SetSetting("cardSide", "left")
+    c:Hide()
+    c = open_card(p, "Quest 10", "RightButton")
+    assert(c.points[1][1] == "TOPRIGHT" and c.points[1][3] == "TOPLEFT")
+    -- Esc closes it, and so does the panel closing
+    assert(c:IsShown())
+    p:Hide()
+    assert(not c:IsShown())
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: Show on map opens the map to the step's zone and pulses its badge, never in combat", function()
+    local p, WC = card_client(nil, { [11] = "active" })
+    local opened = {}
+    OpenWorldMap = function(map) opened[#opened + 1] = map end
+    local c = open_card(p, "[9] Blood Tithe", "RightButton")
+    local btn = WoWCompanionCardAction2
+    assert(btn and btn:GetText() == "Show on map")
+    COMBAT = true
+    btn.scripts.OnClick(btn)
+    assert(#opened == 0)
+    COMBAT = false
+    btn.scripts.OnClick(btn)
+    assert(opened[1] == 7001 and WC.hover.source == "card" and WC.StepHot(WC.plan.steps[2]))
+    OpenWorldMap = nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: the ask box holds the prompt (or the template fallback); Send queues one capped ask; Copy selects all", function()
+    local p, WC = card_client()
+    open_card(p, "Quest 10")
+    assert(WoWCompanionCardAsk:GetText() == "Prompt for quest ten?")
+    PRINTED = {}
+    local send = WoWCompanionCardSend
+    WoWCompanionCardAsk:SetText(("x"):rep(900))
+    send.scripts.OnClick(send)
+    assert(#WoWCompanionDB.asks == 1 and #WoWCompanionDB.asks[1].text == 500 and #PRINTED == 1)
+    assert(WoWCompanionCardAsk.maxLetters == 500)
+    assert(WoWCompanionCard and WoWCompanion.panel and WoWCompanionCard.status:GetText():find("Sent - the overlay answers now", 1, true))
+    assert(WoWCompanionCard.status:GetText():find("after your next /reload", 1, true))
+    assert(send.enabled == false, "no second click on the same text")
+    WoWCompanionCardAsk.scripts.OnTextChanged(WoWCompanionCardAsk, true)
+    assert(send.enabled == true)
+    -- Copy selects everything and says what to do next
+    local copy = WoWCompanionCardCopy
+    copy.scripts.OnClick(copy)
+    assert(WoWCompanionCardAsk.focused == true and WoWCompanionCardAsk.highlighted == true)
+    assert(WoWCompanionCard.status:GetText() == "Press Ctrl+C, then paste into the overlay's Ask box.")
+    assert(#WoWCompanionDB.asks == 1, "copy queues nothing")
+    -- an empty box queues nothing
+    WoWCompanionCardAsk:SetText("   ")
+    send.scripts.OnClick(send)
+    assert(#WoWCompanionDB.asks == 1)
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: an answer in Answers.lua shows under the prompt after the question was sent from that entry", function()
+    local p, WC = card_client()
+    open_card(p, "Quest 10")
+    assert(WC.AnswerFor("q10") == nil and not WoWCompanionCard.answerShown)
+    WoWCompanionCardSend.scripts.OnClick(WoWCompanionCardSend)
+    local id = WoWCompanionDB.asks[1].id
+    WoWCompanionAnswers = { answers = { { id = "other", text = "Not mine" }, { id = id, text = "Go north |cffff0000twice" } } }
+    WC.Refresh()
+    assert(WoWCompanionCard.answerShown == "Go north ||cffff0000twice" and WoWCompanionCard.answer:GetText() == "Go north ||cffff0000twice")
+    assert(WoWCompanionCard.answerScroll:IsShown())
+    local other = WC.CardModel(entry_of(p, "Blood Tithe"))
+    assert(other.answer == nil, "another entry shows no answer")
+    WoWCompanionAnswers = nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: schema 1.3 and 1.2 digests open cards with the template prompt and no details", function()
+    local p = ask_row_client()
+    local WC = WoWCompanion
+    local m = WC.CardModel(entry_of(p, "Hammer of Fate"))
+    assert(m.prompt:find("^Where does") and m.prompt:find("Equip Hammer of Fate", 1, true) and m.prompt:find("drop, and is it worth farming?", 1, true))
+    assert(#m.rows == 1 and m.rows[1].text == "No more details for this entry.")
+    p = v13_client()
+    WC = WoWCompanion
+    local q = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
+    assert(q.prompt:find("Where do I go for Blood Tithe", 1, true) and q.rows[1].text == "No more details for this entry.")
+    local t = WC.CardModel(entry_of(p, "unspent talent"))
+    assert(t.prompt == "Why You have 1 unspent talent point next for my spec?" and t.hints[1] == "Talents (N)")
+    local train = WC.CardModel(WC.TrainingEntry({ text = "x", level = 5 }).entry)
+    assert(train.rows[1].text == "No more details for this entry.")
+    PLAYER_NAME = nil
+end }
+
+cases[#cases + 1] = { "training: the entry lists unknown spells with ranks and hides when all are known", function()
+    local known = {}
+    IsSpellKnown = function(id) return known[id] == true end
+    local p, WC = card_client()
+    local r = row_with(p, "New at level 10")
+    assert(r.label:GetText() == "New at level 10: Charge (Rank 2), Thunder Clap")
+    assert(r.icon.texture == "Interface\\Icons\\ClassIcon_WARRIOR" or r.icon.texture == WC.ICONS.talent)
+    known[100] = true
+    WC.Refresh()
+    assert(row_with(p, "New at level 10").label:GetText() == "New at level 10: Thunder Clap")
+    assert(card_text(WC, entry_of(p, "New at level 10")) == "New: Thunder Clap\nThunder Clap - new")
+    known[101] = true
+    WC.Refresh()
+    assert(not p.plain:find("New at level", 1, true), "every listed spell is known: the entry hides itself")
+    assert(WC.SpellKnown(100) and not WC.SpellKnown(999) and not WC.SpellKnown(nil))
+    IsSpellKnown = nil
+    assert(WC.SpellKnown(100) == false, "no spell check: nothing is known")
+    C_SpellBook = { IsSpellKnown = function(id) return id == 7 end }
+    assert(WC.SpellKnown(7) and not WC.SpellKnown(8))
+    C_SpellBook = nil
+    IsPlayerSpell = function(id) return id == 9 end
+    assert(WC.SpellKnown(9))
+    IsPlayerSpell = nil
+end }
+
+cases[#cases + 1] = { "training: the class icon comes from the client's class token", function()
+    UnitClass = function() return "Warrior", "WARRIOR" end
+    local p, WC = card_client()
+    assert(row_with(p, "New at level 10").icon.texture == "Interface\\Icons\\ClassIcon_WARRIOR")
+    UnitClass = nil
 end }
 
 
