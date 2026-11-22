@@ -5,7 +5,41 @@ local WC = WoWCompanion
 
 -- A rolled map: reads clearly at 20 px and fits a route-planning addon. The TOCs use the same icon.
 WC.ICON = "Interface\\Icons\\INV_Misc_Map_01"
-WC.MINIMAP_RADIUS = 80
+
+-- The ring other minimap buttons sit on: the minimap's half-width plus a few pixels, so the button's centre rides
+-- the minimap's outer edge. Square corners use the client's own shape convention (GetMinimapShape), clamped to
+-- the square's edge the way other buttons do it.
+WC.MINIMAP_RING_GAP = 5
+WC.MINIMAP_DEFAULT_WIDTH = 140
+local CORNER_ROUNDING = 10
+-- Per shape, which quadrants are round: { bottom-right, bottom-left, top-right, top-left }.
+WC.MINIMAP_SHAPES = {
+    ROUND = { true, true, true, true }, SQUARE = { false, false, false, false },
+    ["CORNER-TOPLEFT"] = { false, false, false, true }, ["CORNER-TOPRIGHT"] = { false, false, true, false },
+    ["CORNER-BOTTOMLEFT"] = { false, true, false, false }, ["CORNER-BOTTOMRIGHT"] = { true, false, false, false },
+    ["SIDE-LEFT"] = { false, true, false, true }, ["SIDE-RIGHT"] = { true, false, true, false },
+    ["SIDE-TOP"] = { false, false, true, true }, ["SIDE-BOTTOM"] = { true, true, false, false },
+    ["TRICORNER-TOPLEFT"] = { false, true, true, true }, ["TRICORNER-TOPRIGHT"] = { true, false, true, true },
+    ["TRICORNER-BOTTOMLEFT"] = { true, true, false, true }, ["TRICORNER-BOTTOMRIGHT"] = { true, true, true, false },
+}
+
+function WC.MinimapRingRadius(width)
+    return (tonumber(width) and width > 0 and width or WC.MINIMAP_DEFAULT_WIDTH) / 2 + WC.MINIMAP_RING_GAP
+end
+
+-- The button's offset from the minimap centre for an angle in degrees, the minimap's width and its shape name.
+function WC.MinimapOffset(angle, width, shape)
+    local a = math.rad(angle)
+    local c, s = math.cos(a), math.sin(a)
+    local r = WC.MinimapRingRadius(width)
+    local quads = WC.MINIMAP_SHAPES[shape or "ROUND"] or WC.MINIMAP_SHAPES.ROUND
+    local q = 1
+    if c < 0 then q = q + 1 end
+    if s > 0 then q = q + 2 end
+    if quads[q] then return c * r, s * r end
+    local diag = math.sqrt(2 * r * r) - CORNER_ROUNDING
+    return math.max(-r, math.min(c * diag, r)), math.max(-r, math.min(s * diag, r))
+end
 
 -- Angle in degrees from the minimap centre (mx, my) to the cursor (cx, cy), given the minimap's scale.
 function WC.MinimapAngle(cx, cy, mx, my, scale)
@@ -52,14 +86,68 @@ function WC.ButtonClick(button, shift)
     end
 end
 
+-- A click on the world map button: left shows or hides the plan on the map, right opens the options window.
+function WC.MapButtonClick(button)
+    if button == "RightButton" then
+        WC.OpenOptions()
+    else
+        WC.TogglePlan("map")
+    end
+end
+
+local function show_map_tooltip(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
+    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_LEFT, WC.L.TIP_MAP_RIGHT }) do GameTooltip:AddLine(line) end
+    GameTooltip:Show()
+end
+
+-- One round button in the world map's side column. The client's own overlay API (WorldMapFrame:AddOverlayFrame)
+-- places it with the other map buttons; a client without it gets the button on the map frame's own edge.
+function WC.CreateMapButton()
+    local map = WorldMapFrame
+    if not map or WC.mapButton then return end
+    local b
+    if map.AddOverlayFrame then
+        local ok, frame = pcall(map.AddOverlayFrame, map, nil, "Button", "TOPRIGHT", map, "TOPRIGHT", -8, -110)
+        if ok and type(frame) == "table" then b, WC.mapButtonMode = frame, "overlay" end
+    end
+    if not b then
+        local ok, frame = pcall(CreateFrame, "Button", "WoWCompanionMapButton", map)
+        if not ok then return end
+        b = frame
+        b:SetPoint("TOPRIGHT", map, "TOPRIGHT", -8, -110)
+        WC.mapButtonMode = "edge"
+    end
+    b:SetSize(31, 31)
+    if b.SetFrameStrata then b:SetFrameStrata("HIGH") end
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b.back = b:CreateTexture(nil, "BACKGROUND")
+    b.back:SetSize(20, 20)
+    b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -5)
+    b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(17, 17)
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -6)
+    b.icon:SetTexture(WC.ICON)
+    b.border = b:CreateTexture(nil, "OVERLAY")
+    b.border:SetSize(53, 53)
+    b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button) end)
+    b:SetScript("OnEnter", show_map_tooltip)
+    b:SetScript("OnLeave", hide_tooltip)
+    WC.mapButton = b
+end
+
 local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false end
 
 function WC.PlaceMinimapButton()
     local b = WC.minimapButton
     if not b then return end
-    local a = math.rad(WC.db.settings.minimap.angle)
+    local shape = GetMinimapShape and GetMinimapShape() or "ROUND"
+    local x, y = WC.MinimapOffset(WC.db.settings.minimap.angle, Minimap:GetWidth(), shape)
     b:ClearAllPoints()
-    b:SetPoint("CENTER", Minimap, "CENTER", math.cos(a) * WC.MINIMAP_RADIUS, math.sin(a) * WC.MINIMAP_RADIUS)
+    b:SetPoint("CENTER", Minimap, "CENTER", x, y)
 end
 
 local function create_minimap_button()
@@ -70,11 +158,11 @@ local function create_minimap_button()
     b:RegisterForDrag("LeftButton")
     b.back = b:CreateTexture(nil, "BACKGROUND")
     b.back:SetSize(20, 20)
-    b.back:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -5)
     b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetSize(20, 20)
-    b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.icon:SetSize(17, 17)
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -6)
     b.icon:SetTexture(WC.ICON)
     b.border = b:CreateTexture(nil, "OVERLAY")
     b.border:SetSize(53, 53)
@@ -93,6 +181,8 @@ local function create_minimap_button()
         end)
     end)
     b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+    -- Another addon may resize the minimap; the ring follows.
+    if Minimap.HookScript then Minimap:HookScript("OnSizeChanged", WC.PlaceMinimapButton) end
     WC.minimapButton = b
     WC.PlaceMinimapButton()
 end
@@ -115,6 +205,7 @@ function WC.ApplyButtons()
     local s = WC.db.settings.minimap
     local b = WC.minimapButton
     if b then b:SetShown(s.show ~= false) end
+    if WC.mapButton then WC.mapButton:SetShown(WC.Setting("mapButton") ~= false) end
     local comp = AddonCompartmentFrame
     if comp and comp.RegisterAddon then
         if s.compartment ~= false and not WC.compartmentInfo then
@@ -129,6 +220,7 @@ end
 
 function WC.CreateButton()
     if Minimap then create_minimap_button() end
+    WC.CreateMapButton()
     WC.buttonMode = (AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon) and "compartment" or "minimap"
     WC.ApplyButtons()
 end

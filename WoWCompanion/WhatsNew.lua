@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.4.3"] = { "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2" },
     ["0.4.2"] = { "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2" },
     ["0.4.1"] = { "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2" },
     ["0.4.0"] = { "WHATS_NEW_0_4_0_1", "WHATS_NEW_0_4_0_2" },

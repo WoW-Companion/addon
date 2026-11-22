@@ -14,6 +14,28 @@ local RESET_W = 46 -- the per-setting reset button, kept at the right edge of ea
 local RESET_X = BOX_W - 12 - RESET_W
 local PAGE_TOP = 28 -- room for the Defaults button above a page's first box
 
+local TAB_PAD, TAB_MIN, TAB_GAP, TAB_H, TAB_TOP = 22, 48, 2, 22, 30
+local TAB_CHAR = 0.62 -- a generous average glyph width as a fraction of the font size, used when the client cannot measure
+
+-- A tab button's width: the label's text width plus padding on both sides (never narrower than TAB_MIN). When the
+-- measured width is unknown (nil) it is estimated from the label length and the font size in points.
+function WC.TabWidth(label, size, measured)
+    local textW = measured or (#label * size * TAB_CHAR)
+    return math.max(TAB_MIN, math.ceil(textW) + TAB_PAD)
+end
+
+-- Lays tab widths out left to right, wrapping to a new row when the next one would pass avail. Returns
+-- one { x, row } per tab (rows count from 0) and the number of rows.
+function WC.TabLayout(widths, avail, gap)
+    local out, x, row = {}, 0, 0
+    for i, w in ipairs(widths) do
+        if x > 0 and x + w > avail then x, row = 0, row + 1 end
+        out[i] = { x = x, row = row }
+        x = x + w + gap
+    end
+    return out, row + 1
+end
+
 -- The text a range row shows next to its label.
 local function show_value(def, v)
     local how = def.show
@@ -319,6 +341,36 @@ function WC.ShowOptionsPage(id)
     if f.scroll.SetVerticalScroll then f.scroll:SetVerticalScroll(0) end
 end
 
+-- Sizes each tab to its label at the chosen text size and places them, wrapping to a second row when they would
+-- not fit; the subtitle and the scrolling body sit below the last row.
+function WC.LayoutTabs()
+    local f = WC.options
+    if not f then return end
+    local size = WC.FONT_SIZES[WC.db.settings.fontSize] or WC.FONT_SIZES.normal
+    local widths = {}
+    for i, p in ipairs(WC.PAGES) do
+        local b = f.tabs[p]
+        local fs = b.GetFontString and b:GetFontString()
+        if fs then WC.StyleText(fs) end
+        local measured = fs and fs.GetStringWidth and fs:GetStringWidth() or nil
+        widths[i] = WC.TabWidth(L["TAB_" .. p], size, (measured and measured > 0) and measured or nil)
+    end
+    local spots, rows = WC.TabLayout(widths, WIDTH - 24, TAB_GAP)
+    f.tabRows = rows
+    for i, p in ipairs(WC.PAGES) do
+        local b = f.tabs[p]
+        b:SetSize(widths[i], TAB_H)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", 12 + spots[i].x, -(TAB_TOP + spots[i].row * (TAB_H + TAB_GAP)))
+    end
+    local below = TAB_TOP + rows * (TAB_H + TAB_GAP)
+    f.subtitle:ClearAllPoints()
+    f.subtitle:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -(below + 4))
+    f.scroll:ClearAllPoints()
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -(below + 24))
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 44)
+end
+
 -- Redraws every control from the saved settings.
 function WC.SyncOptions()
     local f = WC.options
@@ -326,6 +378,7 @@ function WC.SyncOptions()
     f.syncing = true
     for _, w in ipairs(f.widgets) do w.sync() end
     f.syncing = false
+    WC.LayoutTabs()
 end
 
 function WC.CreateOptions()
@@ -344,29 +397,23 @@ function WC.CreateOptions()
     f.title:SetPoint("TOP", f, "TOP", 0, -5)
     f.title:SetText(L.ADDON_NAME)
 
-    local x = 12
     for _, p in ipairs(WC.PAGES) do
         local b = CreateFrame("Button", "WoWCompanionOptionsTab_" .. p, f, "UIPanelButtonTemplate")
-        b:SetSize(72, 22)
-        b:SetPoint("TOPLEFT", f, "TOPLEFT", x, -30)
+        b:SetSize(72, TAB_H)
         local key = "TAB_" .. p
         b:SetText(L[key])
         b:SetScript("OnClick", function() WC.ShowOptionsPage(p) end)
         f.tabs[p] = b
-        x = x + 74
     end
 
     f.subtitle = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.subtitle:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -62)
-
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionOptionsScroll", f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -82)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 44)
     f.content = CreateFrame("Frame", nil, f.scroll)
     f.content:SetSize(BODY_W, 100)
     f.scroll:SetScrollChild(f.content)
 
     for _, p in ipairs(WC.PAGES) do f.pages[p] = build_page(f, p, f.content) end
+    WC.LayoutTabs()
 
     f.resetAll = make_button("WoWCompanionOptionsResetAll", f, L.RESET_ALL, 110, "BOTTOMLEFT", 14, 12, function() WC.ResetPage(nil) end)
     f.close = make_button("WoWCompanionOptionsClose", f, L.CLOSE, 90, "BOTTOMRIGHT", -14, 12, function() f:Hide() end)

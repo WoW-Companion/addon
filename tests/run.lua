@@ -289,7 +289,7 @@ local settings_cases = {
     { "settings take defaults on first run", function()
         fresh_client(nil)
         local s = settings()
-        assert(s.scale == 1 and s.locked == false and s.openOnLogin == false and s.minimap.angle == 215)
+        assert(s.scale == 1 and s.locked == false and s.openOnLogin == false and s.minimap.angle == 180)
         for id, v in pairs(DEFAULT_SHOW) do assert(s.show[id] == v, id) end
         assert(WoWCompanionPanel.scale == 1)
     end },
@@ -374,14 +374,14 @@ local settings_cases = {
         fresh_client(nil)
         local b = WoWCompanionMinimapButton
         local _, _, _, x, y = b:GetPoint()
-        assert(math.abs(x - math.cos(math.rad(215)) * 80) < 1e-6 and math.abs(y - math.sin(math.rad(215)) * 80) < 1e-6)
+        assert(math.abs(x + 75) < 1e-6 and math.abs(y) < 1e-6, "default: left of the ring, radius 70 + 5 on the stub's 140 px minimap")
         b.scripts.OnDragStart(b)
         CURSOR[1], CURSOR[2] = 0, 300
         b.scripts.OnUpdate(b)
         b.scripts.OnDragStop(b)
         assert(b.scripts.OnUpdate == nil and settings().minimap.angle == 90)
         _, _, _, x, y = b:GetPoint()
-        assert(math.abs(x) < 1e-6 and math.abs(y - 80) < 1e-6)
+        assert(math.abs(x) < 1e-6 and math.abs(y - 75) < 1e-6)
         local saved = WoWCompanionDB
         fresh_client(saved)
         assert(settings().minimap.angle == 90)
@@ -743,7 +743,7 @@ local compact_cases = {
         local p = digest_client("full")
         local full_lines, full_h = select(2, p.plain:gsub("\n", "")), p.h
         click(WoWCompanionCompactButton)
-        assert(WoWCompanionDB.settings.compact == true and WoWCompanionCompactButton:GetText() == "Full")
+        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Full")
         assert(select(2, p.plain:gsub("\n", "")) < full_lines and p.h < full_h and p.h >= 150)
         assert(p.plain:find("Turn in", 1, true) and not p.plain:find("Pick up the next", 1, true))
         assert(select(2, p.plain:gsub("\n", "")) + 1 == 8 and full_lines + 1 == 9, "4 headers + 1 line each: 8 rows vs 9")
@@ -761,9 +761,9 @@ local compact_cases = {
         assert(#p.plain > before and WoWCompanion.view.expanded[h.sectionId] and not WoWCompanionDB.collapsed)
         local saved = WoWCompanionDB
         fresh_client(saved)
-        assert(settings().compact == true and WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionOptionCompact.checked == true)
-        click(WoWCompanionOptionCompact)
-        assert(settings().compact == false and WoWCompanionPanel.h == 320)
+        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionOptionView_compact.checked == true)
+        click(WoWCompanionOptionView_full)
+        assert(settings().view == "full" and WoWCompanionPanel.h == 320)
     end },
 }
 for _, c in ipairs(compact_cases) do cases[#cases + 1] = c end
@@ -1045,7 +1045,7 @@ cases[#cases + 1] = { "plan: missing file, wrong schema and other character show
     local WC = plan_client("full")
     assert(select(2, WC.ParsePlan(WoWCompanionPlan, "Nobody")) == "character")
     assert(select(2, WC.ParsePlan(WoWCompanionPlan, nil)) == "character")
-    assert(WoWCompanionPlanTracker:IsShown() == true)
+    assert(WoWCompanionPlanTracker:IsShown() == false, "the separate tracker is off by default")
     assert(plan_client(nil) and WoWCompanionPlanTracker:IsShown() == false)
 end }
 
@@ -1222,7 +1222,9 @@ end }
 
 cases[#cases + 1] = { "plan: /wowc plan toggles the tracker and /wowc plan map the pins", function()
     local WC = plan_client("full")
-    assert(WoWCompanionPlanTracker:IsShown())
+    assert(not WoWCompanionPlanTracker:IsShown())
+    SlashCmdList.WOWC("plan")
+    assert(WoWCompanionDB.settings.planTracker == true and WoWCompanionPlanTracker:IsShown())
     SlashCmdList.WOWC("plan")
     assert(WoWCompanionDB.settings.planTracker == false and not WoWCompanionPlanTracker:IsShown())
     SlashCmdList.WOWC("plan map")
@@ -1385,8 +1387,11 @@ cases[#cases + 1] = { "plan: arrowhead placement, chevron spacing and frame leve
     ang, tx, ty = WC.ArrowPlace(30, 40, 0, 0, 0, 0) -- 3-4-5, toward the origin
     assert(near(tx, 0) and near(ty, 0) and ang < -math.pi / 2)
     assert(WC.ArrowPlace(5, 5, 5, 5, 10, 2) == nil)
-    -- the art points up, so east needs a quarter turn clockwise
-    assert(near(WC.ArrowRotation(0), -math.pi / 2) and near(WC.ArrowRotation(math.pi / 2), 0))
+    -- an arrowhead centred on the origin pointing east: tip ahead, wings behind and either side
+    local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(0, 0, 0, 10)
+    assert(near(tx, 5) and near(ty, 0) and near(x1, -5) and near(x2, -5) and near(y1, -y2) and y1 ~= 0)
+    tx, ty = WC.ArrowheadPoints(3, 4, math.pi / 2, 10) -- north: the tip is above the centre
+    assert(near(tx, 3) and near(ty, 9))
     -- chevrons: none up to 12% of the map width, one to 24%, two beyond; evenly spaced
     assert(WC.ChevronCount(12, 100) == 0 and WC.ChevronCount(13, 100) == 1)
     assert(WC.ChevronCount(24, 100) == 1 and WC.ChevronCount(25, 100) == 2 and WC.ChevronCount(5, 0) == 0)
@@ -1436,8 +1441,9 @@ cases[#cases + 1] = { "plan: /wowc plan debug prints one line per undone step", 
     print = function(...) out[#out + 1] = table.concat({ ... }, " ") end
     SlashCmdList.WOWC("plan debug")
     print = realPrint
-    assert(#out >= 2, "head plus step lines")
-    for i = 2, #out do
+    assert(#out >= 4, "head, the two arrow lines, then step lines")
+    assert(out[2]:find("arrowheads: drawn as lines", 1, true) and out[3]:find("old arrow texture", 1, true), out[2])
+    for i = 4, #out do
         assert(out[i]:match("^step %d+ %a+ x=%S+ y=%S+ %a+ level=%d+ shown=%a+$"), out[i])
         assert(out[i]:find("shown=yes", 1, true))
     end
@@ -1650,7 +1656,7 @@ cases[#cases + 1] = { "the panel header is gold with the character, the advice t
     local p = WC.panel
     assert(p.title:GetText() == "WoW Companion: Genaenyu", p.title:GetText())
     assert(p.header:GetText():find("advice from ", 1, true) and not p.header:GetText():find("Genaenyu", 1, true))
-    assert(p.step:GetText() == "Step 1/4", p.step:GetText())
+    assert(p.step:GetText():match("^Step 1/4 · Pick up .+ · another zone$"), p.step:GetText())
     assert(p.close and p.compactButton:GetText() == "Compact" and p.backdrop)
     PLAYER_NAME = nil
 end }
@@ -1832,7 +1838,7 @@ cases[#cases + 1] = { "options: every entry point opens the window", function()
     end
     settings().minimap.angle = 10
     WoWCompanionOptionsResetButton.scripts.OnClick()
-    assert(settings().minimap.angle == 215)
+    assert(settings().minimap.angle == 180)
 end }
 
 cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", function()
@@ -1847,8 +1853,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.2" and WC.CHANGELOG["0.4.2"])
-    for _, k in ipairs({ "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
+    assert(TOC_VERSION == "0.4.3" and WC.CHANGELOG["0.4.3"])
+    for _, k in ipairs({ "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
 
 cases[#cases + 1] = { "options: panel and digest settings change what is drawn", function()
@@ -2008,6 +2014,7 @@ cases[#cases + 1] = { "visuals: panel, plan tracker and route follow their setti
     WC.SetSetting("planBgOpacity", 0.3)
     WC.SetSetting("planTextSize", 16)
     WC.plan = { steps = {}, done = {} }
+    WC.SetSetting("planTracker", true)
     WC.RefreshPlan()
     local t = WC.planTracker
     assert(same(t.bg.colorTexture, { 1, 1, 0, 0.3 }) and t.label.fontSize == 16)
@@ -2076,6 +2083,158 @@ cases[#cases + 1] = { "visuals: the drawing code reads settings, not constants",
     for _, old in ipairs({ "local OUTLINE =", "local CHEVRON_SIZE", "local MM_BADGE =", "WC.COLORS.green", "SetBackdropColor(0, 0, 0", "SetColorTexture(0, 0, 0, 0.5)" }) do
         assert(not plan:find(old, 1, true) and not panel:find(old, 1, true) and not digest:find(old, 1, true), old .. " is a setting now")
     end
+end }
+
+cases[#cases + 1] = { "minimap ring: radius from the minimap's width, round and square shapes", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local function near(a, b) return math.abs(a - b) < 1e-6 end
+    assert(near(WC.MinimapRingRadius(140), 75) and near(WC.MinimapRingRadius(200), 105) and near(WC.MinimapRingRadius(nil), 75))
+    for _, w in ipairs({ 140, 200 }) do
+        local r = w / 2 + 5
+        local x, y = WC.MinimapOffset(0, w, "ROUND")
+        assert(near(x, r) and near(y, 0))
+        x, y = WC.MinimapOffset(135, w, "ROUND")
+        assert(near(math.sqrt(x * x + y * y), r) and x < 0 and y > 0)
+        x, y = WC.MinimapOffset(0, w, "SQUARE") -- a square's edge: clamped to the ring, not the diagonal
+        assert(near(x, r) and near(y, 0))
+        x, y = WC.MinimapOffset(45, w, "SQUARE")
+        assert(near(x, y) and near(x, math.min(r, (math.sqrt(2 * r * r) - 10) * math.cos(math.rad(45)))))
+        x, y = WC.MinimapOffset(225, w, "CORNER-TOPRIGHT") -- bottom-left of a corner shape is square
+        assert(near(x, y) and x < 0 and math.sqrt(x * x + y * y) > r - 1)
+        x, y = WC.MinimapOffset(45, w, "CORNER-TOPRIGHT") -- its top-right quadrant is round
+        assert(near(math.sqrt(x * x + y * y), r))
+    end
+    assert(select(1, WC.MinimapOffset(0, 140, "NOT-A-SHAPE")) == WC.MinimapOffset(0, 140, "ROUND"))
+    -- the placed button follows the minimap's own width
+    Minimap:SetSize(200, 200)
+    WC.db.settings.minimap.angle = 90
+    WC.PlaceMinimapButton()
+    local _, _, _, x, y = WoWCompanionMinimapButton:GetPoint()
+    assert(near(x, 0) and near(y, 105))
+end }
+
+cases[#cases + 1] = { "options tabs: each is as wide as its label plus padding at every text size, with no overlap", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, id in ipairs(WC.FONT_ORDER) do
+        WC.SetSetting("fontSize", id)
+        local size = WC.FONT_SIZES[id]
+        local widths = {}
+        for i, p in ipairs(WC.PAGES) do
+            local label = WC.L["TAB_" .. p]
+            local b = _G["WoWCompanionOptionsTab_" .. p]
+            assert(b.w >= #label * size * 0.62 + 22 - 1, p .. " at " .. id)
+            assert(b:GetFontString().fontSize == size, "the tab's text follows the text size")
+            widths[i] = b.w
+        end
+        local spots, rows = WC.TabLayout(widths, 456, 2)
+        for i = 2, #spots do
+            if spots[i].row == spots[i - 1].row then assert(spots[i].x >= spots[i - 1].x + widths[i - 1], "overlap") end
+            assert(spots[i].x + widths[i] <= 456, "inside the window")
+        end
+        assert(WC.options.tabRows == rows)
+    end
+    assert(WC.TabWidth("Map & route", 12, 70) == 92 and WC.TabWidth("x", 12, 1) == 48)
+    local spots, rows = WC.TabLayout({ 200, 200, 200 }, 456, 2)
+    assert(rows == 2 and spots[3].row == 1 and spots[3].x == 0)
+end }
+
+cases[#cases + 1] = { "arrowheads: drawn as lines, no texture art; the rim arrow too", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    for _, f in ipairs({ "PlanUI", "Panel", "Button" }) do
+        local src = assert(io.open("WoWCompanion/" .. f .. ".lua")):read("*a")
+        assert(not src:find("SetTexture(MINIMAP_ARROW", 1, true) and not src:find("SetRotation", 1, true), f)
+    end
+    CreateFrame("Frame", "WoWCompanionPlanMinimapPin", UIParent)
+    local arrow = WC.planMinimap.arrow
+    assert(#arrow == 2 and arrow[1].kind == "Line" and arrow[2].kind == "Line" and arrow[1].shown == false)
+end }
+
+cases[#cases + 1] = { "world map button: placed through the overlay API, toggles the plan, right-click opens options, setting hides it", function()
+    fresh_client(nil)
+    local made
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    function WorldMapFrame:AddOverlayFrame(template, kind, ...)
+        made = { template, kind, ... }
+        return CreateFrame(kind, nil, self)
+    end
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    assert(b and WC.mapButtonMode == "overlay" and made[2] == "Button" and made[3] == "TOPRIGHT" and b:IsShown())
+    assert(b.icon.texture == WC.ICON)
+    local before = WC.db.settings.planMap
+    b.scripts.OnClick(b, "LeftButton")
+    assert(WC.db.settings.planMap == not before)
+    assert(not WoWCompanionOptions:IsShown())
+    b.scripts.OnClick(b, "RightButton")
+    assert(WoWCompanionOptions:IsShown() and WC.db.settings.planMap == not before)
+    b.scripts.OnEnter(b)
+    local text = {}
+    for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
+    assert(#text == 3 and text[2]:find("Left-click", 1, true) and text[3]:find("Right-click", 1, true))
+    WC.SetSetting("mapButton", false)
+    assert(not b:IsShown())
+    WC.SetSetting("mapButton", true)
+    assert(b:IsShown())
+    -- a map without the overlay API gets the button on the map frame's own edge
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    fresh_client(nil)
+    assert(WoWCompanion.mapButton and WoWCompanion.mapButtonMode == "edge" and WoWCompanion.mapButton.parent == WorldMapFrame)
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "panel views: the row lists of Full, Compact and Next step only, and the header line", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local rows = {
+        { kind = "header", id = "next_quests", title = "Quests", text = "[-] Quests" },
+        { kind = "quest", id = "q5", quest = 5, text = "Other" }, { kind = "obj", text = "five" },
+        { kind = "quest", id = "q7", quest = 7, text = "Mine" }, { kind = "obj", text = "kill 3" }, { kind = "status", text = "ready" },
+        { kind = "quest", id = "q9", quest = 9, text = "Later" }, { kind = "obj", text = "nine" },
+        { kind = "header", id = "upgrades", title = "Upgrades", text = "[-] Upgrades" }, { kind = "line", text = "boots" },
+    }
+    local step = { questID = 7 }
+    assert(#WC.ViewRows("full", rows, {}, step) == #rows)
+    assert(#WC.ViewRows("compact", rows, {}, step) < #rows)
+    local only = WC.ViewRows("next", rows, {}, step)
+    assert(#only == 3 and only[1].text == "Mine" and only[2].text == "kill 3" and only[3].text == "ready")
+    assert(#WC.ViewRows("next", rows, {}, { questID = 0 }) == 0 and #WC.ViewRows("next", rows, {}, nil) == 0)
+    assert(#WC.ViewRows("next", rows, {}, { questID = 9 }) == 2)
+    -- the live header line
+    WC.plan = { steps = { { n = 1, kind = "pickup", questID = 7, label = "Pick up X", map = 1, x = 50, y = 50 } }, done = {} }
+    assert(WC.NextStepLine(WC.PlanNext(), 2, nil, nil) == "Step 1/1 · Pick up X · another zone")
+    WC.plan.done[1] = true
+    assert(WC.NextStepLine(nil) == "Plan complete (1 steps)")
+    WC.plan = nil
+    assert(WC.NextStepLine(nil) == "")
+    -- the setting drives the panel: Next step only keeps just that entry, and the header button returns to Full
+    local p = digest_client("v13")
+    WC = WoWCompanion
+    WC.SetSetting("view", "next")
+    assert(WoWCompanionCompactButton:GetText() == "Full" and p.plain == "")
+    click(WoWCompanionCompactButton)
+    assert(WC.db.settings.view == "full" and p.plain ~= "")
+    click(WoWCompanionCompactButton)
+    assert(WC.db.settings.view == "compact")
+    WC.SetSetting("view", "bogus")
+    assert(WC.db.settings.view == "full")
+end }
+
+cases[#cases + 1] = { "migration: the separate plan tracker is turned off once, a later choice sticks; compact becomes the view", function()
+    fresh_client({ settings = { planTracker = true, compact = true } })
+    local WC = WoWCompanion
+    assert(WC.db.settings.planTracker == false and WC.db.settings.view == "compact" and WC.db.settings.compact == nil)
+    assert(WC.db.migrated.planTrackerOff == true)
+    WC.SetSetting("planTracker", true)
+    local saved = WoWCompanionDB
+    fresh_client(saved)
+    assert(WoWCompanion.db.settings.planTracker == true and WoWCompanion.db.settings.view == "compact")
+    fresh_client(nil)
+    assert(WoWCompanion.db.settings.planTracker == false and WoWCompanion.db.settings.view == "full")
+    assert(WoWCompanion.DEF_OF.planTracker.default == false)
 end }
 
 

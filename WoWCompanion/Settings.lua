@@ -29,7 +29,7 @@ local D = {
     -- Panel
     { key = "locked", type = "bool", default = false, page = "panel", box = "window", label = "LOCK_PANEL", name = "Lock" },
     { key = "openOnLogin", type = "bool", default = false, page = "panel", box = "window", label = "OPEN_ON_LOGIN", name = "Login" },
-    { key = "compact", type = "bool", default = false, page = "panel", box = "window", label = "COMPACT_PANEL", name = "Compact", apply = "compact" },
+    { key = "view", type = "choice", default = "full", choices = { "full", "compact", "next" }, page = "panel", box = "window", label = "VIEW_LABEL", name = "View", choiceKey = "VIEW_", widget = "dropdown", apply = "compact" },
     { key = "hideInCombat.panel", type = "bool", default = false, page = "panel", box = "window", label = "HIDE_PANEL_COMBAT", name = "HidePanel" },
     { key = "showWhatsNew", type = "bool", default = true, page = "panel", box = "window", label = "SHOW_WHATS_NEW", name = "WhatsNew" },
     { key = "scale", visual = true, type = "range", default = 1, min = 0.7, max = 1.3, step = 0.05, page = "panel", box = "window", label = "SCALE_LABEL", name = "Scale", show = "num2" },
@@ -46,6 +46,7 @@ local D = {
     { key = "planShow", type = "limit", default = "all", min = 1, max = 25, page = "map", box = "map", label = "PLAN_SHOW_LABEL", name = "PlanShow", show = "limit" },
     { key = "mergeDistance", type = "range", default = 1.2, min = 0, max = 5, step = 0.1, page = "map", box = "map", label = "MERGE_LABEL", name = "Merge", show = "num1" },
     { key = "planLines", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_LINES", name = "PlanLines" },
+    { key = "mapButton", type = "bool", default = true, page = "map", box = "map", label = "SHOW_MAP_BUTTON", name = "MapButton" },
     { key = "planArrows", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_ARROWS", name = "PlanArrows" },
     { key = "planChevrons", type = "bool", default = true, page = "map", box = "route", label = "SHOW_CHEVRONS", name = "Chevrons" },
     { key = "lineColor", visual = true, type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
@@ -61,7 +62,7 @@ local D = {
     { key = "badgeOpacity", visual = true, type = "range", default = 0.80, min = 0.2, max = 1, step = 0.05, page = "badges", box = "look", label = "BADGE_OPACITY_LABEL", name = "BadgeOpacity", show = "pct" },
     { key = "nextPulse", type = "bool", default = true, page = "badges", box = "look", label = "NEXT_PULSE", name = "NextPulse" },
     -- Tracker
-    { key = "planTracker", type = "bool", default = true, page = "tracker", box = "tracker", label = "SHOW_PLAN_TRACKER", name = "PlanTracker" },
+    { key = "planTracker", type = "bool", default = false, page = "tracker", box = "tracker", label = "SHOW_PLAN_TRACKER", name = "PlanTracker" },
     { key = "tracker", type = "bool", default = false, page = "tracker", box = "tracker", label = "SHOW_TRACKER", name = "Tracker" },
     { key = "hideInCombat.tracker", type = "bool", default = true, page = "tracker", box = "tracker", label = "HIDE_TRACKER_COMBAT", name = "HideTracker" },
     -- Minimap
@@ -70,7 +71,7 @@ local D = {
     { key = "minimap.locked", type = "bool", default = false, page = "minimap", box = "button", label = "LOCK_MINIMAP_BUTTON", name = "MinimapLocked" },
     { key = "minimapPin", type = "bool", default = true, page = "minimap", box = "minimap", label = "SHOW_MINIMAP_PIN", name = "MinimapPin" },
     { key = "arrivalPulse", type = "bool", default = true, page = "minimap", box = "minimap", label = "ARRIVAL_PULSE", name = "Arrival" },
-    { key = "minimap.angle", position = true, type = "number", default = 215, page = "minimap", box = "minimap", hidden = true },
+    { key = "minimap.angle", position = true, type = "number", default = 180, page = "minimap", box = "minimap", hidden = true },
     -- Visual customization (every row below is also restored by /wowc reset visuals)
     { key = "bgColor", visual = true, type = "color", default = { 0, 0, 0 }, page = "panel", box = "colors", label = "BG_COLOR", name = "BgColor" },
     { key = "borderShow", visual = true, type = "bool", default = true, page = "panel", box = "colors", label = "BORDER_SHOW", name = "BorderShow" },
@@ -190,6 +191,15 @@ function WC.InitSettings(db)
     s.hideInCombat = h
     s.show = type(s.show) == "table" and s.show or {}
     s.minimap = type(s.minimap) == "table" and s.minimap or {}
+    -- 0.4.3: the old compact checkbox became the View setting.
+    if s.view == nil and s.compact == true then s.view = "compact" end
+    s.compact = nil
+    -- 0.4.3: the separate plan tracker is off once for existing saves; a later choice to turn it on sticks.
+    db.migrated = type(db.migrated) == "table" and db.migrated or {}
+    if not db.migrated.planTrackerOff then
+        s.planTracker = false
+        db.migrated.planTrackerOff = true
+    end
     for _, def in ipairs(D) do set_at(s, def.key, WC.Repair(def, get_at(s, def.key))) end
 end
 
@@ -271,9 +281,14 @@ function WC.ApplySettings()
     if WC.RefreshPlan then WC.RefreshPlan() end
 end
 
--- Turns compact mode on or off (saved in the settings); temporary expansions are dropped.
+-- The panel's view: "full", "compact" or "next" (the next step only).
+function WC.ViewMode()
+    return WC.Setting("view")
+end
+
+-- The header button: compact on, or back to full (also leaves the next-step-only view).
 function WC.SetCompact(v)
-    WC.SetSetting("compact", v)
+    WC.SetSetting("view", v and "compact" or "full")
 end
 
 -- The page registered in the client's AddOns settings: a short note and a button that opens the options window.

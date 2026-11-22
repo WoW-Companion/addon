@@ -267,6 +267,45 @@ function WC.PlanText(step, mapID, px, py)
     return text .. L.PLAN_ELSEWHERE
 end
 
+-- The panel header's next-step line: "Step 1/20 · label · 125 yd W". Empty when there is no plan.
+function WC.NextStepLine(step, mapID, px, py)
+    local done, total = WC.PlanCounts()
+    if total == 0 then return "" end
+    if not step then return string.format(L.PLAN_DONE, total) end
+    local text = string.format(L.NEXT_STEP_LINE, math.min(done + 1, total), total, WC.PlanLiveText(step, step.label))
+    if mapID == step.map and px then
+        local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
+        return text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+    end
+    return text .. L.PLAN_ELSEWHERE
+end
+
+-- The "next step only" rows: the digest's quest entry for the next step's quest with its objective rows, nothing else.
+function WC.NextStepRows(rows, step)
+    local out, on = {}, false
+    local id = step and step.questID
+    if not id or id <= 0 then return out end
+    for _, r in ipairs(rows) do
+        if r.kind == "quest" then
+            if on then break end
+            on = r.quest == id
+            if on then out[#out + 1] = r end
+        elseif on and (r.kind == "obj" or r.kind == "status") then
+            out[#out + 1] = r
+        elseif on then
+            break
+        end
+    end
+    return out
+end
+
+-- The rows a view shows: all of them, the compact cut, or the next step's entry.
+function WC.ViewRows(mode, rows, expanded, step)
+    if mode == "compact" then return WC.CompactRows(rows, expanded) end
+    if mode == "next" then return WC.NextStepRows(rows, step) end
+    return rows
+end
+
 local events = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
     "PLAYER_LEVEL_UP", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED" }) do events:RegisterEvent(e) end
