@@ -21,6 +21,12 @@ local DISC = "Interface\\Minimap\\UI-Minimap-Background"
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
 -- Minimap radius in yards by zoom level (outdoors); only used to decide when the pin sits on the edge.
 local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
+local MINIMAP_YARDS_INDOORS = { [0] = 150, 125, 100, 75, 50, 25 }
+local MM_BADGE = 17 -- minimap badge diameter in pixels
+local MM_RIM = 14 -- the badge centre stays this far inside the minimap edge so the arrow fits outside it
+local MM_LIFT = { 8, 8 } -- pixels the badge sits up and right of the true spot, so the NPC icon stays visible
+local MM_ARROW_GAP = 13 -- the edge arrow sits this far from the badge centre, toward the target
+local ARRIVE_YARDS = 5 -- pick-ups and turn-ins pulse within this distance
 local MINIMAP_ARROW = "Interface\\Minimap\\ROTATING-MINIMAPARROW"
 
 local EMPTY = ""
@@ -51,10 +57,9 @@ function WC.PinGroupKind(group)
     return group.steps[1].kind
 end
 
-local function pinFor(i, canvas)
-    local p = pins[i]
-    if p then return p end
-    p = CreateFrame("Button", nil, canvas)
+-- The round badge, shared by the map pins and the minimap pin: a glow behind, a gold ring, a dark fill
+-- inset by `inset`, the number, and a gold notch (diameter `notch`) at the top right holding the "!" or "?".
+function WC.BadgeParts(p, inset, notch, font, notchInset)
     p.glow = p:CreateTexture(nil, "BACKGROUND")
     p.glow:SetTexture(DISC)
     p.glow:SetPoint("CENTER", p, "CENTER", 0, 0)
@@ -63,19 +68,26 @@ local function pinFor(i, canvas)
     p.ring:SetAllPoints()
     p.fill = p:CreateTexture(nil, "ARTWORK")
     p.fill:SetTexture(DISC)
-    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", 3, -3)
-    p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -3, 3)
+    p.fill:SetPoint("TOPLEFT", p, "TOPLEFT", inset, -inset)
+    p.fill:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -inset, inset)
     p.fill:SetVertexColor(0.05, 0.04, 0.02, 0.95)
-    p.num = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    p.num = p:CreateFontString(nil, "OVERLAY", font)
     p.num:SetPoint("CENTER", p, "CENTER", 0, 0)
     p.notchBg = p:CreateTexture(nil, "OVERLAY")
     p.notchBg:SetTexture(DISC)
-    p.notchBg:SetSize(12, 12)
-    p.notchBg:SetPoint("CENTER", p, "TOPRIGHT", -4, -4)
+    p.notchBg:SetSize(notch, notch)
+    p.notchBg:SetPoint("CENTER", p, "TOPRIGHT", -notchInset, -notchInset)
     p.notchBg:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
     p.mark = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     p.mark:SetPoint("CENTER", p.notchBg, "CENTER", 0, 0)
     p.mark:SetTextColor(0.05, 0.04, 0.02)
+end
+
+local function pinFor(i, canvas)
+    local p = pins[i]
+    if p then return p end
+    p = CreateFrame("Button", nil, canvas)
+    WC.BadgeParts(p, 3, 12, "GameFontNormal", 4)
     if p.CreateAnimationGroup then
         local ag = p.glow:CreateAnimationGroup()
         ag:SetLooping("BOUNCE")
@@ -207,25 +219,72 @@ function WC.RefreshMapPins()
     end
 end
 
+-- Minimap placement, pure. dist is in yards, bearing in degrees clockwise from north, facing the player's
+-- facing in radians (counter-clockwise from north) when Rotate Minimap is on, else nil; radius is the
+-- minimap's reach in yards and half its pixel radius. Returns the offset in pixels from the minimap centre of
+-- the true spot (x, y), the screen angle in radians, and edge = true when the target is beyond the
+-- rim (then x, y is the rim point the badge is clamped to).
+function WC.MinimapPlace(dist, bearing, facing, radius, half)
+    local angle = math.rad(bearing) + (facing or 0) -- a rotating map turns the target with the player
+    local rim = half - MM_RIM
+    local reach = dist / radius * (half - 6)
+    local edge = reach > rim
+    if edge then reach = rim end
+    return math.sin(angle) * reach, math.cos(angle) * reach, angle, edge
+end
+
+-- Where the badge is drawn relative to the true spot: lifted up and right so the game's own quest-giver
+-- icon, which sits on the spot, stays visible; clamped to the rim it has no spot to keep clear.
+function WC.MinimapBadgeOffset(edge)
+    if edge then return 0, 0 end
+    return MM_LIFT[1], MM_LIFT[2]
+end
+
+-- The edge arrow's offset from the badge centre and its texture rotation (the art points up).
+function WC.MinimapArrow(angle)
+    return math.sin(angle) * MM_ARROW_GAP, math.cos(angle) * MM_ARROW_GAP, -angle
+end
+
+-- The subtle pulse shows within ARRIVE_YARDS of a pick-up or turn-in; it never completes a step.
+function WC.PinArrived(kind, dist)
+    return (kind == "pickup" or kind == "turnin") and dist ~= nil and dist <= ARRIVE_YARDS
+end
+
 local function placeMinimap(m, mapID, px, py, step)
     if not (Minimap and mapID == step.map and px) then m:Hide() return end
     local w, h = WC.MapYards(mapID)
     local dist, _, bearing = WC.PlanDistance(px, py, step.x, step.y, w, h)
     local half = (Minimap:GetWidth() or 140) / 2
     local zoom = Minimap.GetZoom and Minimap:GetZoom() or 0
-    local radius = MINIMAP_YARDS[zoom] or MINIMAP_YARDS[3]
-    local angle = math.rad(bearing)
-    if GetCVar and GetCVar("rotateMinimap") == "1" and GetPlayerFacing and GetPlayerFacing() then
-        angle = angle + GetPlayerFacing() -- the map turns with the player
-    end
-    local reach = math.min(dist / radius, 1) * (half - 6)
+    local indoors = IsIndoors and IsIndoors()
+    local radius = (indoors and MINIMAP_YARDS_INDOORS or MINIMAP_YARDS)[zoom] or (indoors and 100 or MINIMAP_YARDS[3])
+    local facing
+    if GetCVar and GetCVar("rotateMinimap") == "1" and GetPlayerFacing then facing = GetPlayerFacing() end
+    local x, y, angle, edge = WC.MinimapPlace(dist, bearing, facing, radius, half)
     m:ClearAllPoints()
-    m:SetPoint("CENTER", Minimap, "CENTER", math.sin(angle) * reach, math.cos(angle) * reach)
-    local edge = dist > radius
-    m.dot:SetShown(not edge)
+    m:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    local b = m.badge
+    local ox, oy = WC.MinimapBadgeOffset(edge)
+    b:ClearAllPoints()
+    b:SetPoint("CENTER", m, "CENTER", ox, oy)
+    m.spot:SetShown(not edge)
     m.arrow:SetShown(edge)
-    if edge and m.arrow.SetRotation then m.arrow:SetRotation(-angle) end -- the arrow art points up
-    m.num:SetText(edge and EMPTY or tostring(step.n))
+    if edge then
+        local ax, ay, rot = WC.MinimapArrow(angle)
+        m.arrow:ClearAllPoints()
+        m.arrow:SetPoint("CENTER", b, "CENTER", ax, ay)
+        if m.arrow.SetRotation then m.arrow:SetRotation(rot) end
+    end
+    b.num:SetText(tostring(step.n))
+    local notch = WC.PinNotch(step.kind)
+    b.mark:SetText(notch or "")
+    b.notchBg:SetShown(notch ~= nil)
+    local arrived = WC.PinArrived(step.kind, dist)
+    b.glow:SetShown(arrived)
+    if b.pulse then
+        if arrived and not b.pulsing then b.pulse:Play() elseif not arrived and b.pulsing then b.pulse:Stop() end
+    end
+    b.pulsing = arrived
     m:Show()
 end
 
@@ -324,26 +383,48 @@ function WC.CreatePlanUI()
     f.label:SetPoint("LEFT", f, "LEFT", 6, 0)
     f.label:SetWidth(288)
     f.label:SetJustifyH("LEFT")
-    f.elapsed = 0
-    f:SetScript("OnUpdate", function(self, dt)
+    f:Hide()
+    WC.planTracker = f
+
+    -- A driver that is always shown, so the minimap pin updates (about 5 times a second) even with the tracker off.
+    local d = CreateFrame("Frame", nil, UIParent)
+    d.elapsed = 0
+    d:SetScript("OnUpdate", function(self, dt)
         self.elapsed = self.elapsed + (dt or 0)
         if self.elapsed < TICK then return end
         self.elapsed = 0
         tick()
     end)
-    f:Hide()
-    WC.planTracker = f
+    WC.planDriver = d
 
+    -- The minimap pin: m sits on the true spot; the round badge hangs up and right of it, with a tiny gold tick on the spot.
     local m = CreateFrame("Frame", "WoWCompanionPlanMinimapPin", Minimap)
-    m:SetSize(14, 14)
-    m.dot = m:CreateTexture(nil, "BACKGROUND")
-    m.dot:SetAllPoints()
-    m.dot:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9)
-    m.arrow = m:CreateTexture(nil, "ARTWORK")
-    m.arrow:SetAllPoints()
+    m:SetSize(1, 1)
+    m.spot = m:CreateTexture(nil, "OVERLAY")
+    m.spot:SetSize(3, 3)
+    m.spot:SetPoint("CENTER", m, "CENTER", 0, 0)
+    m.spot:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
+    local b = CreateFrame("Frame", nil, m)
+    b:SetSize(MM_BADGE, MM_BADGE)
+    WC.BadgeParts(b, 2, 9, "GameFontNormalSmall", 3)
+    b.ring:SetVertexColor(1, 0.95, 0.6, 1)
+    b.glow:SetSize(MM_BADGE * 1.6, MM_BADGE * 1.6)
+    b.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.6)
+    b.glow:Hide()
+    if b.CreateAnimationGroup then
+        local ag = b.glow:CreateAnimationGroup()
+        ag:SetLooping("BOUNCE")
+        local a = ag:CreateAnimation("Alpha")
+        a:SetFromAlpha(0.2)
+        a:SetToAlpha(0.8)
+        a:SetDuration(0.8)
+        b.pulse = ag
+    end
+    m.badge = b
+    m.arrow = b:CreateTexture(nil, "OVERLAY")
+    m.arrow:SetSize(10, 10)
     m.arrow:SetTexture(MINIMAP_ARROW)
-    m.num = m:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    m.num:SetPoint("CENTER", m, "CENTER", 0, 0)
+    m.arrow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1)
     m:Hide()
     WC.planMinimap = m
 

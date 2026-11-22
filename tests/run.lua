@@ -1133,8 +1133,39 @@ cases[#cases + 1] = { "plan: /wowc plan size and lines change the settings", fun
     assert(WoWCompanionDB.settings.planLines == false and WoWCompanionOptionPlanLines ~= nil)
 end }
 
+cases[#cases + 1] = { "plan: minimap pin clamps to the rim, lifts off the NPC, points and pulses", function()
+    local WC = plan_client("full")
+    local near = function(a, b) return math.abs(a - b) < 1e-6 end
+    -- inside the rim: due east 50 yards of 200 puts the spot east of centre, not clamped
+    local x, y, ang, edge = WC.MinimapPlace(50, 90, nil, 200, 70)
+    assert(not edge and x > 0 and near(y, 0, 1e-6) and near(ang, math.pi / 2))
+    -- beyond the rim: clamped to half - 14 exactly, along the bearing
+    x, y, ang, edge = WC.MinimapPlace(500, 0, nil, 200, 70)
+    assert(edge and near(x, 0) and near(y, 56))
+    x, y, ang, edge = WC.MinimapPlace(500, 90, nil, 200, 70)
+    assert(edge and near(x, 56) and near(y, 0))
+    -- rotation: facing east (-pi/2 ccw) turns a target due north to the left? it moves by +facing
+    x, y = WC.MinimapPlace(500, 0, math.pi / 2, 200, 70)
+    assert(near(x, 56) and near(y, 0))
+    x, y = WC.MinimapPlace(500, 90, math.pi / 2, 200, 70)
+    assert(near(x, 0) and near(y, -56))
+    -- the badge is lifted up and right of the spot, but not on the rim
+    local ox, oy = WC.MinimapBadgeOffset(false)
+    assert(ox > 0 and oy > 0)
+    ox, oy = WC.MinimapBadgeOffset(true)
+    assert(ox == 0 and oy == 0)
+    -- arrow: sits toward the target and its rotation undoes the angle (art points up)
+    local ax, ay, rot = WC.MinimapArrow(math.pi / 2)
+    assert(ax > 0 and near(ay, 0) and near(rot, -math.pi / 2))
+    ax, ay, rot = WC.MinimapArrow(math.pi)
+    assert(near(ax, 0) and ay < 0 and near(rot, -math.pi))
+    -- arrival: pick-ups and turn-ins only, within 5 yards
+    assert(WC.PinArrived("pickup", 5) and WC.PinArrived("turnin", 2) and not WC.PinArrived("pickup", 5.1))
+    assert(not WC.PinArrived("objective", 1) and not WC.PinArrived("travel", 1) and not WC.PinArrived("pickup", nil))
+end }
+
 cases[#cases + 1] = { "plan: no Questie asset or code is referenced", function()
-    for _, file in ipairs({ "PlanUI.lua", "Plan.lua", "Settings.lua", "WhatsNew.lua" }) do
+    for _, file in ipairs({ "PlanUI.lua", "Plan.lua", "Settings.lua", "WhatsNew.lua", "Locales/enUS.lua" }) do
         local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
         assert(not src:lower():find("questie", 1, true), file)
     end
