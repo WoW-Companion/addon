@@ -1865,8 +1865,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.6" and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_6_1")
+    assert(TOC_VERSION == "0.4.7" and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_7_1"); has("WHATS_NEW_0_4_6_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -2166,25 +2166,91 @@ cases[#cases + 1] = { "arrowheads: drawn as lines, no texture art; the rim arrow
     assert(#arrow == 2 and arrow[1].kind == "Line" and arrow[2].kind == "Line" and arrow[1].shown == false)
 end }
 
-cases[#cases + 1] = { "world map button: placed through the overlay API, toggles the plan, right-click opens options, setting hides it", function()
-    fresh_client(nil)
-    local made
-    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
-    function WorldMapFrame:AddOverlayFrame(template, kind, ...)
-        made = { template, kind, ... }
-        return CreateFrame(kind, nil, self)
+-- A fake of the client's quest-map frame that holds the side-tab column: tabs are children with fixed geometry.
+local function fake_column(tabs)
+    local col = CreateFrame("Frame", nil, UIParent)
+    col.left, col.top = 1000, 800
+    function col:GetLeft() return self.left end
+    function col:GetTop() return self.top end
+    for _, g in ipairs(tabs or {}) do
+        local t = CreateFrame("Button", nil, col)
+        t.w, t.h = 44, 44
+        t.geo = g
+        function t:GetTop() return self.geo.top end
+        function t:GetBottom() return self.geo.top - self.h end
+        function t:GetLeft() return self.geo.left end
     end
+    return col
+end
+
+cases[#cases + 1] = { "world map tab: built from the client's side-tab template inside the tab column's frame", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
     fresh_client(nil)
     local WC = WoWCompanion
     local b = WC.mapButton
-    assert(b and WC.mapButtonMode == "overlay" and made[2] == "Button" and made[3] == "TOPRIGHT" and b:IsShown())
-    assert(b.icon.texture == WC.ICON)
+    assert(b and WC.mapButtonMode == "tab" and b.parent == QuestMapFrame and b.template == "QuestLogTabButtonTemplate")
+    assert(b.w == 44 and b.h == 44 and b.icon.texture == WC.ICON and b:IsShown())
+    assert(not WC.CreateMapButton() and WC.mapButton == b, "created once")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "world map tab: slot choice with zero, one and several occupied tabs", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(WC.PickTabSlot({}, 44, 3) == nil)
+    assert(WC.PickTabSlot({ { top = 800, bottom = 756 } }, 44, 3) == 753)
+    assert(WC.PickTabSlot({ { top = 800, bottom = 756 }, { top = 753, bottom = 709 }, { top = 706, bottom = 662 } }, 44, 3) == 659)
+    -- order does not matter, and a gap big enough is taken
+    assert(WC.PickTabSlot({ { top = 706, bottom = 662 }, { top = 800, bottom = 756 }, { top = 753, bottom = 709 } }, 44, 3) == 659)
+    assert(WC.PickTabSlot({ { top = 800, bottom = 756 }, { top = 600, bottom = 556 } }, 44, 3) == 753)
+end }
+
+cases[#cases + 1] = { "world map tab: placed below the client's tabs, and again on resize", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local x, y
+    local function point()
+        local p = WC.mapButton.points[1]
+        return p[1], p[2], p[3], p[4], p[5]
+    end
+    local pt, rel, _, px, py = point()
+    assert(pt == "TOPLEFT" and rel == QuestMapFrame and px == -10 and py == 706 - 800, tostring(px) .. "," .. tostring(py))
+    -- a third client tab appears and the map resizes: the slot moves down
+    local t = CreateFrame("Button", nil, QuestMapFrame)
+    t.w, t.h, t.geo = 44, 44, { top = 706, left = 990 }
+    function t:GetTop() return self.geo.top end
+    function t:GetBottom() return self.geo.top - self.h end
+    function t:GetLeft() return self.geo.left end
+    QuestMapFrame.scripts.OnSizeChanged(QuestMapFrame)
+    local _, _, _, _, py2 = point()
+    assert(py2 == 659 - 800)
+    -- our own tab is never counted as an occupant
+    QuestMapFrame.scripts.OnSizeChanged(QuestMapFrame)
+    assert(select(5, point()) == py2)
+    -- no tabs in the column: a fixed default spot
+    QuestMapFrame = fake_column({})
+    WC.mapButton, WC.mapButtonParent = nil, nil
+    WC.CreateMapButton()
+    assert(WC.mapButton.points[1][3] == "TOPLEFT" and WC.mapButton.points[1][1] == "TOPRIGHT")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "world map tab: left-click toggles the plan and the checked look, right-click opens options, setting hides it", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
     local before = WC.db.settings.planMap
+    assert(b.checked == before)
     b.scripts.OnClick(b, "LeftButton")
-    assert(WC.db.settings.planMap == not before)
+    assert(WC.db.settings.planMap == not before and b.checked == not before)
     assert(not WoWCompanionOptions:IsShown())
     b.scripts.OnClick(b, "RightButton")
-    assert(WoWCompanionOptions:IsShown() and WC.db.settings.planMap == not before)
+    assert(WoWCompanionOptions:IsShown() and WC.db.settings.planMap == not before and b.checked == not before)
     b.scripts.OnEnter(b)
     local text = {}
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
@@ -2193,32 +2259,19 @@ cases[#cases + 1] = { "world map button: placed through the overlay API, toggles
     assert(not b:IsShown())
     WC.SetSetting("mapButton", true)
     assert(b:IsShown())
-    -- a map without the overlay API gets the button on the map frame's own edge
-    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
-    fresh_client(nil)
-    assert(WoWCompanion.mapButton and WoWCompanion.mapButtonMode == "edge" and WoWCompanion.mapButton.parent == WorldMapFrame)
-    WorldMapFrame = nil
+    WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
-cases[#cases + 1] = { "world map button: survives a RefreshOverlayFrames that calls the overlay methods on every frame", function()
-    fresh_client(nil)
+cases[#cases + 1] = { "world map tab: without the column or template, the button sits on the map frame's own edge", function()
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
-    WorldMapFrame.overlayFrames = {}
-    function WorldMapFrame:AddOverlayFrame(template, kind)
-        local f = CreateFrame(kind, nil, self)
-        self.overlayFrames[#self.overlayFrames + 1] = f
-        return f
-    end
-    -- as the client does: every overlay frame is asked to refresh, and a missing method is an error
-    function WorldMapFrame:RefreshOverlayFrames()
-        for _, f in ipairs(self.overlayFrames) do
-            for _, m in ipairs({ "Refresh", "OnMapChanged" }) do f[m](f) end
-        end
-    end
+    QuestMapFrame = nil
     fresh_client(nil)
-    assert(WoWCompanion.mapButtonMode == "overlay" and #WorldMapFrame.overlayFrames == 1)
-    WorldMapFrame:RefreshOverlayFrames()
-    assert(WoWCompanion.mapButton.unknownMethod == nil, "no catch-all hides other methods")
+    local WC = WoWCompanion
+    assert(WC.mapButton and WC.mapButtonMode == "edge" and WC.mapButton.parent == WorldMapFrame)
+    WC.mapButton.scripts.OnClick(WC.mapButton, "LeftButton")
+    assert(WC.mapButton.checkedTex.shown == WC.PlanShownOnMap())
+    local src = assert(io.open("WoWCompanion/Button.lua")):read("*a")
+    assert(not src:find("AddOverlayFrame", 1, true))
     WorldMapFrame = nil
 end }
 
