@@ -1765,7 +1765,7 @@ end }
 cases[#cases + 1] = { "options: settings reads give the old constants by default and follow a change", function()
     fresh_client(nil)
     local WC = WoWCompanion
-    local want = { lineWidth = 2.5, lineOpacity = 0.7, arrowSize = 14, nextGrow = 1.3, tagScale = 0.75, mergeDistance = 1.2,
+    local want = { lineWidth = 2.5, lineOpacity = 0.7, arrowSize = 8, nextGrow = 1.3, tagScale = 0.75, mergeDistance = 1.2,
         badgeOpacity = 0.80, scale = 1, bgOpacity = 0.45, panelWidth = 340, minimapPin = true, arrivalPulse = true, nextPulse = true }
     for k, v in pairs(want) do assert(settings()[k] == v and WC.Setting(k) == v, k) end
     assert(same(settings().lineColor, { 1, 0.82, 0 }) and same(settings().badgeFill, { 0.05, 0.22, 0.13 }))
@@ -1864,7 +1864,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.5" and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.4.6" and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_6_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -2280,6 +2281,22 @@ cases[#cases + 1] = { "panel views: the row lists of Full, Compact and Next step
     assert(WC.db.settings.view == "compact")
     WC.SetSetting("view", "bogus")
     assert(WC.db.settings.view == "full")
+end }
+
+cases[#cases + 1] = { "migration: arrowhead size default 8, clamp 2..24, old default moves once, a chosen value stays", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(WC.DEF_OF.arrowSize.default == 8 and WC.Setting("arrowSize") == 8)
+    assert(WC.SetSetting("arrowSize", 1) == 2 and WC.SetSetting("arrowSize", 99) == 24 and WC.SetSetting("arrowSize", 2) == 2)
+    fresh_client({ settings = { arrowSize = 14 } })
+    assert(WoWCompanion.db.settings.arrowSize == 8 and WoWCompanion.db.migrated.arrowSize8 == true)
+    fresh_client({ settings = { arrowSize = 20 } })
+    assert(WoWCompanion.db.settings.arrowSize == 20)
+    fresh_client({ settings = { arrowSize = 14 }, migrated = { arrowSize8 = true } })
+    assert(WoWCompanion.db.settings.arrowSize == 14)
+    -- geometry at the smallest size: tip and wings are distinct points, so no zero-length stroke
+    local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(0, 0, 0, 2)
+    assert(tx == 1 and ty == 0 and x1 == -1 and x2 == -1 and math.abs(y1) > 0.7 and y1 == -y2)
 end }
 
 cases[#cases + 1] = { "migration: the separate plan tracker is turned off once, a later choice sticks; compact becomes the view", function()

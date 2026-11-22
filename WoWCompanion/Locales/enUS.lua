@@ -327,6 +327,7 @@ local L = {
     WHATS_NEW_0_3_0_1 = "The advisor's quest route now shows on the world map as numbered pins, and the next step on the minimap.",
     WHATS_NEW_0_3_0_2 = "A small movable tracker shows the next step with its distance and direction, and ticks off as you play.",
     WHATS_NEW_0_3_0_3 = "Type /wowc plan to hide or show the tracker and /wowc plan map for the pins.",
+    WHATS_NEW_0_4_6_1 = "Route arrowheads are smaller by default (8), and the Arrowhead size slider now goes down to 2.",
     WHATS_NEW_0_4_5_1 = "Fixed a Lua error when the world map opens or changes zone, caused by the map button.",
     WHATS_NEW_0_4_5_2 = "This window now scrolls when the notes are long.",
     WHATS_NEW_0_4_5_3 = "No more false \"newer save\" warning right after login: the panel compares the advice with the save on disk, not the one the game refreshes at login.",
