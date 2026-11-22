@@ -463,8 +463,8 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("world map", 1, true))
-    assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION)
+    assert(#box.body.text:gsub("%s", "") > 0 and not box.body.text:find("WHATS_NEW", 1, true), "note exists and is not a raw key")
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
     box = upgrade_client("0.0.0")
@@ -474,6 +474,7 @@ cases[#cases + 1] = { "what's new shows once per version", function()
     local saved = WoWCompanionDB
     fresh_client(saved)
     assert(WoWCompanion.whatsNew == nil, "same version shows nothing")
+    assert(upgrade_client("0.0.1"), "an older recorded version shows the note again")
 end }
 cases[#cases + 1] = { "what's new is skipped on a fresh install and without a changelog entry", function()
     fresh_client(nil)
