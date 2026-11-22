@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("overlay answers", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("numbered pins", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -967,6 +967,128 @@ cases[#cases + 1] = { "no locale string contains a backtick; the stale hint read
     end
     assert(n > 50)
     assert(WoWCompanion.L.OLDER_THAN_CAPTURE == "Advice may be out of date: /reload (the overlay refreshes it) or run wowc-advisor digest.")
+end }
+
+-- The quest plan: parsing, completion from quest events, distance maths, controls.
+local function plan_client(file)
+    fresh_client(nil)
+    WoWCompanionPlan = nil
+    if file then assert(loadfile("tests/fixtures/plan_" .. file .. ".lua"))() end
+    QUESTS = {}
+    C_QuestLog = {
+        IsQuestFlaggedCompleted = function(id) return QUESTS[id] == "turnedin" end,
+        GetLogIndexForQuestID = function(id) local q = QUESTS[id]; return (q == "active" or q == "ready") and 1 or nil end,
+        IsComplete = function(id) return QUESTS[id] == "ready" end,
+    }
+    Stub.fire(frames, "PLAYER_LOGIN")
+    return WoWCompanion
+end
+
+cases[#cases + 1] = { "plan: valid file keeps the known steps and ignores unknown fields", function()
+    local WC = plan_client("full")
+    assert(#WC.plan.steps == 4 and WC.plan.steps[4].kind == "travel" and WC.plan.steps[4].n == 4)
+    assert(WC.PlanNext().label == "Pick up Quest 10")
+end }
+
+cases[#cases + 1] = { "plan: missing file, wrong schema and other character show nothing", function()
+    assert(plan_client(nil).plan == nil)
+    assert(plan_client("badschema").plan == nil)
+    local WC = plan_client("full")
+    assert(select(2, WC.ParsePlan(WoWCompanionPlan, "Nobody")) == "character")
+    assert(select(2, WC.ParsePlan(WoWCompanionPlan, nil)) == "character")
+    assert(WoWCompanionPlanTracker:IsShown() == true)
+    assert(plan_client(nil) and WoWCompanionPlanTracker:IsShown() == false)
+end }
+
+cases[#cases + 1] = { "plan: quest events advance the steps without a reload", function()
+    local WC = plan_client("full")
+    QUESTS[10] = "active"
+    Stub.fire(frames, "QUEST_ACCEPTED", 1, 10)
+    assert(WC.plan.done[1] and not WC.plan.done[2] and WC.PlanNext().n == 2)
+    QUESTS[10] = "ready"
+    Stub.fire(frames, "QUEST_LOG_UPDATE")
+    assert(WC.plan.done[2] and WC.PlanNext().n == 3)
+    QUESTS[10] = "turnedin"
+    Stub.fire(frames, "QUEST_TURNED_IN", 10)
+    assert(WC.plan.done[3] and WC.PlanNext().kind == "travel")
+    assert(WoWCompanionDB.plan["Thrall-Testrealm"].done[3])
+end }
+
+cases[#cases + 1] = { "plan: done marks persist per character and reset for a new plan", function()
+    local WC = plan_client("full")
+    Stub.fire(frames, "QUEST_ACCEPTED", 1, 10)
+    local saved = WoWCompanionDB
+    fresh_client(saved)
+    assert(loadfile("tests/fixtures/plan_full.lua"))()
+    Stub.fire(frames, "PLAYER_LOGIN")
+    assert(WoWCompanion.plan.done[1])
+    WoWCompanionPlan.generated = 1795363999
+    Stub.fire(frames, "PLAYER_LOGIN")
+    assert(not WoWCompanion.plan.done[1])
+end }
+
+cases[#cases + 1] = { "plan: distance and direction", function()
+    local WC = plan_client(nil)
+    local d, dir = WC.PlanDistance(50, 50, 60, 50, 1000, 500)
+    assert(math.abs(d - 100) < 1e-6 and dir == "E")
+    d, dir = WC.PlanDistance(50, 50, 50, 40, 1000, 500)
+    assert(math.abs(d - 50) < 1e-6 and dir == "N")
+    assert(select(2, WC.PlanDistance(50, 50, 40, 60, 1000, 500)) == "SW")
+    assert(select(2, WC.PlanDistance(50, 50, 55, 45, 1000, 1000)) == "NE")
+    assert(select(2, WC.PlanDistance(50, 50, 50, 70, 1000, 1000)) == "S")
+    assert(select(2, WC.PlanDistance(50, 50, 40, 50, 1000, 1000)) == "W")
+    assert(select(2, WC.PlanDistance(50, 50, 45, 45, 1000, 1000)) == "NW")
+    assert(WC.PlanDistance(5, 5, 5, 5, 1000, 500) == 0)
+end }
+
+cases[#cases + 1] = { "plan: tracker text shows the step with distance, or another zone", function()
+    local WC = plan_client("full")
+    local step = WC.PlanNext()
+    local near = WC.PlanText(step, 7001, 50, 50)
+    assert(near:find("^Step 1/4: Pick up Quest 10 · 0 yd"))
+    assert(WC.PlanText(step, 9999, 50, 50):find("another zone", 1, true))
+    for i = 1, 4 do WC.plan.done[i] = true end
+    assert(WC.PlanText(nil) == "Plan complete (4 steps)")
+end }
+
+cases[#cases + 1] = { "plan: /wowc plan toggles the tracker and /wowc plan map the pins", function()
+    local WC = plan_client("full")
+    assert(WoWCompanionPlanTracker:IsShown())
+    SlashCmdList.WOWC("plan")
+    assert(WoWCompanionDB.settings.planTracker == false and not WoWCompanionPlanTracker:IsShown())
+    SlashCmdList.WOWC("plan map")
+    assert(WoWCompanionDB.settings.planMap == false)
+    SlashCmdList.WOWC("plan map")
+    assert(WoWCompanionDB.settings.planMap == true and WoWCompanionOptionPlanMap ~= nil)
+end }
+
+cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next one larger", function()
+    local WC = plan_client("full")
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    local p = {}
+    for _, f in ipairs(frames) do if f.planStep then p[#p + 1] = f end end
+    assert(#p == 3 and p[1].shown and p[1].w > p[2].w)
+    assert(p[2].points[1][4] == 600 and p[2].points[1][5] == -250)
+    WorldMapFrame.GetMapID = function() return 1 end
+    WC.RefreshMapPins()
+    assert(not p[1].shown)
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", function()
+    local WC = plan_client("full")
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    for _, f in ipairs(frames) do if f.planStep and f.planStep.n == 2 then f.scripts.OnEnter(f) end end
+    local text = {}
+    for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
+    assert(text[#text - 1] == "Step 2: Quest 10" and text[#text] == "Kill 5 boars")
+    WorldMapFrame = nil
 end }
 
 local failed = 0

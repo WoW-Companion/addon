@@ -34,6 +34,8 @@ function WC.InitSettings(db)
     s.fontSize = WC.FONT_SIZES[s.fontSize] and s.fontSize or "normal"
     s.tracker = s.tracker == true
     s.compact = s.compact == true
+    s.planTracker = s.planTracker ~= false
+    s.planMap = s.planMap ~= false
     s.tooltips = s.tooltips ~= false
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
     s.hideInCombat = { tracker = h.tracker ~= false, panel = h.panel == true }
@@ -56,6 +58,7 @@ end
 function WC.ApplySettings()
     if WC.panel then WC.panel:SetScale(WC.db.settings.scale) end
     WC.Refresh()
+    if WC.RefreshPlan then WC.RefreshPlan() end
 end
 
 -- Turns compact mode on or off (saved in the settings); temporary expansions are dropped.
@@ -79,7 +82,7 @@ function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
         or (InterfaceOptions_AddCategory and "interface") or "frame"
     local f = CreateFrame("Frame", "WoWCompanionSettings", UIParent, mode == "frame" and "BasicFrameTemplateWithInset" or nil)
-    f:SetSize(320, 500)
+    f:SetSize(320, 560)
     f.name = L.ADDON_NAME
     f.checks = {}
 
@@ -133,6 +136,8 @@ function WC.CreateSettings()
     check("Lock", L.LOCK_PANEL, function() return s.locked end, function(v) s.locked = v end)
     check("Login", L.OPEN_ON_LOGIN, function() return s.openOnLogin end, function(v) s.openOnLogin = v end)
     check("Tracker", L.SHOW_TRACKER, function() return s.tracker end, function(v) s.tracker = v end)
+    check("PlanTracker", L.SHOW_PLAN_TRACKER, function() return s.planTracker end, function(v) s.planTracker = v end)
+    check("PlanMap", L.SHOW_PLAN_MAP, function() return s.planMap end, function(v) s.planMap = v end)
     check("Tooltips", L.SHOW_TOOLTIPS, function() return s.tooltips end, function(v) s.tooltips = v end)
     check("Compact", L.COMPACT_PANEL, function() return s.compact end, function(v) s.compact = v; WC.view.expanded = {} end)
     for _, sec in ipairs(WC.SECTIONS) do

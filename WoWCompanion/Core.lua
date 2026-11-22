@@ -25,6 +25,7 @@ loader:SetScript("OnEvent", function(_, _, name)
     WC.InitWhatsNew(WC.db, fresh)
     WC.CreateSettings()
     WC.CreateButton()
+    WC.CreatePlanUI()
     WC.CreateTooltips()
 end)
 
@@ -50,7 +51,7 @@ end
 WC.Ask = ask
 
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
@@ -63,6 +64,8 @@ SlashCmdList["WOWC"] = function(msg)
         WC.TogglePanel()
     elseif cmd == "settings" or cmd == "options" then
         WC.OpenSettings()
+    elseif cmd == "plan" then
+        WC.TogglePlan((msg:match("^%s*%S+%s+(%S+)") or ""):lower() == "map")
     elseif cmd == "status" then
         WC.PrintStatus()
     elseif cmd == "reset" then

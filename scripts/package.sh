@@ -10,5 +10,5 @@ mkdir -p dist
 out="dist/WoWCompanion-$version.zip"
 rm -f "$out"
 zip -qr -X "$out" WoWCompanion WoWCompanion_Digest \
-    -x WoWCompanion_Digest/Digest.lua
+    -x WoWCompanion_Digest/Digest.lua WoWCompanion_Digest/Plan.lua
 echo "$out"
