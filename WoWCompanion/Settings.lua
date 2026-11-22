@@ -114,6 +114,12 @@ local D = {
     { key = "badgeTipsXP", type = "bool", default = true, page = "tooltips", box = "tooltips", label = "SHOW_BADGE_TIP_XP", name = "BadgeTipsXP" },
     { key = "badgeTipsHideCombat", type = "bool", default = false, page = "tooltips", box = "tooltips", label = "HIDE_BADGE_TIPS_COMBAT", name = "BadgeTipsHideCombat" },
 }
+D[#D + 1] = { key = "showChips", type = "bool", default = true, page = "panel", box = "chips", label = "SHOW_CHIPS", name = "ShowChips" }
+for _, id in ipairs(WC.CHIP_ORDER) do
+    D[#D + 1] = { key = "chips." .. id, type = "bool", default = true, page = "panel", box = "chips", label = "SHOW_CHIP", labelArg = L["CHIP_" .. id], name = "Chip" .. id }
+end
+D[#D + 1] = { key = "chipPulse", type = "bool", default = true, page = "panel", box = "chips", label = "CHIP_PULSE", name = "ChipPulse" }
+D[#D + 1] = { key = "upgradesSection", type = "bool", default = false, page = "panel", box = "chips", label = "UPGRADES_SECTION", name = "UpgradesSection" }
 for _, sec in ipairs(WC.SECTIONS) do
     D[#D + 1] = { key = "show." .. sec[1], type = "bool", default = true, page = "panel", box = "sections", label = "SHOW_SECTION", labelArg = sec[2], name = "Show" .. sec[1] }
 end
@@ -198,6 +204,7 @@ function WC.InitSettings(db)
     local h = type(s.hideInCombat) == "table" and s.hideInCombat or {}
     s.hideInCombat = h
     s.show = type(s.show) == "table" and s.show or {}
+    s.chips = type(s.chips) == "table" and s.chips or {}
     s.minimap = type(s.minimap) == "table" and s.minimap or {}
     -- 0.4.3: the old compact checkbox became the View setting.
     if s.view == nil and s.compact == true then s.view = "compact" end

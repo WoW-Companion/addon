@@ -26,6 +26,9 @@ local function fresh_client(savedvars)
     end
     toc:close()
     Stub.fire(frames, "ADDON_LOADED", "WoWCompanion")
+    -- Most cases look at the upgrade lines, which start collapsed since the chip row covers them.
+    local st = WoWCompanion.db and WoWCompanion.db.settings
+    if st and not (savedvars and savedvars.settings and savedvars.settings.upgradesSection ~= nil) then st.upgradesSection = true end
 end
 
 -- Loads the slot file the way the game does: after WoWCompanion, then redraws.
@@ -130,6 +133,13 @@ local cases = {
 local function row_with(p, text)
     for _, r in ipairs(p.rows) do
         if r:IsShown() and r.label:GetText():find(text, 1, true) then return r end
+    end
+    -- the to-do chips are buttons under the header; they answer like a row that carries an entry
+    for _, b in ipairs(p.chipButtons or {}) do
+        if b:IsShown() and b.chip and b.chip.entry.title:find(text, 1, true) then
+            b.entry = b.chip.entry
+            return b
+        end
     end
     error("no row " .. text)
 end
@@ -1605,8 +1615,9 @@ cases[#cases + 1] = { "tracker rows: each entry kind renders with its icon, colo
     local turn = row_of(rows, "[12] Hollow Warning")
     assert(turn.icon == WC.ICONS.turnin and turn.right == "(Elite)")
     assert(same_color(row_of(rows, "Ready to turn in").color, WC.COLORS.green) and same_color(row_of(rows, "Turn in to Warden Ilyan").color, WC.COLORS.grey))
-    local tal = row_of(rows, "1 unspent talent point")
-    assert(tal.icon == WC.ICONS.talent and tal.kind == "line")
+    assert(not WC.RowsText(rows):find("unspent talent", 1, true), "a talent point is a chip, not a quest row")
+    local _, _, meta = WC.RenderDigest(WoWCompanionDigest, NOW, "Genaenyu", {})
+    assert(meta.chips[1].kind == "talent" and meta.chips[1].count == 1 and meta.chips[1].icon == WC.ICONS.talent)
     local up = row_of(rows, "Hammer of Fate")
     assert(up.item == 5678 and up.kind == "line" and same_color(row_of(rows, "Main Hand, ilvl 25").color, WC.COLORS.dim))
     assert(row_of(rows, "Linen Cloth").indent == 1 and row_of(rows, "Bank has 3").kind == "line")
@@ -1930,10 +1941,10 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.4.9" and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.5.0" and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
-    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1")
+    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_5_0_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -2861,11 +2872,11 @@ cases[#cases + 1] = { "training: the entry lists unknown spells with ranks and h
     IsSpellKnown = function(id) return known[id] == true end
     local p, WC = card_client()
     local r = row_with(p, "New at level 10")
-    assert(r.label:GetText() == "New at level 10: Charge (Rank 2), Thunder Clap")
+    assert(r.entry.title == "New at level 10: Charge (Rank 2), Thunder Clap")
     assert(r.icon.texture == "Interface\\Icons\\ClassIcon_WARRIOR" or r.icon.texture == WC.ICONS.talent)
     known[100] = true
     WC.Refresh()
-    assert(row_with(p, "New at level 10").label:GetText() == "New at level 10: Thunder Clap")
+    assert(row_with(p, "New at level 10").entry.title == "New at level 10: Thunder Clap")
     assert(card_text(WC, entry_of(p, "New at level 10")) == "New: Thunder Clap\nThunder Clap - new")
     known[101] = true
     WC.Refresh()
@@ -2886,6 +2897,180 @@ cases[#cases + 1] = { "training: the class icon comes from the client's class to
     local p, WC = card_client()
     assert(row_with(p, "New at level 10").icon.texture == "Interface\\Icons\\ClassIcon_WARRIOR")
     UnitClass = nil
+end }
+
+
+-- The character to-do chip row (talents, training, upgrades) under the header.
+local function chip_of(p, kind)
+    for _, b in ipairs(p.chipButtons or {}) do
+        if b:IsShown() and b.chip and b.chip.kind == kind then return b end
+    end
+end
+local function chip_kinds(p)
+    local out = {}
+    for _, b in ipairs(p.chipButtons or {}) do if b:IsShown() and b.chip then out[#out + 1] = b.chip.kind end end
+    return table.concat(out, ",")
+end
+local function tip_text(chip)
+    local t = {}
+    for _, l in ipairs(WoWCompanion.ChipTipLines(chip)) do t[#t + 1] = l.text end
+    return table.concat(t, "|")
+end
+
+cases[#cases + 1] = { "chips: one per kind with something to do, none for zero, hidden by the settings", function()
+    local p, WC = card_client()
+    assert(chip_kinds(p) == "talent,training,upgrade")
+    assert(chip_of(p, "talent").count:GetText() == "2" and chip_of(p, "training").count:GetText() == "2" and chip_of(p, "upgrade").count:GetText() == "1")
+    assert(chip_of(p, "talent").icon.texture == WC.ICONS.talent and chip_of(p, "upgrade").icon.texture == WC.ICONS.gear)
+    local d = digest14()
+    table.remove(d.sections[1].lines, 3) -- no talent line
+    WoWCompanionDigest = d
+    WC.Refresh()
+    assert(chip_kinds(p) == "training,upgrade", "zero points: no talent chip")
+    WC.SetSetting("chips.training", false)
+    assert(chip_kinds(p) == "upgrade")
+    WC.SetSetting("showChips", false)
+    assert(chip_kinds(p) == "" and p.chipH == 0)
+    WC.ResetSetting("showChips"); WC.ResetSetting("chips.training")
+    assert(chip_kinds(p) == "training,upgrade")
+end }
+
+cases[#cases + 1] = { "chips: counts come from the live talent value and the training list minus known spells", function()
+    GetUnspentTalentPoints = function() return 4 end
+    local p, WC = card_client()
+    assert(chip_of(p, "talent").count:GetText() == "4", "live value wins over the digest's 2")
+    GetUnspentTalentPoints = function() return 0 end
+    WC.Refresh()
+    assert(not chip_of(p, "talent"), "live zero hides the chip")
+    GetUnspentTalentPoints = nil
+    local d = digest14()
+    d.sections[1].lines[4].spells[3] = { id = 102, name = "Rend", new = true }
+    WoWCompanionDigest = d
+    IsSpellKnown = function(id) return id == 100 end
+    WC.Refresh()
+    assert(chip_of(p, "training").count:GetText() == "2")
+    IsSpellKnown = function(id) return id >= 100 end
+    WC.Refresh()
+    assert(not chip_of(p, "training"), "all known: no chip")
+    IsSpellKnown = nil
+    -- a level-up since the digest was written: the live count shows without a talent line
+    local d2 = digest14()
+    table.remove(d2.sections[1].lines, 3)
+    WoWCompanionDigest = d2
+    GetUnspentTalentPoints = function() return 1 end
+    WC.Refresh()
+    assert(chip_of(p, "talent").count:GetText() == "1" and chip_of(p, "talent").chip.entry.nextPick == "Next point: Mortal Strike")
+    GetUnspentTalentPoints = nil
+end }
+
+cases[#cases + 1] = { "chips: a schema 1.3 digest with no live count falls back to the digest's points", function()
+    GetUnspentTalentPoints = nil
+    local d = digest14()
+    d.schema = "1.3"
+    local p, WC = card_client(d)
+    assert(chip_of(p, "talent").count:GetText() == "2")
+    assert(tip_text(chip_of(p, "talent").chip):find("2 unspent talent points", 1, true))
+end }
+
+cases[#cases + 1] = { "chips: tooltip lines per kind", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client()
+    assert(tip_text(chip_of(p, "talent").chip) == "2 unspent talent points|Next in your plan: Mortal Strike|Click for details")
+    assert(tip_text(chip_of(p, "training").chip) == "New at level 10:|Thunder Clap - new|Click for details" or tip_text(chip_of(p, "training").chip):find("^New at level 10:|"))
+    assert(tip_text(chip_of(p, "upgrade").chip) == "1 gear upgrade|Equip Hammer of Fate (Main Hand, ilvl 25)|Click for details")
+    local d = digest14()
+    for i = 2, 5 do d.sections[2].lines[i] = { text = "Gear " .. i, slot = "Head", ilvl = i } end
+    WoWCompanionDigest = d
+    WC.Refresh()
+    local t = tip_text(chip_of(p, "upgrade").chip)
+    assert(t:find("^5 gear upgrades|") and t:find("Gear 3", 1, true) and not t:find("Gear 4", 1, true), "the top three only: " .. t)
+    local b = chip_of(p, "talent")
+    b.scripts.OnEnter(b)
+    local call = GameTooltip.calls[#GameTooltip.calls]
+    assert(call[1] == "Show")
+    b.scripts.OnLeave(b)
+    assert(GameTooltip.calls[#GameTooltip.calls][1] == "Hide")
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "chips: left and right click open the card for that chip", function()
+    local p, WC = card_client()
+    for _, kind in ipairs({ "talent", "training", "upgrade" }) do
+        for _, btn in ipairs({ "LeftButton", "RightButton" }) do
+            WC.CloseCard()
+            local b = chip_of(p, kind)
+            b.scripts.OnClick(b, btn)
+            assert(WC.card and WC.card:IsShown() and WC.card.entry.kind == kind, kind .. " " .. btn)
+            assert(#WC.CardModel(WC.card.entry).prompt > 0)
+        end
+    end
+    assert(WC.card.entry.key == "upgrades" and WC.CardModel(WC.card.entry).rows[1].text == "Equip Hammer of Fate")
+    WC.CloseCard()
+    local b = chip_of(p, "talent")
+    b.scripts.OnClick(b, "LeftButton")
+    assert(WC.CardModel(WC.card.entry).prompt == "Which talents first?", "the digest's own prompt")
+end }
+
+cases[#cases + 1] = { "chips: a count that goes up pulses, stays lit until hovered; the first sight and a drop do not", function()
+    GetUnspentTalentPoints = function() return 1 end
+    local p, WC = card_client()
+    local b = chip_of(p, "talent")
+    assert(not WC.ChipNew("talent") and not WC.ChipPulsing("talent"), "first sight: nothing new")
+    GetUnspentTalentPoints = function() return 2 end
+    WC.Refresh()
+    assert(WC.ChipNew("talent") and WC.ChipPulsing("talent") and b.scripts.OnUpdate and b.glow.alpha > 0)
+    NOW = NOW + WC.CHIP_PULSE_SECONDS + 1
+    assert(not WC.ChipPulsing("talent") and WC.ChipNew("talent"), "the pulse ends, the highlight stays")
+    b.scripts.OnUpdate(b)
+    assert(b.glow.alpha == 0.6)
+    b.scripts.OnEnter(b)
+    assert(not WC.ChipNew("talent") and b.glow.alpha == 0 and b.scripts.OnUpdate == nil, "hover clears it")
+    GetUnspentTalentPoints = function() return 1 end
+    WC.Refresh()
+    assert(not WC.ChipNew("talent"), "a drop marks nothing")
+    WC.SetSetting("chipPulse", false)
+    GetUnspentTalentPoints = function() return 3 end
+    WC.Refresh()
+    assert(not WC.ChipNew("talent"), "pulse setting off")
+    GetUnspentTalentPoints = nil
+end }
+
+cases[#cases + 1] = { "chips: talent and training are out of the quest rows; upgrades start collapsed and a setting restores them", function()
+    local p, WC = card_client()
+    assert(not p.plain:find("unspent talent", 1, true) and not p.plain:find("New at level", 1, true))
+    assert(p.plain:find("Quest 10", 1, true) and p.plain:find("Hammer of Fate", 1, true), "upgrades open here: the test client sets upgradesSection")
+    WC.SetSetting("upgradesSection", false)
+    assert(not p.plain:find("Hammer of Fate", 1, true) and p.plain:find("Upgrades", 1, true), "collapsed by default, header kept")
+    assert(chip_of(p, "upgrade"), "the chip still counts them")
+    local hdr = row_with(p, "Upgrades")
+    hdr.scripts.OnClick(hdr, "LeftButton")
+    assert(p.plain:find("Hammer of Fate", 1, true), "a click on the header opens it")
+    hdr = row_with(p, "Upgrades")
+    hdr.scripts.OnClick(hdr, "LeftButton")
+    assert(not p.plain:find("Hammer of Fate", 1, true))
+    WC.SetSetting("show.upgrades", false)
+    assert(chip_of(p, "upgrade"), "hiding the section keeps the chip")
+end }
+
+cases[#cases + 1] = { "chips: the row wraps at a narrow width and the next-step view keeps it", function()
+    local WC = fresh_client(nil) or WoWCompanion
+    local pos, h = WC.ChipLayout(3, 100, 24, 6)
+    assert(pos[1].x == 0 and pos[2].x == 30 and pos[3].x == 60 and h == 24)
+    pos, h = WC.ChipLayout(3, 60, 24, 6) -- two fit: the third wraps
+    assert(pos[3].x == 0 and pos[3].y == 30 and h == 54)
+    pos, h = WC.ChipLayout(2, 10, 24, 6) -- narrower than a chip: one per row
+    assert(pos[2].x == 0 and pos[2].y == 30)
+    local _, h0 = WC.ChipLayout(0, 100)
+    assert(h0 == 0)
+    local p
+    p, WC = card_client()
+    local top = p.scrollTop
+    WC.SetSetting("panelWidth", 280)
+    WC.SetSetting("view", "next")
+    assert(chip_kinds(p) == "talent,training,upgrade" and p.chipH > 0, "chips stay in the next-step view")
+    assert(top > 0 and p.scrollTop >= p.chipH)
+    WC.SetSetting("showChips", false)
+    assert(p.scrollTop < top + 1 - 0, "no chips: no room kept")
 end }
 
 
