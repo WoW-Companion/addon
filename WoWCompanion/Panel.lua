@@ -52,10 +52,96 @@ function WC.LayoutPanelHeader()
     end
     f.header:ClearAllPoints()
     f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -(26 + h1))
-    f.scrollTop = SCROLL_TOP + h1
+    -- the to-do chips sit under the advice time; the scroll area starts below them
+    local chipH = f.chipH or 0
+    WC.PlaceChips(f, pad, SCROLL_TOP + h1 - 2)
+    f.scrollTop = SCROLL_TOP + h1 + (chipH > 0 and chipH + 4 or 0)
     f.scroll:ClearAllPoints()
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -f.scrollTop)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(pad + 18), pad)
+end
+
+-- The pooled chip button at index i.
+local function get_chip(f, i)
+    f.chipButtons = f.chipButtons or {}
+    local b = f.chipButtons[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, f)
+    b:SetSize(WC.CHIP_SIZE, WC.CHIP_SIZE)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b.bg = b:CreateTexture(nil, "BACKGROUND")
+    b.bg:SetAllPoints()
+    b.bg:SetColorTexture(0, 0, 0, 0.6)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.glow = b:CreateTexture(nil, "OVERLAY") -- the "something new" highlight
+    b.glow:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
+    b.glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
+    b.glow:SetColorTexture(1, 0.82, 0, 1)
+    b.glow:SetAlpha(0)
+    b.count = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall") -- the badge in the corner
+    b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -2)
+    shadow(b.count)
+    b:SetScript("OnEnter", function(self)
+        WC.ChipHovered(self.chip.kind)
+        WC.StyleChip(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        for _, l in ipairs(WC.ChipTipLines(self.chip)) do GameTooltip:AddLine(l.text, l.color[1], l.color[2], l.color[3]) end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnClick", function(self) WC.OpenCard(self.chip.entry) end) -- either mouse button
+    f.chipButtons[i] = b
+    return b
+end
+
+-- The glow of a chip: pulsing while new and recent, steady until hovered, else off.
+function WC.StyleChip(b)
+    local kind = b.chip and b.chip.kind
+    if kind and WC.ChipNew(kind) then
+        b:SetScript("OnUpdate", function(self)
+            local t = WC.Now()
+            if WC.ChipPulsing(self.chip.kind, t) then
+                self.glow:SetAlpha(0.35 + 0.35 * math.sin(t * 5))
+            elseif WC.ChipNew(self.chip.kind) then
+                self.glow:SetAlpha(0.6)
+            else
+                self.glow:SetAlpha(0)
+                self:SetScript("OnUpdate", nil)
+            end
+        end)
+        b.glow:SetAlpha(0.6)
+    else
+        b:SetScript("OnUpdate", nil)
+        b.glow:SetAlpha(0)
+    end
+end
+
+-- Lays the chip buttons out (wrapping at the panel width) from the chip list the last Refresh set.
+function WC.PlaceChips(f, pad, top)
+    local chips = f.chipList or {}
+    f.chipButtons = f.chipButtons or {}
+    local pos = f.chipPos or {}
+    for i, c in ipairs(chips) do
+        local b = get_chip(f, i)
+        b.chip = c
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", pad + pos[i].x, -(top + pos[i].y))
+        b.icon:SetTexture(c.icon)
+        b.count:SetText(tostring(c.count))
+        b:Show()
+        WC.StyleChip(b)
+    end
+    for i = #chips + 1, #f.chipButtons do f.chipButtons[i]:Hide(); f.chipButtons[i].chip = nil end
+end
+
+-- Takes the chips from a render: notes counts that went up, filters by the settings, and sizes the row.
+function WC.SetChips(f, all)
+    if all then WC.ChipsNote(all) end
+    f.chipList = WC.VisibleChips(all)
+    f.chipEntries = {}
+    for _, c in ipairs(f.chipList) do f.chipEntries[c.entry.key] = c.entry end
+    f.chipPos, f.chipH = WC.ChipLayout(#f.chipList, panel_width() - 2 * WC.Setting("padding") - 24)
 end
 
 -- Sets the next-step line from the plan and where the player stands. Re-lays the header only when the text changed,
@@ -256,7 +342,11 @@ local function toggle_section(id)
         return
     end
     WC.db.collapsed = type(WC.db.collapsed) == "table" and WC.db.collapsed or {}
-    WC.db.collapsed[id] = (not WC.db.collapsed[id]) or nil
+    if WC.DefaultClosed(id) then -- closed unless explicitly opened (false)
+        if WC.db.collapsed[id] == false then WC.db.collapsed[id] = nil else WC.db.collapsed[id] = false end
+    else
+        WC.db.collapsed[id] = (not WC.db.collapsed[id]) or nil
+    end
     WC.Refresh()
 end
 
@@ -282,6 +372,7 @@ function WC.Refresh()
     local header, rows, meta = WC.RenderDigest(WoWCompanionDigest, time(), player, collapsed, show,
         WC.OwnCapturedAt(player))
     WC.StyleText(f.step)
+    WC.SetChips(f, meta and meta.chips)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
     f.header:SetText(meta and meta.advice or header)
     local mode = WC.ViewMode()

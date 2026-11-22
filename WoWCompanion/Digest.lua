@@ -352,8 +352,20 @@ local function text_rows(text)
 end
 
 -- A collapsible section header row followed by its lines (omitted when collapsed).
+-- Upgrades start closed (the chip row covers them) until the player opens the section or turns on the
+-- "list upgrades as a section" setting; collapsed[id] == false records an explicit open.
+function WC.DefaultClosed(id)
+    return id == "upgrades" and not WC.Setting("upgradesSection")
+end
+
+function WC.SectionClosed(id, collapsed)
+    local v = collapsed and collapsed[id]
+    if WC.DefaultClosed(id) then return v ~= false end
+    return v == true
+end
+
 function WC.SectionRows(out, id, title, lines, collapsed)
-    local closed = collapsed and collapsed[id] == true
+    local closed = WC.SectionClosed(id, collapsed)
     out[#out + 1] = { kind = "header", id = id, title = title, color = WC.Setting("sectionColor"), text = string.format(closed and L.CLOSED_SECTION or L.OPEN_SECTION, title) }
     if closed then return end
     for _, line in ipairs(lines) do out[#out + 1] = line end
@@ -526,11 +538,14 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
 
     local plevel = UnitLevel and UnitLevel("player") or nil
     local out = {}
+    local found = { training = {}, upgrade = {} } -- what the chip row counts; see WC.BuildChips
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
         local title = TITLES[section.id]
         local hidden = show and show[WC.SECTION_OF[section.id]] == false
         local lines = {}
-        if title and not hidden and type(section.lines) == "table" then
+        -- the chip row counts talents, training and upgrades even when their section is hidden
+        local process = not hidden or section.id == "upgrades" or section.id == "next_quests"
+        if title and process and type(section.lines) == "table" then
             for li, line in ipairs(section.lines) do
                 local quest = item_id(line.quest)
                 local id = item_id(line.item)
@@ -540,11 +555,12 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                     local entry = WC.MakeEntry("talent", "talent", line, { title = plain(line.text), points = tonumber(line.points), ask = ask,
                         nextPick = first.line and plain(first.line) or nil, spell = item_id(first.spell_id) })
                     entry.prompt = entry.prompt or clean(first.prompt, 2000)
-                    local t = WC.TalentEntry(line.points, ask, entry)
-                    if t then lines[#lines + 1] = t end
+                    -- a character to-do, not a quest: it goes to the chip row, not the list
+                    local n = WC.UnspentTalentPoints() or tonumber(line.points)
+                    if n and n >= 1 then found.talent = { count = math.floor(n), entry = entry } end
                 elseif section.id == "next_quests" and line.kind == "training" then
                     local t = WC.TrainingEntry(line)
-                    if t then lines[#lines + 1] = t end
+                    if t then found.training[#found.training + 1] = t.entry end
                 elseif section.id == "next_quests" and (line.kind == "pickup" or line.kind == "turnin" or line.kind == "progress") then
                     for _, r in ipairs(WC.QuestEntryRows(line, quest, collapsed, plevel) or {}) do lines[#lines + 1] = r end
                 else
@@ -556,6 +572,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         local entry = WC.MakeEntry(ekind, section.id .. ":" .. (id or quest or li), line, {
                             title = plain(line.text), item = id, quest = quest, ask = ask, slot = line.slot and plain(line.slot) or nil,
                             ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel) })
+                        if section.id == "upgrades" then found.upgrade[#found.upgrade + 1] = entry end
                         local row = { kind = "line", indent = INDENT, text = plain(live), item = id, quest = quest, ask = ask, entry = entry, group = entry.key }
                         if section.id == "upgrades" then
                             row.color = quality_color(id)
@@ -574,7 +591,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                     end
                 end
             end
-            if #lines > 0 then WC.SectionRows(out, section.id, title, lines, collapsed) end
+            if #lines > 0 and not hidden then WC.SectionRows(out, section.id, title, lines, collapsed) end
         end
     end
     local extras = {
@@ -598,6 +615,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     end
     if age > WC.STALE_SECONDS then table.insert(out, 1, { kind = "text", text = WC.STALE_NOTE }) end
     local meta = { name = plain(d.character or player), advice = string.format(L.ADVICE_FROM, WC.FormatClock(tonumber(d.generated) or 0), WC.FormatAge(age)) }
+    meta.chips = WC.BuildChips(found, d)
     return header, out, meta
 end
 

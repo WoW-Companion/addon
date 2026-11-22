@@ -617,6 +617,7 @@ end
 function WC.RefreshCard()
     if not (card and card:IsShown() and card.entry) then return end
     local key, fresh = card.entry.key, card.entry
+    fresh = WC.panel and WC.panel.chipEntries and WC.panel.chipEntries[key] or fresh
     for _, r in ipairs(WC.panel and WC.panel.rows or {}) do
         if r:IsShown() and r.entry and r.entry.key == key then fresh = r.entry break end
     end
