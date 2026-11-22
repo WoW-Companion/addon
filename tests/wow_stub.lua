@@ -62,13 +62,18 @@ local function new_region(kind)
     function r:CreateTexture() return new_region("Texture") end
     function r:SetAllPoints() end
     function r:SetColorTexture() end
+    function r:SetShadowOffset(x, y) self.shadow = { x, y } end
+    function r:SetShadowColor() end
+    function r:SetBackdrop(b) self.backdrop = b end
+    function r:SetBackdropColor() end
+    function r:SetBackdropBorderColor() end
     function r:SetTexture(t) self.texture = t end
     function r:SetScale(v) self.scale = v end
     function r:SetFont(path, size) self.font, self.fontSize = path, size end
     function r:SetFrameLevel(v) self.level = v end
     function r:GetFrameLevel() return self.level or 1 end
     function r:SetVertexColor() end
-    function r:SetTextColor() end
+    function r:SetTextColor(...) self.color = { ... } end
     function r:SetDrawLayer() end
     function r:RegisterForClicks() end
     function r:SetChecked(v) self.checked = v and true or false end
