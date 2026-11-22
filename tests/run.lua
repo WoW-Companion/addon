@@ -1944,7 +1944,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     assert(TOC_VERSION == "0.5.0" and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
-    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_5_0_1")
+    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -2316,23 +2316,19 @@ cases[#cases + 1] = { "world map tab: placed below the client's tabs, and again 
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
-cases[#cases + 1] = { "world map tab: left-click toggles the plan and the checked look, right-click opens options, setting hides it", function()
+cases[#cases + 1] = { "world map tab: left-click selects the plan panel, right-click opens options, setting hides it", function()
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
     QuestMapFrame = fake_column({})
     fresh_client(nil)
     local WC = WoWCompanion
     local b = WC.mapButton
     local before = WC.db.settings.planMap
-    assert(b.checked == before)
+    assert(b.checked == false)
     b.scripts.OnClick(b, "LeftButton")
-    assert(WC.db.settings.planMap == not before and b.checked == not before)
+    assert(WC.db.settings.planMap == before and b.checked == true and WC.panelState.selected)
     assert(not WoWCompanionOptions:IsShown())
     b.scripts.OnClick(b, "RightButton")
-    assert(WoWCompanionOptions:IsShown() and WC.db.settings.planMap == not before and b.checked == not before)
-    b.scripts.OnEnter(b)
-    local text = {}
-    for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
-    assert(#text == 3 and text[2]:find("Left-click", 1, true) and text[3]:find("Right-click", 1, true))
+    assert(WoWCompanionOptions:IsShown() and b.checked == true)
     WC.SetSetting("mapButton", false)
     assert(not b:IsShown())
     WC.SetSetting("mapButton", true)
@@ -2350,6 +2346,321 @@ cases[#cases + 1] = { "world map tab: without the column or template, the button
     assert(WC.mapButton.checkedTex.shown == WC.PlanShownOnMap())
     local src = assert(io.open("WoWCompanion/Button.lua")):read("*a")
     assert(not src:find("AddOverlayFrame", 1, true))
+    WorldMapFrame = nil
+end }
+
+-- ---------------------------------------------------------------- the plan in the map's side panel (MapPanel.lua)
+
+-- A synthetic route: 20 steps over two maps, a pick-up, objective and turn-in per quest, then travel stops.
+local function synthetic_steps()
+    local steps, n = {}, 0
+    local function add(kind, q, label, map, x, y, level)
+        n = n + 1
+        steps[n] = { n = n, kind = kind, questID = q, quest = q > 0 and ("Quest " .. q) or "", label = label, map = map, x = x, y = y, approx = false, level = level }
+    end
+    for q = 1, 6 do
+        local map = q <= 4 and 7001 or 7002
+        add("pickup", q, "Pick up Quest " .. q .. " from Guard " .. q, map, 10 * q, 20, 5 + q)
+        add("objective", q, "Kill 5 boars", map, 10 * q + 3, 30, 5 + q)
+        add("turnin", q, "Turn in Quest " .. q, map, 10 * q, 20, 5 + q)
+    end
+    add("travel", 0, "Travel to Otherisle", 7002, 80, 80)
+    add("travel", 0, "Travel to Home", 7001, 5, 5)
+    return steps
+end
+
+-- A client with the quest-map column, the map frame and a plan of the synthetic steps; returns WC, the tab and the column.
+local function side_panel_client(opts)
+    opts = opts or {}
+    WITH_TOOLTIP_HOOKS = true
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    WorldMapFrame.mapID = 7001
+    WorldMapFrame.GetMapID = function(self) return self.mapID end
+    WorldMapFrame.SetMapID = function(self, id) self.setCalls = (self.setCalls or 0) + 1; self.mapID = id end
+    WorldMapFrame.ScrollContainer = { SetPanTarget = function(self, x, y) self.pan = { x, y } end }
+    QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
+    if opts.native then
+        QuestMapFrame.added, QuestMapFrame.modes = {}, {}
+        QuestMapFrame.displayMode = "quests"
+        QuestMapFrame.AddContentFrame = function(self, f, mode) self.added[#self.added + 1] = { f, mode } end
+        QuestMapFrame.SetDisplayMode = function(self, mode) self.modes[#self.modes + 1] = mode; self.displayMode = mode end
+    else
+        QuestMapFrame.SetDisplayMode = function() end
+    end
+    fresh_client(opts.saved)
+    WITH_TOOLTIP_HOOKS = nil
+    local WC = WoWCompanion
+    WC.plan = { steps = synthetic_steps(), done = {}, generated = 1800000000 }
+    return WC, WC.mapButton, QuestMapFrame
+end
+
+local function side_panel_done()
+    WorldMapFrame, QuestMapFrame, C_QuestLog = nil, nil, nil
+end
+
+cases[#cases + 1] = { "side panel (overlay): our tab selects its panel, any other tab or display-mode change deselects it", function()
+    local WC, tab, col = side_panel_client()
+    assert(WC.PanelBackend() == "overlay" and WC.mapPanel == nil and not tab.checked, "nothing built before the first click")
+    tab.scripts.OnClick(tab, "LeftButton")
+    local f = WC.mapPanel
+    assert(f and f:IsShown() and tab.checked and WC.panelState.selected and WC.panelState.lastTab == "plan")
+    assert(f.parent == col, "our frame is a child of the quest panel, never a client frame")
+    tab.scripts.OnClick(tab, "LeftButton")
+    assert(not f:IsShown() and not tab.checked, "a second click deselects")
+    tab.scripts.OnClick(tab, "LeftButton")
+    local sibling = col.children[1]
+    assert(sibling.scripts.OnClick, "the client's tab is watched")
+    sibling.scripts.OnClick(sibling)
+    assert(not f:IsShown() and not tab.checked and WC.panelState.lastTab == "other", "another tab brings its content back")
+    tab.scripts.OnClick(tab, "LeftButton")
+    assert(f:IsShown())
+    HOOKS.SetDisplayMode(col, "map legend")
+    assert(not f:IsShown() and not tab.checked, "a display-mode change by the map's own controls deselects")
+    tab.scripts.OnClick(tab, "LeftButton")
+    HOOKS.SetDisplayMode(col, WC.TAB_MODE)
+    assert(f:IsShown(), "our own mode does not")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel (native): the client's public content-frame pair selects and restores the mode", function()
+    local WC, tab, col = side_panel_client({ native = true })
+    assert(WC.PanelBackend() == "native")
+    tab.scripts.OnClick(tab, "LeftButton")
+    assert(#col.added == 1 and col.added[1][1] == WC.mapPanel and col.added[1][2] == WC.TAB_MODE)
+    assert(col.modes[1] == WC.TAB_MODE and tab.checked and WC.panelState.selected)
+    tab.scripts.OnClick(tab, "LeftButton")
+    assert(col.modes[2] == "quests" and not tab.checked, "deselecting returns to the mode that was showing")
+    tab.scripts.OnClick(tab, "LeftButton")
+    HOOKS.SetDisplayMode(col, "events")
+    assert(not tab.checked and #col.modes == 3, "a client-made change is not answered with another call")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
+    local allowed = { GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
+        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, GetChildren = true, HookScript = true }
+    local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
+    local n = 0
+    for _, file in ipairs({ "MapPanel" }) do
+        local ln = 0
+        for line in io.lines("WoWCompanion/" .. file .. ".lua") do
+            ln = ln + 1
+            local code = line:gsub("%-%-.*$", "")
+            for _, obj in ipairs({ "QuestMapFrame", "WorldMapFrame", "col", "map", "sc" }) do
+                for name in code:gmatch("%f[%w_]" .. obj .. "[%.:]([%w_]+)") do
+                    n = n + 1
+                    assert(allowed[name], file .. ":" .. ln .. " calls " .. obj .. "." .. name)
+                    if guarded[name] and code:find("%(") then
+                        assert(code:find("pcall", 1, true) or code:find("type%(") or code:find("%f[%w_]and%f[^%w_]") or code:find("if "), file .. ":" .. ln .. " unguarded " .. name)
+                    end
+                end
+            end
+        end
+    end
+    assert(n > 5, "the check looked at something")
+    local src = assert(io.open("WoWCompanion/MapPanel.lua")):read("*a")
+    assert(not src:find("hooksecurefunc%s*%(%s*_G") and not src:find("QuestMapFrame%s*=") and not src:find("WorldMapFrame%s*="), "nothing of the client is replaced")
+end }
+
+cases[#cases + 1] = { "side panel rows: each kind, the next step highlighted, finished steps grouped", function()
+    local WC = side_panel_client()
+    local steps = synthetic_steps()
+    local done = { [1] = true, [2] = true }
+    local m = WC.PanelModel({ steps = steps, done = done, nextStep = steps[3], allZones = true, showDone = true })
+    assert(#m.rows == 18 and #m.done == 2)
+    assert(m.rows[1].n == 3 and m.rows[1].isNext and not m.rows[2].isNext)
+    assert(m.rows[1].kind == "turnin" and m.rows[1].icon == WC.ICONS.turnin and m.rows[1].sub == "Turn in")
+    assert(m.done[1].kind == "pickup" and m.done[1].icon == WC.ICONS.pickup and m.done[1].done)
+    assert(m.done[1].title == "[6] Quest 1" and m.done[1].sub == "Pick up from Guard 1", m.done[1].sub)
+    assert(m.done[2].kind == "objective" and m.done[2].icon == WC.ICONS.progress and m.done[2].sub == "Kill 5 boars")
+    assert(m.rows[#m.rows].kind == "travel" and m.rows[#m.rows].icon == nil and m.rows[#m.rows].title == "Travel to Home")
+    assert(#WC.PanelModel({ steps = steps, done = done, allZones = true, showDone = false }).done == 0, "completed steps can be left out")
+    -- the plan list of the synthetic route, for the record
+    local rows = {}
+    for _, r in ipairs(WC.PanelModel({ steps = steps, done = {}, nextStep = steps[1], allZones = true }).rows) do
+        rows[#rows + 1] = string.format("%2d %-9s %s%s | %s", r.n, r.kind, r.isNext and "> " or "  ", r.title, r.sub)
+    end
+    assert(#rows == 20)
+    if os.getenv("WOWC_PRINT_ROWS") then io.write(table.concat(rows, "\n"), "\n") end
+    -- the footer: stops and the summed legs on one map
+    assert(WC.PanelFooter({ { map = 1, x = 0, y = 0 }, { map = 1, x = 3, y = 4 }, { map = 2, x = 50, y = 50 } }) == "3 stops · about 5 map units")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel rows: the live objective count and the client's quest title", function()
+    local WC = side_panel_client()
+    local steps = synthetic_steps()
+    C_QuestLog = {
+        IsQuestFlaggedCompleted = function() return false end, GetLogIndexForQuestID = function(id) return id == 1 and 1 or nil end,
+        IsComplete = function() return false end, GetTitleForQuestID = function(id) return id == 1 and "Boar Trouble" or nil end,
+        GetQuestObjectives = function() return { { text = "Boar slain: 2/5", numFulfilled = 2, numRequired = 5, finished = false } } end,
+    }
+    local m = WC.PanelModel({ steps = steps, done = {}, allZones = true })
+    assert(m.rows[2].sub == "Kill 2/5 boars" or m.rows[2].sub:find("2/5", 1, true), m.rows[2].sub)
+    assert(m.rows[1].title == "[6] Boar Trouble")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel zone filter: the map shown by default, All zones on request, a setting change resets the choice", function()
+    local WC, tab = side_panel_client()
+    local steps = synthetic_steps()
+    local here = WC.PanelModel({ steps = steps, done = {}, mapID = 7002 })
+    assert(#here.rows == 7, #here.rows)
+    for _, r in ipairs(here.rows) do assert(r.step.map == 7002) end
+    assert(#WC.PanelModel({ steps = steps, done = {}, mapID = 7002, allZones = true }).rows == 20)
+    tab.scripts.OnClick(tab, "LeftButton")
+    local f = WC.mapPanel
+    assert(WC.PanelAllZones() == false and f.zoneBtn.text == "This map")
+    local shown = 0
+    for _, r in ipairs(f.rows) do if r:IsShown() then shown = shown + 1 end end
+    assert(shown == 13, shown)
+    WorldMapFrame.mapID = 7002
+    WC.RefreshMapPanel()
+    shown = 0
+    for _, r in ipairs(f.rows) do if r:IsShown() then shown = shown + 1 end end
+    assert(shown == 7, "selecting a zone on the map updates the list")
+    f.zoneBtn.scripts.OnClick(f.zoneBtn)
+    assert(WC.PanelAllZones() == true and f.zoneBtn.text == "All zones")
+    shown = 0
+    for _, r in ipairs(f.rows) do if r:IsShown() then shown = shown + 1 end end
+    assert(shown == 20)
+    WC.SetSetting("panelZone", "all")
+    assert(WC.PanelAllZones() == true)
+    f.zoneBtn.scripts.OnClick(f.zoneBtn)
+    assert(WC.PanelAllZones() == false)
+    WC.SetSetting("panelZone", "shown")
+    assert(WC.PanelAllZones() == false)
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: hover links the row and its badge, a left click centres the map, a right click opens the card", function()
+    local WC, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    WC.SetSetting("panelZone", "all")
+    local f = WC.mapPanel
+    local row = f.rows[1]
+    assert(row.step.n == 1 and row.quest == 1 and row.group == "mp1")
+    row.scripts.OnEnter(row)
+    assert(WC.hover.source == "panel" and WC.hover.quests[1] == true and WC.StepHot(WC.plan.steps[1]), "the row pulses its badge")
+    assert(row.hl:IsShown() and not WC.StepHot(WC.plan.steps[4]))
+    row.scripts.OnLeave(row)
+    assert(WC.hover.source == nil and not row.hl:IsShown())
+    -- a badge on the map lights its rows
+    WC.HoverEnterBadge({ steps = { WC.plan.steps[4] } })
+    assert(f.rows[4].hl:IsShown() and f.rows[5].hl:IsShown() and not f.rows[1].hl:IsShown())
+    WC.HoverLeaveBadge()
+    assert(not f.rows[4].hl:IsShown())
+    -- left click: switches map when needed, centres, pings
+    local far = f.rows[19]
+    far.scripts.OnClick(far, "LeftButton")
+    assert(WorldMapFrame.mapID == 7002 and WorldMapFrame.ScrollContainer.pan[1] == 0.8 and WorldMapFrame.ScrollContainer.pan[2] == 0.8)
+    row.scripts.OnClick(row, "LeftButton")
+    assert(WorldMapFrame.mapID == 7001 and WorldMapFrame.ScrollContainer.pan[1] == 0.1)
+    assert(WC.hover.source == "card" and WC.hover.quests[1] == true, "the badge pings")
+    -- right click opens the detail card; a travel step has none
+    row.scripts.OnClick(row, "RightButton")
+    assert(WC.card and WC.card:IsShown())
+    assert(WC.PanelRowClick(WC.plan.steps[19], "RightButton") == "none")
+    -- no client map functions: the click still works
+    WorldMapFrame.SetMapID, WorldMapFrame.ScrollContainer = nil, nil
+    assert(WC.PanelRowClick(WC.plan.steps[1], "LeftButton") == "center")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: rows follow quest events; the completed group collapses", function()
+    local WC, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    WC.SetSetting("panelZone", "all")
+    local f = WC.mapPanel
+    local function shown()
+        local n = 0
+        for _, r in ipairs(f.rows) do if r:IsShown() then n = n + 1 end end
+        return n
+    end
+    assert(shown() == 20 and f.rows[1].nextBg:IsShown() and not f.rows[2].nextBg:IsShown() and not f.doneHead:IsShown())
+    assert(f.stepText.text:find("Step 1/20", 1, true) and f.footer.text:find("20 stops", 1, true))
+    WC.plan.done[1] = true
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(shown() == 19 and f.rows[1].step.n == 2 and f.rows[1].nextBg:IsShown(), "the next step moves on")
+    assert(f.doneHead:IsShown() and f.doneHead.text == "Completed (1)" and f.stepText.text:find("Step 2/20", 1, true))
+    WC.plan.done[2] = true
+    WC.RefreshMapPanel()
+    assert(f.doneHead.text == "Completed (2)")
+    f.doneHead.scripts.OnClick(f.doneHead)
+    assert(shown() == 20 and f.rows[19].check:IsShown() == true, "opened: the finished steps are listed, checked")
+    f.doneHead.scripts.OnClick(f.doneHead)
+    assert(shown() == 18)
+    WC.SetSetting("panelShowDone", false)
+    assert(not f.doneHead:IsShown() and shown() == 18, "completed steps can be turned off")
+    -- a hidden tab does no work
+    tab.scripts.OnClick(tab, "LeftButton")
+    WC.plan.done[3] = true
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(f.doneHead.text == "Completed (2)")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: the eye and shift-click flip the plan on the map, nothing else", function()
+    local WC, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    local f = WC.mapPanel
+    local before = WC.db.settings.planMap
+    f.eye.scripts.OnClick(f.eye)
+    assert(WC.db.settings.planMap == not before and WC.panelState.selected and f:IsShown())
+    assert(f.eye.alpha == (before and 0.4 or 1))
+    SHIFT = true
+    tab.scripts.OnClick(tab, "LeftButton")
+    SHIFT = false
+    assert(WC.db.settings.planMap == before and WC.panelState.selected and f:IsShown() and tab.checked, "shift-click leaves the panel alone")
+    tab.scripts.OnClick(tab, "RightButton")
+    assert(WoWCompanionOptions:IsShown() and WC.panelState.selected)
+    tab.scripts.OnEnter(tab)
+    local text = {}
+    for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
+    assert(#text == 4 and text[2]:find("side panel", 1, true) and text[3]:find("Shift", 1, true) and text[4]:find("Right-click", 1, true))
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: open-on-tab setting, the session's last tab, and the new settings' defaults and reset", function()
+    local WC, tab = side_panel_client()
+    for key, want in pairs({ panelOpenOnTab = false, panelZone = "shown", panelShowDone = true }) do
+        assert(WC.Setting(key) == want and WC.IsDefault(key), key)
+    end
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(not WC.panelState.selected, "off by default: the map opens on the client's tab")
+    WC.SetSetting("panelOpenOnTab", true)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(WC.panelState.selected and WC.mapPanel:IsShown() and tab.checked)
+    local sibling = QuestMapFrame.children[1]
+    sibling.scripts.OnClick(sibling)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(not WC.panelState.selected, "the last tab used this session wins over the setting")
+    tab.scripts.OnClick(tab, "LeftButton")
+    WC.SetSetting("panelOpenOnTab", false)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(WC.panelState.selected, "and a remembered plan tab stays")
+    WC.SetSetting("panelZone", "all"); WC.SetSetting("panelShowDone", false); WC.SetSetting("panelOpenOnTab", true)
+    WC.ResetPage("map")
+    assert(WC.IsDefault("panelOpenOnTab") and WC.IsDefault("panelZone") and WC.IsDefault("panelShowDone"))
+    WC.SetSetting("mapButton", false)
+    assert(not tab:IsShown())
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: without a plan it says so, and the edge button still flips the plan on the map", function()
+    local WC, tab = side_panel_client()
+    WC.plan = nil
+    tab.scripts.OnClick(tab, "LeftButton")
+    assert(WC.mapPanel.empty.text:find("No plan yet", 1, true) and WC.mapPanel.empty:IsShown())
+    assert(WC.PanelHeader().step == "")
+    side_panel_done()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = nil
+    fresh_client(nil)
+    WC = WoWCompanion
+    local before = WC.db.settings.planMap
+    WC.mapButton.scripts.OnClick(WC.mapButton, "LeftButton")
+    assert(WC.db.settings.planMap == not before and WC.mapPanel == nil and WC.mapButton.checkedTex.shown == not before)
     WorldMapFrame = nil
 end }
 

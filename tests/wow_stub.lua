@@ -92,10 +92,14 @@ local function new_region(kind)
     function r:SetFrameStrata(v) self.strata = v end
     function r:SetShown(v) if v then self:Show() else self:Hide() end end
     function r:GetWidth() return self.w or 0 end
-    function r:HookScript(name, fn) self.scripts[name] = fn end
+    function r:HookScript(name, fn)
+        local prev = self.scripts[name]
+        self.scripts[name] = prev and function(...) prev(...); return fn(...) end or fn
+    end
     function r:SetAlpha(a) self.alpha = a end
     function r:SetMultiLine(v) self.multiLine = v end
     function r:SetFontObject() end
+    function r:SetNormalFontObject() end
     function r:SetTextInsets() end
     function r:SetVerticalScroll(v) self.vscroll = v end
     function r:GetVerticalScroll() return self.vscroll or 0 end

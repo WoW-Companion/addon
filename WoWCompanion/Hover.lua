@@ -15,8 +15,12 @@ function WC.Brighten(c)
     return { math.min(1, c[1] + (1 - c[1]) * LIFT), math.min(1, c[2] + (1 - c[2]) * LIFT), math.min(1, c[3] + (1 - c[3]) * LIFT) }
 end
 
+-- The digest panel's rows and the map side panel's rows.
 local function panel_rows()
-    return WC.panel and WC.panel.rows or {}
+    local out = {}
+    for _, r in ipairs(WC.panel and WC.panel.rows or {}) do out[#out + 1] = r end
+    for _, r in ipairs(WC.mapPanel and WC.mapPanel.rows or {}) do out[#out + 1] = r end
+    return out
 end
 
 -- Sets the row's look from the hover state: highlight bar, brighter text, dimmed when it is not the hovered one.
@@ -49,7 +53,7 @@ end
 
 -- Scrolls the panel so the row is in view (only when it is not already).
 local function scroll_into_view(row)
-    local f = WC.panel
+    local f = row.owner or WC.panel
     local sf = f and f.scroll
     if not (sf and sf.SetVerticalScroll and sf.GetVerticalScroll and row.top) then return end
     local view, cur = sf:GetHeight() or 0, sf:GetVerticalScroll() or 0

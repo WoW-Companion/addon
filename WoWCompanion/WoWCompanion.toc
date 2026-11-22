@@ -24,3 +24,4 @@ Combat.lua
 WhatsNew.lua
 Status.lua
 Button.lua
+MapPanel.lua
