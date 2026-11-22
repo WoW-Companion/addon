@@ -1,9 +1,10 @@
--- WoW Companion: a button that toggles the panel. Uses the addon compartment when the client
--- has one, otherwise a plain-frame minimap button that can be dragged around the minimap edge.
+-- WoW Companion: a button that toggles the panel. A plain-frame button sits on the minimap rim (draggable,
+-- lockable) and the addon compartment entry is kept as well when the client has one; each has its own setting.
 
 local WC = WoWCompanion
 
-WC.ICON = "Interface\\Icons\\INV_Misc_Book_09"
+-- A rolled map: reads clearly at 20 px and fits a route-planning addon. The TOCs use the same icon.
+WC.ICON = "Interface\\Icons\\INV_Misc_Map_01"
 WC.MINIMAP_RADIUS = 80
 
 -- Angle in degrees from the minimap centre (mx, my) to the cursor (cx, cy), given the minimap's scale.
@@ -23,6 +24,7 @@ function WC.TooltipLines(info)
     out[#out + 1] = string.format(L.TIP_QUEUED, WC.Unanswered(info.db))
     out[#out + 1] = L.TIP_CLICK
     out[#out + 1] = L.TIP_CLICK_RIGHT
+    out[#out + 1] = L.TIP_CLICK_SHIFT
     if info.minimap then out[#out + 1] = L.TIP_CLICK_DRAG end
     return out
 end
@@ -38,10 +40,19 @@ end
 
 local function hide_tooltip() GameTooltip:Hide() end
 
--- A click on the minimap button or the compartment entry: right opens the options window, any other click the panel.
-function WC.ButtonClick(button)
-    if button == "RightButton" then WC.OpenOptions() else WC.TogglePanel() end
+-- A click on the minimap button or the compartment entry: right opens the options window, shift-left shows or
+-- hides the plan on the map, any other click toggles the panel.
+function WC.ButtonClick(button, shift)
+    if button == "RightButton" then
+        WC.OpenOptions()
+    elseif shift then
+        WC.TogglePlan("map")
+    else
+        WC.TogglePanel()
+    end
 end
+
+local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false end
 
 function WC.PlaceMinimapButton()
     local b = WC.minimapButton
@@ -54,17 +65,26 @@ end
 local function create_minimap_button()
     local b = CreateFrame("Button", "WoWCompanionMinimapButton", Minimap)
     b:SetSize(31, 31)
-    b:SetFrameLevel(8)
+    b:SetFrameLevel(8) -- below the plan's minimap badge (12), so the badge is never hidden under it
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:RegisterForDrag("LeftButton")
+    b.back = b:CreateTexture(nil, "BACKGROUND")
+    b.back:SetSize(20, 20)
+    b.back:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
     b.icon = b:CreateTexture(nil, "ARTWORK")
     b.icon:SetSize(20, 20)
     b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
     b.icon:SetTexture(WC.ICON)
-    b:SetScript("OnClick", function(_, button) WC.ButtonClick(button) end)
+    b.border = b:CreateTexture(nil, "OVERLAY")
+    b.border:SetSize(53, 53)
+    b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    b:SetScript("OnClick", function(_, button) WC.ButtonClick(button, shift_down()) end)
     b:SetScript("OnEnter", show_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     b:SetScript("OnDragStart", function(self)
+        if WC.db.settings.minimap.locked then return end
         self:SetScript("OnUpdate", function()
             local mx, my = Minimap:GetCenter()
             local cx, cy = GetCursorPosition()
@@ -77,19 +97,38 @@ local function create_minimap_button()
     WC.PlaceMinimapButton()
 end
 
-function WC.CreateButton()
-    if AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon then
-        AddonCompartmentFrame:RegisterAddon({
-            text = WC.L.ADDON_NAME,
-            icon = WC.ICON,
-            notCheckable = true,
-            func = function(_, data) WC.ButtonClick(type(data) == "table" and data.buttonName or nil) end,
-            funcOnEnter = show_tooltip,
-            funcOnLeave = hide_tooltip,
-        })
-        WC.buttonMode = "compartment"
-    else
-        create_minimap_button()
-        WC.buttonMode = "minimap"
+-- The compartment entry's description; kept so it can be removed and added again from the options.
+local function compartment_info()
+    return {
+        text = WC.L.ADDON_NAME,
+        icon = WC.ICON,
+        notCheckable = true,
+        func = function(_, data) WC.ButtonClick(type(data) == "table" and data.buttonName or nil, shift_down()) end,
+        funcOnEnter = show_tooltip,
+        funcOnLeave = hide_tooltip,
+    }
+end
+
+-- Shows or hides each button to match its setting. The compartment entry is registered or removed; a client that
+-- cannot remove an entry keeps it until the next /reload.
+function WC.ApplyButtons()
+    local s = WC.db.settings.minimap
+    local b = WC.minimapButton
+    if b then b:SetShown(s.show ~= false) end
+    local comp = AddonCompartmentFrame
+    if comp and comp.RegisterAddon then
+        if s.compartment ~= false and not WC.compartmentInfo then
+            WC.compartmentInfo = compartment_info()
+            comp:RegisterAddon(WC.compartmentInfo)
+        elseif s.compartment == false and WC.compartmentInfo then
+            if comp.UnregisterAddon then comp:UnregisterAddon(WC.compartmentInfo) end
+            WC.compartmentInfo = nil
+        end
     end
+end
+
+function WC.CreateButton()
+    if Minimap then create_minimap_button() end
+    WC.buttonMode = (AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon) and "compartment" or "minimap"
+    WC.ApplyButtons()
 end

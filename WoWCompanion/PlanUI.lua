@@ -20,10 +20,8 @@ local NEXT_LEVEL = 50 -- the next step sits this many levels above the rest of i
 -- (TAG_LEVEL) and the map's own quest markers.
 local LINE_LEVEL, ARROW_LEVEL, PIN_LEVEL = 3000, 3001, 3010
 WC.PLAN_LEVELS = { line = LINE_LEVEL, arrow = ARROW_LEVEL, pin = PIN_LEVEL }
-local OUTLINE = { 0, 0, 0, 0.6 } -- dark edge under the gold line
-local OUTLINE_PAD = 2 -- the outline is 1 px wider each side; the line's width, colour and opacity are settings
+local OUTLINE_PAD = 2 -- the outline is 1 px wider each side; the line's width, colour and opacity, and the outline's, are settings
 local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (14 px) is the arrowSize setting
-local CHEVRON_SIZE = 9
 local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
 local DISC = "Interface\\Minimap\\UI-Minimap-Background"
@@ -31,7 +29,6 @@ local TICK = 0.2 -- the tracker and minimap update about 5 times a second
 -- Minimap radius in yards by zoom level (outdoors); only used to decide when the pin sits on the edge.
 local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
 local MINIMAP_YARDS_INDOORS = { [0] = 150, 125, 100, 75, 50, 25 }
-local MM_BADGE = 17 -- minimap badge diameter in pixels
 local MM_RIM = 14 -- the badge centre stays this far inside the minimap edge so the arrow fits outside it
 local MM_LIFT = { 8, 8 } -- pixels the badge sits up and right of the true spot, so the NPC icon stays visible
 local MM_ARROW_GAP = 13 -- the edge arrow sits this far from the badge centre, toward the target
@@ -49,15 +46,20 @@ local TAG_CHAR_WIDTH = 8 -- pixels per label character, so a merged label widens
 WC.BADGE_FILL = { 0.05, 0.22, 0.13, 0.80 }
 
 -- The fill's r, g, b, a from the settings; with nothing saved this is WC.BADGE_FILL.
-function WC.BadgeFillColor()
+function WC.BadgeFillColor(kind)
+    if kind == "minimap" then
+        local c = WC.Setting("minimapFill")
+        return c[1], c[2], c[3], WC.Setting("minimapFillOpacity")
+    end
     local c = WC.Setting("badgeFill")
-    return c[1], c[2], c[3], WC.Setting("badgeOpacity")
+    return c[1], c[2], c[3], WC.Setting(kind == "tag" and "tagFillOpacity" or "badgeOpacity")
 end
 
 -- Tints a badge's fill with the current setting (called whenever a badge is drawn, so colour changes apply live).
-function WC.ApplyBadgeFill(p)
-    p.fill:SetVertexColor(WC.BadgeFillColor())
+function WC.ApplyBadgeFill(p, kind)
+    p.fill:SetVertexColor(WC.BadgeFillColor(kind))
 end
+local PULSE_SECONDS = { map = 1.2, minimap = 0.8 } -- one pulse at the default speed; the pulseSpeed setting divides it
 local TAG_LEVEL = 3500 -- above the client's marker frames, which stay below this on the canvas
 
 local EMPTY = ""
@@ -174,8 +176,8 @@ local function pinFor(i, canvas)
         local a = ag:CreateAnimation("Alpha")
         a:SetFromAlpha(0.25)
         a:SetToAlpha(0.8)
-        a:SetDuration(1.2)
-        p.pulse = ag
+        a:SetDuration(PULSE_SECONDS.map)
+        p.pulse, p.pulseAnim = ag, a
     end
     p:SetScript("OnEnter", function(self)
         local g = self.planGroup
@@ -452,10 +454,15 @@ function WC.RefreshMapPins()
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
         end
         p.isTag = marker ~= nil
-        if g.isNext then p.ring:SetVertexColor(1, 0.95, 0.6, 1) else p.ring:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 1) end
+        local rc = WC.Setting(g.isNext and "nextRingColor" or "ringColor")
+        p.ring:SetVertexColor(rc[1], rc[2], rc[3], marker and WC.Setting("tagRingOpacity") or 1)
+        local nc = WC.Setting("numberColor")
+        p.num:SetTextColor(nc[1], nc[2], nc[3])
         local gd = (marker and WC.TagDiameter(size) or size) * 1.7
+        local gc = WC.Setting("glowColor")
         p.glow:SetSize(gd, gd)
-        p.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.5)
+        p.glow:SetVertexColor(gc[1], gc[2], gc[3], WC.Setting("glowOpacity"))
+        if p.pulseAnim then p.pulseAnim:SetDuration(PULSE_SECONDS.map / WC.Setting("pulseSpeed")) end
         p.glow:SetShown(g.isNext)
         p.num:SetText(label)
         if not marker then
@@ -465,7 +472,7 @@ function WC.RefreshMapPins()
         end
         a:Show()
         p:Show()
-        WC.ApplyBadgeFill(p)
+        WC.ApplyBadgeFill(p, marker and "tag" or nil)
         if g.isNext and p.pulse and WC.Setting("nextPulse") then p.pulse:Play() end
         local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
@@ -486,7 +493,9 @@ function WC.RefreshMapPins()
     arrowLayer:Show()
     local wantArrows = WC.db.settings.planArrows
     local lineW, lineA, lineC = WC.Setting("lineWidth"), WC.Setting("lineOpacity"), WC.Setting("lineColor")
-    local arrowSize = WC.Setting("arrowSize")
+    local arrowSize, chevronSize = WC.Setting("arrowSize"), WC.Setting("chevronSize")
+    local nextC, outC, outA = WC.Setting("nextLineColor"), WC.Setting("outlineColor"), WC.Setting("outlineOpacity")
+    local outline = { outC[1], outC[2], outC[3], outA }
     local nextAnchor = WC.PlanNext() and where[WC.PlanNext().n]
     -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
     -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
@@ -503,11 +512,12 @@ function WC.RefreshMapPins()
                     if k == 1 then
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
                         ln:SetThickness(lineW + OUTLINE_PAD + glow * 2)
-                        ln:SetColorTexture(OUTLINE[1], OUTLINE[2], OUTLINE[3], OUTLINE[4])
+                        ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
                     else
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
                         ln:SetThickness(lineW)
-                        ln:SetColorTexture(lineC[1], lineC[2], lineC[3], isNext and math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100) or lineA)
+                        local c = isNext and nextC or lineC
+                        ln:SetColorTexture(c[1], c[2], c[3], isNext and math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100) or lineA)
                     end
                     ln:SetStartPoint("CENTER", where[prev.n])
                     ln:SetEndPoint("CENTER", where[s.n])
@@ -521,14 +531,14 @@ function WC.RefreshMapPins()
                         local rot = WC.ArrowRotation(ang)
                         local function put(cx, cy, size, sub)
                             na = na + 1
-                            placeArrow(na, cx, -cy, size * scale, rot, OUTLINE, sub)
+                            placeArrow(na, cx, -cy, size * scale, rot, outline, sub)
                             na = na + 1
-                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { 1, 0.95, 0.6, 1 } or { lineC[1], lineC[2], lineC[3], 1 }, sub + 1)
+                            placeArrow(na, cx, -cy, (size - 3) * scale, rot, isNext and { nextC[1], nextC[2], nextC[3], 1 } or { lineC[1], lineC[2], lineC[3], 1 }, sub + 1)
                         end
                         put(tx, ty, arrowSize, 3)
                         local chevrons = WC.Setting("planChevrons") and WC.ChevronCount(len, w) or 0
                         for _, f in ipairs(WC.ChevronSpots(chevrons)) do
-                            put(a[1] + (b[1] - a[1]) * f, -a[2] + (-b[2] + a[2]) * f, CHEVRON_SIZE, 3)
+                            put(a[1] + (b[1] - a[1]) * f, -a[2] + (-b[2] + a[2]) * f, chevronSize, 3)
                         end
                     end
                 end
@@ -583,13 +593,22 @@ local function placeMinimap(m, mapID, px, py, step)
     m:ClearAllPoints()
     m:SetPoint("CENTER", Minimap, "CENTER", x, y)
     local b = m.badge
-    WC.ApplyBadgeFill(b)
+    local bs = WC.Setting("minimapBadgeSize")
+    b:SetSize(bs, bs)
+    b.glow:SetSize(bs * 1.6, bs * 1.6)
+    local gc, rc = WC.Setting("glowColor"), WC.Setting("nextRingColor")
+    b.glow:SetVertexColor(gc[1], gc[2], gc[3], WC.Setting("glowOpacity"))
+    b.ring:SetVertexColor(rc[1], rc[2], rc[3], 1)
+    local nc = WC.Setting("numberColor")
+    b.num:SetTextColor(nc[1], nc[2], nc[3])
+    if b.pulseAnim then b.pulseAnim:SetDuration(PULSE_SECONDS.minimap / WC.Setting("pulseSpeed")) end
+    WC.ApplyBadgeFill(b, "minimap")
     local ox, oy = WC.MinimapBadgeOffset(edge)
     b:ClearAllPoints()
     b:SetPoint("CENTER", m, "CENTER", ox, oy)
     m.spot:SetShown(not edge)
-    m.arrow:SetShown(edge)
-    if edge then
+    m.arrow:SetShown(edge and WC.Setting("minimapArrow"))
+    if edge and WC.Setting("minimapArrow") then
         local ax, ay, rot = WC.MinimapArrow(angle)
         m.arrow:ClearAllPoints()
         m.arrow:SetPoint("CENTER", b, "CENTER", ax, ay)
@@ -630,7 +649,9 @@ function WC.RefreshPlan()
     if not f then return end
     local on = WC.plan ~= nil and WC.db.settings.planTracker
     if on then
-        WC.StyleText(f.label)
+        local bg = WC.Setting("planBgColor")
+        f.bg:SetColorTexture(bg[1], bg[2], bg[3], WC.Setting("planBgOpacity"))
+        if f.label.SetFont then f.label:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", WC.Setting("planTextSize")) end
         f:Show()
     else
         f:Hide()
@@ -705,7 +726,6 @@ function WC.CreatePlanUI()
     end
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints(f)
-    f.bg:SetColorTexture(0, 0, 0, 0.5)
     f.label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.label:SetPoint("LEFT", f, "LEFT", 6, 0)
     f.label:SetWidth(288)
@@ -727,16 +747,15 @@ function WC.CreatePlanUI()
     -- The minimap pin: m sits on the true spot; the round badge hangs up and right of it, with a tiny gold tick on the spot.
     local m = CreateFrame("Frame", "WoWCompanionPlanMinimapPin", Minimap)
     m:SetSize(1, 1)
+    if m.SetFrameLevel then m:SetFrameLevel(12) end -- above the rim button (level 8), so the badge is never hidden under it
     m.spot = m:CreateTexture(nil, "OVERLAY")
     m.spot:SetSize(3, 3)
     m.spot:SetPoint("CENTER", m, "CENTER", 0, 0)
     m.spot:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 1)
     local b = CreateFrame("Frame", nil, m)
-    b:SetSize(MM_BADGE, MM_BADGE)
+    b:SetSize(WC.Setting("minimapBadgeSize"), WC.Setting("minimapBadgeSize"))
     WC.BadgeParts(b, 2, 9, "GameFontNormalSmall", 3)
-    b.ring:SetVertexColor(1, 0.95, 0.6, 1)
-    b.glow:SetSize(MM_BADGE * 1.6, MM_BADGE * 1.6)
-    b.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], 0.6)
+    b.glow:SetSize(WC.Setting("minimapBadgeSize") * 1.6, WC.Setting("minimapBadgeSize") * 1.6)
     b.glow:Hide()
     if b.CreateAnimationGroup then
         local ag = b.glow:CreateAnimationGroup()
@@ -744,8 +763,8 @@ function WC.CreatePlanUI()
         local a = ag:CreateAnimation("Alpha")
         a:SetFromAlpha(0.2)
         a:SetToAlpha(0.8)
-        a:SetDuration(0.8)
-        b.pulse = ag
+        a:SetDuration(PULSE_SECONDS.minimap)
+        b.pulse, b.pulseAnim = ag, a
     end
     m.badge = b
     m.arrow = b:CreateTexture(nil, "OVERLAY")

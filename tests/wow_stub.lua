@@ -66,7 +66,7 @@ local function new_region(kind)
     function r:SetShadowColor() end
     function r:SetBackdrop(b) self.backdrop = b end
     function r:SetBackdropColor(...) self.backdropColor = { ... } end
-    function r:SetBackdropBorderColor() end
+    function r:SetBackdropBorderColor(...) self.borderColor = { ... } end
     function r:SetTexture(t) self.texture = t end
     function r:SetScale(v) self.scale = v end
     function r:SetFont(path, size) self.font, self.fontSize = path, size end
@@ -119,6 +119,8 @@ function Stub.install(env)
         env.GameTooltip.GetItem = function() return "Hammer", "|cff0070dd|Hitem:5678::::|h[Hammer]|h|r" end
     end
     env.Minimap = new_region("Frame")
+    env.SHIFT = false
+    env.IsShiftKeyDown = function() return env.SHIFT end
     env.CURSOR = { 0, 0 }
     env.GetCursorPosition = function() return env.CURSOR[1], env.CURSOR[2] end
     -- Optional client features, off unless a test sets the flag before loading the addon.
@@ -126,6 +128,11 @@ function Stub.install(env)
     if env.WITH_COMPARTMENT then
         env.AddonCompartmentFrame = { registered = {} }
         function env.AddonCompartmentFrame:RegisterAddon(info) self.registered[#self.registered + 1] = info end
+        function env.AddonCompartmentFrame:UnregisterAddon(info)
+            for i, v in ipairs(self.registered) do
+                if v == info then table.remove(self.registered, i) break end
+            end
+        end
     end
     if env.WITH_SETTINGS_API then
         env.Settings = { opened = {} }

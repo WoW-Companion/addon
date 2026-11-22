@@ -32,10 +32,10 @@ local D = {
     { key = "compact", type = "bool", default = false, page = "panel", box = "window", label = "COMPACT_PANEL", name = "Compact", apply = "compact" },
     { key = "hideInCombat.panel", type = "bool", default = false, page = "panel", box = "window", label = "HIDE_PANEL_COMBAT", name = "HidePanel" },
     { key = "showWhatsNew", type = "bool", default = true, page = "panel", box = "window", label = "SHOW_WHATS_NEW", name = "WhatsNew" },
-    { key = "scale", type = "range", default = 1, min = 0.7, max = 1.3, step = 0.05, page = "panel", box = "window", label = "SCALE_LABEL", name = "Scale", show = "num2" },
-    { key = "fontSize", type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "panel", box = "window", label = "FONT_LABEL", name = "Font", choiceKey = "FONT_" },
-    { key = "bgOpacity", type = "range", default = 0.45, min = 0, max = 1, step = 0.05, page = "panel", box = "window", label = "BG_OPACITY_LABEL", name = "BgOpacity", show = "pct" },
-    { key = "panelWidth", type = "range", default = 340, min = 280, max = 520, step = 10, page = "panel", box = "window", label = "PANEL_WIDTH_LABEL", name = "Width", show = "int" },
+    { key = "scale", visual = true, type = "range", default = 1, min = 0.7, max = 1.3, step = 0.05, page = "panel", box = "window", label = "SCALE_LABEL", name = "Scale", show = "num2" },
+    { key = "fontSize", visual = true, type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "panel", box = "window", label = "FONT_LABEL", name = "Font", choiceKey = "FONT_" },
+    { key = "bgOpacity", visual = true, type = "range", default = 0.45, min = 0, max = 1, step = 0.05, page = "panel", box = "window", label = "BG_OPACITY_LABEL", name = "BgOpacity", show = "pct" },
+    { key = "panelWidth", visual = true, type = "range", default = 340, min = 280, max = 520, step = 10, page = "panel", box = "window", label = "PANEL_WIDTH_LABEL", name = "Width", show = "int" },
     { key = "showLevels", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_LEVELS", name = "Levels" },
     { key = "colorByDifficulty", type = "bool", default = true, page = "panel", box = "content", label = "COLOR_DIFFICULTY", name = "Difficulty" },
     { key = "showOptional", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_OPTIONAL", name = "Optional" },
@@ -48,26 +48,60 @@ local D = {
     { key = "planLines", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_LINES", name = "PlanLines" },
     { key = "planArrows", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_ARROWS", name = "PlanArrows" },
     { key = "planChevrons", type = "bool", default = true, page = "map", box = "route", label = "SHOW_CHEVRONS", name = "Chevrons" },
-    { key = "lineColor", type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
-    { key = "lineWidth", type = "range", default = 2.5, min = 1, max = 6, step = 0.5, page = "map", box = "route", label = "LINE_WIDTH_LABEL", name = "LineWidth", show = "num1" },
-    { key = "lineOpacity", type = "range", default = 0.7, min = 0.1, max = 1, step = 0.05, page = "map", box = "route", label = "LINE_OPACITY_LABEL", name = "LineOpacity", show = "pct" },
-    { key = "arrowSize", type = "range", default = 14, min = 8, max = 24, step = 1, page = "map", box = "route", label = "ARROW_SIZE_LABEL", name = "ArrowSize", show = "int" },
+    { key = "lineColor", visual = true, type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
+    { key = "lineWidth", visual = true, type = "range", default = 2.5, min = 1, max = 6, step = 0.5, page = "map", box = "route", label = "LINE_WIDTH_LABEL", name = "LineWidth", show = "num1" },
+    { key = "lineOpacity", visual = true, type = "range", default = 0.7, min = 0.1, max = 1, step = 0.05, page = "map", box = "route", label = "LINE_OPACITY_LABEL", name = "LineOpacity", show = "pct" },
+    { key = "arrowSize", visual = true, type = "range", default = 14, min = 8, max = 24, step = 1, page = "map", box = "route", label = "ARROW_SIZE_LABEL", name = "ArrowSize", show = "int" },
     -- Badges
-    { key = "planSize", type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "badges", box = "size", label = "PLAN_SIZE_LABEL", name = "PlanSize", choiceKey = "PLAN_SIZE_" },
-    { key = "badgeScale", type = "range", default = 1, min = 0.7, max = 1.5, step = 0.05, page = "badges", box = "size", label = "BADGE_SCALE_LABEL", name = "BadgeScale", show = "num2" },
-    { key = "nextGrow", type = "range", default = 1.3, min = 1, max = 2, step = 0.05, page = "badges", box = "size", label = "NEXT_GROW_LABEL", name = "NextGrow", show = "num2" },
-    { key = "tagScale", type = "range", default = 0.75, min = 0.4, max = 1, step = 0.05, page = "badges", box = "size", label = "TAG_SCALE_LABEL", name = "TagScale", show = "num2" },
-    { key = "badgeFill", type = "color", default = { 0.05, 0.22, 0.13 }, page = "badges", box = "look", label = "BADGE_FILL", name = "BadgeFill" },
-    { key = "badgeOpacity", type = "range", default = 0.80, min = 0.2, max = 1, step = 0.05, page = "badges", box = "look", label = "BADGE_OPACITY_LABEL", name = "BadgeOpacity", show = "pct" },
+    { key = "planSize", visual = true, type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "badges", box = "size", label = "PLAN_SIZE_LABEL", name = "PlanSize", choiceKey = "PLAN_SIZE_" },
+    { key = "badgeScale", visual = true, type = "range", default = 1, min = 0.7, max = 1.5, step = 0.05, page = "badges", box = "size", label = "BADGE_SCALE_LABEL", name = "BadgeScale", show = "num2" },
+    { key = "nextGrow", visual = true, type = "range", default = 1.3, min = 1, max = 2, step = 0.05, page = "badges", box = "size", label = "NEXT_GROW_LABEL", name = "NextGrow", show = "num2" },
+    { key = "tagScale", visual = true, type = "range", default = 0.75, min = 0.4, max = 1, step = 0.05, page = "badges", box = "size", label = "TAG_SCALE_LABEL", name = "TagScale", show = "num2" },
+    { key = "badgeFill", visual = true, type = "color", default = { 0.05, 0.22, 0.13 }, page = "badges", box = "look", label = "BADGE_FILL", name = "BadgeFill" },
+    { key = "badgeOpacity", visual = true, type = "range", default = 0.80, min = 0.2, max = 1, step = 0.05, page = "badges", box = "look", label = "BADGE_OPACITY_LABEL", name = "BadgeOpacity", show = "pct" },
     { key = "nextPulse", type = "bool", default = true, page = "badges", box = "look", label = "NEXT_PULSE", name = "NextPulse" },
     -- Tracker
     { key = "planTracker", type = "bool", default = true, page = "tracker", box = "tracker", label = "SHOW_PLAN_TRACKER", name = "PlanTracker" },
     { key = "tracker", type = "bool", default = false, page = "tracker", box = "tracker", label = "SHOW_TRACKER", name = "Tracker" },
     { key = "hideInCombat.tracker", type = "bool", default = true, page = "tracker", box = "tracker", label = "HIDE_TRACKER_COMBAT", name = "HideTracker" },
     -- Minimap
+    { key = "minimap.show", type = "bool", default = true, page = "minimap", box = "button", label = "SHOW_MINIMAP_BUTTON", name = "MinimapShow" },
+    { key = "minimap.compartment", type = "bool", default = true, page = "minimap", box = "button", label = "SHOW_COMPARTMENT", name = "MinimapCompartment" },
+    { key = "minimap.locked", type = "bool", default = false, page = "minimap", box = "button", label = "LOCK_MINIMAP_BUTTON", name = "MinimapLocked" },
     { key = "minimapPin", type = "bool", default = true, page = "minimap", box = "minimap", label = "SHOW_MINIMAP_PIN", name = "MinimapPin" },
     { key = "arrivalPulse", type = "bool", default = true, page = "minimap", box = "minimap", label = "ARRIVAL_PULSE", name = "Arrival" },
-    { key = "minimap.angle", type = "number", default = 215, page = "minimap", box = "minimap", hidden = true },
+    { key = "minimap.angle", position = true, type = "number", default = 215, page = "minimap", box = "minimap", hidden = true },
+    -- Visual customization (every row below is also restored by /wowc reset visuals)
+    { key = "bgColor", visual = true, type = "color", default = { 0, 0, 0 }, page = "panel", box = "colors", label = "BG_COLOR", name = "BgColor" },
+    { key = "borderShow", visual = true, type = "bool", default = true, page = "panel", box = "colors", label = "BORDER_SHOW", name = "BorderShow" },
+    { key = "borderColor", visual = true, type = "color", default = { 0.4, 0.4, 0.4 }, page = "panel", box = "colors", label = "BORDER_COLOR", name = "BorderColor" },
+    { key = "borderOpacity", visual = true, type = "range", default = 0.5, min = 0, max = 1, step = 0.05, page = "panel", box = "colors", label = "BORDER_OPACITY_LABEL", name = "BorderOpacity", show = "pct" },
+    { key = "headerColor", visual = true, type = "color", default = GOLD_LINE, page = "panel", box = "colors", label = "HEADER_COLOR", name = "HeaderColor" },
+    { key = "sectionColor", visual = true, type = "color", default = { 0.72, 0.72, 0.72 }, page = "panel", box = "colors", label = "SECTION_COLOR", name = "SectionColor" },
+    { key = "objectiveColor", visual = true, type = "color", default = { 1, 1, 1 }, page = "panel", box = "colors", label = "OBJECTIVE_COLOR", name = "ObjectiveColor" },
+    { key = "doneColor", visual = true, type = "color", default = { 0.55, 0.55, 0.55 }, page = "panel", box = "colors", label = "DONE_COLOR", name = "DoneColor" },
+    { key = "readyColor", visual = true, type = "color", default = { 0.25, 0.9, 0.25 }, page = "panel", box = "colors", label = "READY_COLOR", name = "ReadyColor" },
+    { key = "lineSpacing", visual = true, type = "range", default = 1, min = 0, max = 8, step = 1, page = "panel", box = "colors", label = "LINE_SPACING_LABEL", name = "LineSpacing", show = "int" },
+    { key = "padding", visual = true, type = "range", default = 10, min = 4, max = 24, step = 1, page = "panel", box = "colors", label = "PADDING_LABEL", name = "Padding", show = "int" },
+    { key = "nextLineColor", visual = true, type = "color", default = { 1, 0.95, 0.6 }, page = "map", box = "route", label = "NEXT_LINE_COLOR", name = "NextLineColor" },
+    { key = "outlineColor", visual = true, type = "color", default = { 0, 0, 0 }, page = "map", box = "route", label = "OUTLINE_COLOR", name = "OutlineColor" },
+    { key = "outlineOpacity", visual = true, type = "range", default = 0.6, min = 0, max = 1, step = 0.05, page = "map", box = "route", label = "OUTLINE_OPACITY_LABEL", name = "OutlineOpacity", show = "pct" },
+    { key = "chevronSize", visual = true, type = "range", default = 9, min = 4, max = 20, step = 1, page = "map", box = "route", label = "CHEVRON_SIZE_LABEL", name = "ChevronSize", show = "int" },
+    { key = "ringColor", visual = true, type = "color", default = GOLD_LINE, page = "badges", box = "rings", label = "RING_COLOR", name = "RingColor" },
+    { key = "nextRingColor", visual = true, type = "color", default = { 1, 0.95, 0.6 }, page = "badges", box = "rings", label = "NEXT_RING_COLOR", name = "NextRingColor" },
+    { key = "numberColor", visual = true, type = "color", default = GOLD_LINE, page = "badges", box = "rings", label = "NUMBER_COLOR", name = "NumberColor" },
+    { key = "glowColor", visual = true, type = "color", default = GOLD_LINE, page = "badges", box = "rings", label = "GLOW_COLOR", name = "GlowColor" },
+    { key = "glowOpacity", visual = true, type = "range", default = 0.5, min = 0, max = 1, step = 0.05, page = "badges", box = "rings", label = "GLOW_OPACITY_LABEL", name = "GlowOpacity", show = "pct" },
+    { key = "pulseSpeed", visual = true, type = "range", default = 1, min = 0.5, max = 3, step = 0.1, page = "badges", box = "rings", label = "PULSE_SPEED_LABEL", name = "PulseSpeed", show = "num1" },
+    { key = "tagFillOpacity", visual = true, type = "range", default = 0.8, min = 0, max = 1, step = 0.05, page = "badges", box = "tags", label = "TAG_FILL_OPACITY_LABEL", name = "TagFillOpacity", show = "pct" },
+    { key = "tagRingOpacity", visual = true, type = "range", default = 1, min = 0, max = 1, step = 0.05, page = "badges", box = "tags", label = "TAG_RING_OPACITY_LABEL", name = "TagRingOpacity", show = "pct" },
+    { key = "planBgColor", visual = true, type = "color", default = { 0, 0, 0 }, page = "tracker", box = "plan", label = "PLAN_BG_COLOR", name = "PlanBgColor" },
+    { key = "planBgOpacity", visual = true, type = "range", default = 0.5, min = 0, max = 1, step = 0.05, page = "tracker", box = "plan", label = "PLAN_BG_OPACITY_LABEL", name = "PlanBgOpacity", show = "pct" },
+    { key = "planTextSize", visual = true, type = "range", default = 12, min = 8, max = 20, step = 1, page = "tracker", box = "plan", label = "PLAN_TEXT_SIZE_LABEL", name = "PlanTextSize", show = "int" },
+    { key = "minimapBadgeSize", visual = true, type = "range", default = 17, min = 10, max = 30, step = 1, page = "minimap", box = "minimap", label = "MM_BADGE_SIZE_LABEL", name = "MinimapBadgeSize", show = "int" },
+    { key = "minimapFill", visual = true, type = "color", default = { 0.05, 0.22, 0.13 }, page = "minimap", box = "minimap", label = "MM_FILL_COLOR", name = "MinimapFill" },
+    { key = "minimapFillOpacity", visual = true, type = "range", default = 0.8, min = 0, max = 1, step = 0.05, page = "minimap", box = "minimap", label = "MM_FILL_OPACITY_LABEL", name = "MinimapFillOpacity", show = "pct" },
+    { key = "minimapArrow", visual = true, type = "bool", default = true, page = "minimap", box = "minimap", label = "MM_ARROW", name = "MinimapArrow" },
     -- Tooltips
     { key = "tooltips", type = "bool", default = true, page = "tooltips", box = "tooltips", label = "SHOW_TOOLTIPS", name = "Tooltips" },
 }
@@ -176,14 +210,48 @@ function WC.ApplyDef(def)
     if WC.SyncOptions then WC.SyncOptions() end
 end
 
--- Puts the rows of one page (or all, page nil) back to their defaults; no other row is touched.
-function WC.ResetPage(page)
+-- Puts every row the test accepts back to its default; no other row is touched.
+local function reset_where(accept)
     for _, def in ipairs(D) do
-        if not page or def.page == page then set_at(WC.db.settings, def.key, copy(def.default)) end
+        if accept(def) then set_at(WC.db.settings, def.key, copy(def.default)) end
     end
     WC.view.expanded = {}
     WC.ApplySettings()
     if WC.SyncOptions then WC.SyncOptions() end
+end
+
+-- Puts the rows of one page (or all, page nil) back to their defaults; no other row is touched.
+function WC.ResetPage(page)
+    reset_where(function(def) return not page or def.page == page end)
+end
+
+-- Puts one setting back to its default and applies it; no other key is touched.
+function WC.ResetSetting(key)
+    local def = WC.DEF_OF[key]
+    if not def or not WC.db then return end
+    set_at(WC.db.settings, key, copy(def.default))
+    WC.ApplyDef(def)
+end
+
+-- Every visual row (colours, opacity, sizes, spacing) back to its default; behaviour settings stay.
+function WC.ResetVisuals()
+    reset_where(function(def) return def.visual end)
+end
+
+-- Every setting back to its default except saved positions (the minimap button's angle).
+function WC.ResetEverything()
+    reset_where(function(def) return not def.position end)
+end
+
+-- True when a row holds its shipped value.
+function WC.IsDefault(key)
+    local def = WC.DEF_OF[key]
+    if not def then return true end
+    local v, d = WC.Setting(key), def.default
+    if type(d) == "table" then
+        return type(v) == "table" and v[1] == d[1] and v[2] == d[2] and v[3] == d[3]
+    end
+    return v == d
 end
 
 function WC.SectionShown(id)
@@ -198,6 +266,7 @@ end
 -- Applies the saved settings to the panel and redraws it.
 function WC.ApplySettings()
     if WC.panel then WC.panel:SetScale(WC.db.settings.scale) end
+    if WC.ApplyButtons then WC.ApplyButtons() end
     WC.Refresh()
     if WC.RefreshPlan then WC.RefreshPlan() end
 end
