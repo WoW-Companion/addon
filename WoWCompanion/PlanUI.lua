@@ -142,7 +142,7 @@ function WC.PlanTipLines(group)
         local q = s.quest or ""
         if q ~= "" and q ~= prevQuest then lines[#lines + 1] = { text = q, color = { 1, 1, 1 } } end
         prevQuest = q ~= "" and q or nil
-        local d = WC.PlanDetail(s)
+        local d = WC.PlanLiveText(s, WC.PlanDetail(s))
         if s.approx then d = (d ~= "" and d .. " " or "") .. L.PLAN_TIP_APPROX end
         if d ~= "" then lines[#lines + 1] = { text = d, color = GREY } end
     end

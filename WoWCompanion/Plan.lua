@@ -87,6 +87,64 @@ function WC.PlanQuestState(questID)
     return "none"
 end
 
+-- True when the client offers both quest-log lookups, so "none" really means "not in the log".
+local function log_known()
+    local q = C_QuestLog
+    return q ~= nil and type(q.IsQuestFlaggedCompleted) == "function" and type(q.GetLogIndexForQuestID) == "function"
+end
+
+-- The quest's objectives as { text, have, need, finished } (read only), or nil when the client cannot say.
+function WC.QuestObjectives(questID)
+    local q = C_QuestLog
+    if not (q and type(q.GetQuestObjectives) == "function") or not questID or questID <= 0 then return nil end
+    local ok, objs = pcall(q.GetQuestObjectives, questID)
+    if not ok or type(objs) ~= "table" then return nil end
+    local out = {}
+    for _, o in ipairs(objs) do
+        if type(o) == "table" and type(o.text) == "string" and o.text ~= "" then
+            local have, need = tonumber(o.numFulfilled), tonumber(o.numRequired)
+            if not need then
+                local a, b = o.text:match("(%d+)/(%d+)")
+                have, need = tonumber(a), tonumber(b)
+            end
+            out[#out + 1] = { text = o.text, have = have, need = need, finished = o.finished == true }
+        end
+    end
+    return #out > 0 and out or nil
+end
+
+-- The quest's title from the client, or nil.
+function WC.QuestTitle(questID)
+    local q = C_QuestLog
+    if q and type(q.GetTitleForQuestID) == "function" then
+        local t = q.GetTitleForQuestID(questID)
+        if type(t) == "string" and t ~= "" then return t end
+    end
+end
+
+-- The objective an objective step is about: the one whose name the label contains, else the only one.
+local function objective_for(step, objs)
+    local label = (step.label or ""):lower()
+    for _, o in ipairs(objs) do
+        local name = o.text:gsub("^%d+/%d+%s*", ""):gsub(":?%s*%d+/%d+$", ""):lower()
+        if name ~= "" and label:find(name, 1, true) then return o end
+    end
+    if #objs == 1 then return objs[1] end
+end
+
+-- text (a step's label or tooltip detail) with its objective count made live while the quest is in
+-- the log; text unchanged otherwise.
+function WC.PlanLiveText(step, text)
+    if step.kind ~= "objective" or (step.questID or 0) <= 0 or WC.PlanQuestState(step.questID) ~= "active" then return text end
+    local objs = WC.QuestObjectives(step.questID)
+    local o = objs and objective_for(step, objs)
+    if not (o and o.have and o.need) then return text end
+    local count = o.have .. "/" .. o.need
+    if text:find("%d+/%d+") then return (text:gsub("%d+/%d+", count, 1)) end
+    if o.need <= 1 then return text end
+    return (text ~= "" and text .. " " or "") .. "(" .. count .. ")"
+end
+
 local function charKey()
     return (UnitName("player") or "?") .. "-" .. (GetRealmName and GetRealmName() or "")
 end
@@ -129,18 +187,26 @@ local function mark(step)
     return true
 end
 
--- Marks the steps the quest log shows as done; returns whether anything changed.
-function WC.PlanScan()
+-- Marks the steps the quest log shows as done, and clears the pick-up and objective marks of a
+-- quest that is neither in the log nor completed (abandoned); a turned-in quest stays done.
+-- keep is a quest id whose marks are left alone (it was just accepted). Returns whether anything changed.
+function WC.PlanScan(keep)
     local p = WC.plan
     if not p then return false end
     local changed = false
+    local known = log_known()
     for _, s in ipairs(p.steps) do
-        if s.questID > 0 and not p.done[s.n] then
+        if s.questID > 0 then
             local st = WC.PlanQuestState(s.questID)
-            local done = (s.kind == "pickup" and st ~= "none")
-                or (s.kind == "objective" and (st == "ready" or st == "turnedin"))
-                or (s.kind == "turnin" and st == "turnedin")
-            if done then changed = mark(s) or changed end
+            if not p.done[s.n] then
+                local done = (s.kind == "pickup" and st ~= "none")
+                    or (s.kind == "objective" and (st == "ready" or st == "turnedin"))
+                    or (s.kind == "turnin" and st == "turnedin")
+                if done then changed = mark(s) or changed end
+            elseif known and st == "none" and (s.kind == "pickup" or s.kind == "objective") and s.questID ~= keep then
+                p.done[s.n] = nil
+                changed = true
+            end
         end
     end
     return changed
@@ -158,15 +224,42 @@ function WC.PlanOnQuestEvent(event, a, b)
             if s.questID == id and (event == "QUEST_TURNED_IN" or s.kind == "pickup") then changed = mark(s) or changed end
         end
     end
-    changed = WC.PlanScan() or changed
+    changed = WC.PlanScan(event == "QUEST_ACCEPTED" and id or nil) or changed
     if changed and WC.RefreshPlan then WC.RefreshPlan() end
+end
+
+-- Redraws the digest panel and tracker when either is on screen, so live lines stay current.
+local function refresh_panel()
+    local f = WC.panel
+    if WC.Refresh and f and (f:IsShown() or (WC.db.settings and WC.db.settings.tracker)) then WC.Refresh() end
+end
+
+-- Everything that follows the quest log and talents: plan marks, the map, the panel.
+function WC.LiveUpdate(event, a, b)
+    WC.PlanOnQuestEvent(event, a, b)
+    refresh_panel()
+end
+
+WC.LIVE_THROTTLE = 0.5 -- seconds; QUEST_LOG_UPDATE fires in bursts (looting), so it is coalesced
+
+-- Runs LiveUpdate for a QUEST_LOG_UPDATE at most once per LIVE_THROTTLE seconds. Without a client
+-- timer it runs at once.
+local pending = false
+function WC.LiveUpdateSoon(event)
+    if not (C_Timer and C_Timer.After) then return WC.LiveUpdate(event) end
+    if pending then return end
+    pending = true
+    C_Timer.After(WC.LIVE_THROTTLE, function()
+        pending = false
+        if WC.db then WC.LiveUpdate(event) end
+    end)
 end
 
 -- The tracker's text: step count and label, then distance and direction from the player.
 function WC.PlanText(step, mapID, px, py)
     local done, total = WC.PlanCounts()
     if not step then return string.format(L.PLAN_DONE, total) end
-    local text = string.format(L.PLAN_STEP, math.min(done + 1, total), total, step.label)
+    local text = string.format(L.PLAN_STEP, math.min(done + 1, total), total, WC.PlanLiveText(step, step.label))
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
         return text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
@@ -175,13 +268,17 @@ function WC.PlanText(step, mapID, px, py)
 end
 
 local events = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN" }) do events:RegisterEvent(e) end
+for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
+    "PLAYER_LEVEL_UP", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED" }) do events:RegisterEvent(e) end
 events:SetScript("OnEvent", function(_, event, a, b)
     if not WC.db then return end
     if event == "PLAYER_LOGIN" then
         WC.PlanInit()
         if WC.RefreshPlan then WC.RefreshPlan() end
+        refresh_panel()
+    elseif event == "QUEST_LOG_UPDATE" then
+        WC.LiveUpdateSoon(event)
     else
-        WC.PlanOnQuestEvent(event, a, b)
+        WC.LiveUpdate(event, a, b)
     end
 end)

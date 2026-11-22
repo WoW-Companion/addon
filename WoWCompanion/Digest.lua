@@ -46,6 +46,44 @@ local function ask_subject(text, id)
     return id and string.format(L.ASK_ITEM_SUBJECT, s, id) or s
 end
 
+-- The client's live count of unspent talent points, or nil when it cannot say.
+function WC.UnspentTalentPoints()
+    local fns = { GetUnspentTalentPoints, C_SpecializationInfo and C_SpecializationInfo.GetUnspentTalentPoints }
+    for i = 1, 2 do
+        if type(fns[i]) == "function" then
+            local ok, n = pcall(fns[i])
+            if ok and type(n) == "number" then return math.max(0, math.floor(n)) end
+        end
+    end
+end
+
+-- The text a digest line should show now, or nil to drop it. Read-only; every client call is guarded
+-- and when one is missing the stored text is returned. quest is the line's quest id, if it has one.
+--  * quest turned in: dropped; ready to turn in: says so; in the log: the live objective counts.
+--  * a stored "unspent talent point" line: the live count, dropped at zero.
+function WC.LiveLineText(text, quest)
+    text = tostring(text)
+    if quest and WC.PlanQuestState then
+        local st = WC.PlanQuestState(quest)
+        if st == "turnedin" then return nil end
+        local name = (WC.QuestTitle and WC.QuestTitle(quest)) or text:match("^(.-):%s") or text
+        if st == "ready" then return string.format(L.QUEST_LIVE, name, L.READY_TO_TURN_IN) end
+        if st == "active" and WC.QuestObjectives then
+            local objs = WC.QuestObjectives(quest)
+            if objs then
+                local parts = {}
+                for i, o in ipairs(objs) do parts[i] = o.text end
+                return string.format(L.QUEST_LIVE, name, table.concat(parts, ", "))
+            end
+        end
+    elseif text:lower():find("unspent talent point", 1, true) then
+        local n = WC.UnspentTalentPoints()
+        if n == 0 then return nil end
+        if n then return string.format(n == 1 and L.UNSPENT_ONE or L.UNSPENT_MANY, n) end
+    end
+    return text
+end
+
 -- Which template a section's lines use, by section id.
 local ASK_KIND = { next_quests = "quest", upgrades = "upgrade", keep_materials = "material" }
 
@@ -143,7 +181,15 @@ local function extra_lines(list, kind, build)
     for _, e in ipairs(type(list) == "table" and list or {}) do
         if #lines >= WC.MAX_EXTRA then break end
         local text, id, ask = nil, nil, nil
-        if type(e) == "table" and e.line then text, id, ask = build(e) end
+        if type(e) == "table" and e.line then
+            local live = WC.LiveLineText(e.line)
+            if live == e.line then
+                text, id, ask = build(e)
+            elseif live then -- the live text replaces the stored one; the ask keeps the stored subject
+                text, id, ask = build(setmetatable({ line = live }, { __index = e }))
+                if ask then ask.subject = ask_subject(e.line) end
+            end
+        end
         if text then lines[#lines + 1] = { kind = "line", text = text, [kind] = id and item_id(id) or nil, ask = ask } end
     end
     return lines
@@ -200,16 +246,20 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
         local title = TITLES[section.id]
         local hidden = show and show[WC.SECTION_OF[section.id]] == false
-        if title and not hidden and type(section.lines) == "table" and #section.lines > 0 then
-            local lines = {}
+        local lines = {}
+        if title and not hidden and type(section.lines) == "table" then
             for _, line in ipairs(section.lines) do
-                local text = string.format(L.LINE, plain(line.text))
+              local quest = item_id(line.quest)
+              local live = WC.LiveLineText(line.text, quest)
+              if live then
+                local text = string.format(L.LINE, plain(live))
                 local id = item_id(line.item)
                 local kind = ASK_KIND[section.id]
                 local ask = kind and { kind = kind, subject = ask_subject(line.text, kind ~= "quest" and id or nil) } or nil
-                lines[#lines + 1] = { kind = "line", text = text, item = id, quest = item_id(line.quest), ask = ask }
+                lines[#lines + 1] = { kind = "line", text = text, item = id, quest = quest, ask = ask }
+              end
             end
-            WC.SectionRows(out, section.id, title, lines, collapsed)
+            if #lines > 0 then WC.SectionRows(out, section.id, title, lines, collapsed) end
         end
     end
     local extras = {

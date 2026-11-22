@@ -18,11 +18,18 @@ function WC.TrackerText(d, player, now, captured)
     if not WC.SchemaOK(d.schema) or type(d.sections) ~= "table" then return L.TRACKER_EMPTY end
     for _, section in ipairs(d.sections) do
         local lines = section.id == "next_quests" and section.lines
-        if type(lines) == "table" and type(lines[1]) == "table" and lines[1].text then
-            local text = string.format(L.TRACKER_NEXT, plain(lines[1].text))
-            if #lines > 1 then text = text .. string.format(L.TRACKER_MORE, #lines - 1) end
-            if now and WC.DigestOutdated(d, now, captured) then text = text .. " (" .. L.OUT_OF_DATE_SHORT:lower() .. ")" end
-            return text
+        if type(lines) == "table" then
+            local live = {} -- live text per line; turned-in quests drop out
+            for _, line in ipairs(lines) do
+                local t = type(line) == "table" and line.text and WC.LiveLineText(line.text, tonumber(line.quest))
+                if t then live[#live + 1] = t end
+            end
+            if live[1] then
+                local text = string.format(L.TRACKER_NEXT, plain(live[1]))
+                if #live > 1 then text = text .. string.format(L.TRACKER_MORE, #live - 1) end
+                if now and WC.DigestOutdated(d, now, captured) then text = text .. " (" .. L.OUT_OF_DATE_SHORT:lower() .. ")" end
+                return text
+            end
         end
     end
     return L.TRACKER_EMPTY

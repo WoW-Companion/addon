@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("badges", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("stay current", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1053,15 +1053,135 @@ end }
 
 cases[#cases + 1] = { "plan: done marks persist per character and reset for a new plan", function()
     local WC = plan_client("full")
+    QUESTS[10] = "active"
     Stub.fire(frames, "QUEST_ACCEPTED", 1, 10)
     local saved = WoWCompanionDB
     fresh_client(saved)
     assert(loadfile("tests/fixtures/plan_full.lua"))()
     Stub.fire(frames, "PLAYER_LOGIN")
     assert(WoWCompanion.plan.done[1])
+    QUESTS[10] = nil -- the new plan starts clean, and the log no longer holds the quest
     WoWCompanionPlan.generated = 1795363999
     Stub.fire(frames, "PLAYER_LOGIN")
     assert(not WoWCompanion.plan.done[1])
+end }
+
+-- Live panel and plan: lines and marks follow the quest log and talents between advisor updates.
+local function live_digest(lines)
+    WoWCompanionDigest = { schema = 1, generated = NOW, character = "Thrall",
+        sections = { { id = "next_quests", lines = lines } } }
+end
+local function panel_text()
+    WoWCompanion.Refresh()
+    return WoWCompanion.panel.plain
+end
+
+cases[#cases + 1] = { "live digest: a quest line goes 0/6, 3/6, ready, turned in", function()
+    local WC = plan_client(nil)
+    local OBJ = { { text = "Windsong Crawler Meat: 0/6", numFulfilled = 0, numRequired = 6, finished = false } }
+    C_QuestLog.GetQuestObjectives = function() return OBJ end
+    C_QuestLog.GetTitleForQuestID = function() return "Crab Season" end
+    live_digest({ { text = "Crab Season: 0/6 Windsong Crawler Meat", quest = 77 }, { text = "Plain line" } })
+    assert(panel_text():find("Crab Season: 0/6 Windsong", 1, true), "not in the log: stored text")
+    QUESTS[77] = "active"
+    assert(panel_text():find("Crab Season - Windsong Crawler Meat: 0/6", 1, true))
+    OBJ[1].text, OBJ[1].numFulfilled = "Windsong Crawler Meat: 3/6", 3
+    assert(panel_text():find("Windsong Crawler Meat: 3/6", 1, true))
+    assert(WC.TrackerText(WoWCompanionDigest, "Thrall"):find("3/6", 1, true))
+    QUESTS[77] = "ready"
+    local t = panel_text()
+    assert(t:find("Crab Season - ready to turn in", 1, true) and t:find("Plain line", 1, true))
+    QUESTS[77] = "turnedin"
+    t = panel_text()
+    assert(not t:find("Crab Season", 1, true) and t:find("Plain line", 1, true), "turned-in line drops")
+    live_digest({ { text = "Only one", quest = 77 } })
+    assert(not panel_text():find("Next quests", 1, true) and WC.TrackerText(WoWCompanionDigest, "Thrall") == WC.L.TRACKER_EMPTY)
+end }
+
+cases[#cases + 1] = { "live digest: missing APIs fall back to the stored text", function()
+    local WC = plan_client(nil)
+    C_QuestLog = nil
+    live_digest({ { text = "Crab Season: 0/6 Windsong Crawler Meat", quest = 77 } })
+    assert(panel_text():find("Crab Season: 0/6 Windsong Crawler Meat", 1, true))
+    C_QuestLog = { IsQuestFlaggedCompleted = function() return false end, GetLogIndexForQuestID = function() return 1 end,
+        IsComplete = function() return false end } -- in the log, but no objectives API
+    assert(panel_text():find("Crab Season: 0/6 Windsong Crawler Meat", 1, true))
+    GetUnspentTalentPoints = nil
+    WoWCompanionDigest.talents = { { line = "You have 1 unspent talent point" } }
+    assert(panel_text():find("You have 1 unspent talent point", 1, true))
+end }
+
+cases[#cases + 1] = { "live digest: the talent line follows the unspent count", function()
+    local WC = plan_client(nil)
+    live_digest({ { text = "Pick up X" } })
+    WoWCompanionDigest.talents = { { line = "You have 1 unspent talent point", spell_id = 9 } }
+    local n = 2
+    GetUnspentTalentPoints = function() return n end
+    assert(panel_text():find("You have 2 unspent talent points", 1, true))
+    n = 1
+    assert(panel_text():find("You have 1 unspent talent point", 1, true))
+    n = 0
+    assert(not panel_text():find("unspent", 1, true) and not panel_text():find("Talents", 1, true))
+    n = 3
+    Stub.fire(frames, "PLAYER_TALENT_UPDATE")
+    WoWCompanionPanel:Show()
+    Stub.fire(frames, "CHARACTER_POINTS_CHANGED")
+    assert(WC.panel.plain:find("You have 3 unspent", 1, true), "talent events redraw a shown panel")
+    GetUnspentTalentPoints = nil
+end }
+
+cases[#cases + 1] = { "live plan: abandoning clears pick-up and objective marks; turned in stays", function()
+    local WC = plan_client("full")
+    QUESTS[10] = "ready"
+    Stub.fire(frames, "QUEST_LOG_UPDATE")
+    assert(WC.plan.done[1] and WC.plan.done[2] and not WC.plan.done[3])
+    QUESTS[10] = nil
+    Stub.fire(frames, "QUEST_REMOVED", 10)
+    assert(not WC.plan.done[1] and not WC.plan.done[2] and WC.PlanNext().n == 1, "abandon un-marks")
+    QUESTS[10] = "active"
+    Stub.fire(frames, "QUEST_ACCEPTED", 1, 10)
+    assert(WC.plan.done[1] and not WC.plan.done[2], "re-accept re-marks")
+    QUESTS[10] = "turnedin"
+    Stub.fire(frames, "QUEST_TURNED_IN", 10)
+    Stub.fire(frames, "QUEST_REMOVED", 10)
+    assert(WC.plan.done[1] and WC.plan.done[2] and WC.plan.done[3], "turned in stays done")
+    -- A client without the log lookups never clears anything.
+    C_QuestLog = nil
+    WC.PlanScan()
+    assert(WC.plan.done[1] and WC.plan.done[3])
+end }
+
+cases[#cases + 1] = { "live plan: objective text is live in tooltips and the tracker", function()
+    local WC = plan_client("full")
+    local step = WC.plan.steps[2]
+    local OBJ = { { text = "boars slain: 2/5", numFulfilled = 2, numRequired = 5 } }
+    C_QuestLog.GetQuestObjectives = function() return OBJ end
+    assert(WC.PlanLiveText(step, "Kill 5 boars") == "Kill 5 boars", "not in the log: the label")
+    QUESTS[10] = "active"
+    assert(WC.PlanLiveText(step, "Kill 5 boars") == "Kill 5 boars (2/5)")
+    assert(WC.PlanLiveText(step, "Kill 0/5 boars") == "Kill 2/5 boars")
+    assert(WC.PlanLiveText(WC.plan.steps[1], "Pick up Quest 10") == "Pick up Quest 10", "only objective steps")
+    local tip = {}
+    for _, l in ipairs(WC.PlanTipLines({ steps = { step } })) do tip[#tip + 1] = l.text end
+    assert(table.concat(tip, "|"):find("2/5", 1, true))
+    C_QuestLog.GetQuestObjectives = nil
+    assert(WC.PlanLiveText(step, "Kill 5 boars") == "Kill 5 boars", "no API: the label")
+end }
+
+cases[#cases + 1] = { "live plan: a burst of QUEST_LOG_UPDATE is coalesced", function()
+    local WC = plan_client("full")
+    local queued = {}
+    C_Timer = { After = function(sec, fn) queued[#queued + 1] = { sec, fn } end }
+    local scans, scan = 0, WC.PlanScan
+    WC.PlanScan = function(...) scans = scans + 1 return scan(...) end
+    for _ = 1, 40 do Stub.fire(frames, "QUEST_LOG_UPDATE") end
+    assert(#queued == 1 and queued[1][1] == 0.5 and scans == 0)
+    queued[1][2]()
+    assert(scans == 1)
+    Stub.fire(frames, "QUEST_LOG_UPDATE")
+    assert(#queued == 2, "a new burst schedules again")
+    C_Timer = nil
+    WC.PlanScan = scan
 end }
 
 cases[#cases + 1] = { "plan: distance and direction", function()
