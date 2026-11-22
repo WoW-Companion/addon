@@ -256,6 +256,14 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     return out
 end
 
+-- "1 unspent talent point" / "3 unspent talent points", or nil for no count.
+function WC.UnspentText(n)
+    n = tonumber(n)
+    if not n or n < 1 then return nil end
+    n = math.floor(n)
+    return string.format(n == 1 and L.UNSPENT_ONE or L.UNSPENT_MANY, n)
+end
+
 -- The talent entry: the client's talent icon and "N unspent talent point(s)", live when the client can say.
 -- Returns nil when no points are left.
 function WC.TalentEntry(points, ask, entry)
@@ -307,9 +315,9 @@ function WC.TrainingEntry(line)
     end
     if #spells > 0 and #left == 0 then return nil end
     local level = tonumber(line.level)
-    local text
+    local text, names
     if #left > 0 then
-        local names = {}
+        names = {}
         for i, sp in ipairs(left) do names[i] = WC.SpellLabel(sp) end
         names = table.concat(names, ", ")
         text = level and string.format(L.TRAINING_LINE, math.floor(level), names) or string.format(L.TRAINING_LINE_NOLEVEL, names)
@@ -317,7 +325,7 @@ function WC.TrainingEntry(line)
         text = plain(line.text or L.TRAINING_FALLBACK)
     end
     local entry = WC.MakeEntry("training", "training" .. (level and math.floor(level) or ""), line, {
-        title = text, level = level, spells = left, ask = { kind = "training", subject = ask_subject(text) },
+        title = text, level = level, spells = left, ask = { kind = "training", subject = ask_subject(#left > 0 and names or text) },
         npc = line.npc and plain(line.npc) or nil, zone = line.zone and plain(line.zone) or nil,
     })
     return { kind = "line", indent = INDENT, icon = class_icon(), text = text, ask = entry.ask, entry = entry, group = entry.key }
@@ -444,6 +452,8 @@ local function extra_lines(list, kind, build, ekind)
             local row = { kind = "line", indent = INDENT, text = text, [kind] = id and item_id(id) or nil, ask = ask, entry = entry, group = entry.key }
             local n = text:match("^(%d+) unspent talent point") or text:match("^You have (%d+) unspent talent point")
             if n then
+                ask = { kind = "talent_points", subject = WC.UnspentText(tonumber(n)) }
+                entry.ask = ask
                 row = WC.TalentEntry(n, ask, entry)
                 if row then row[kind] = id and item_id(id) or nil end
             end
@@ -525,7 +535,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                 local quest = item_id(line.quest)
                 local id = item_id(line.item)
                 if section.id == "next_quests" and line.kind == "talent" then
-                    local ask = { kind = "talent", subject = ask_subject(line.text) }
+                    local ask = { kind = "talent_points", subject = WC.UnspentText(WC.UnspentTalentPoints() or tonumber(line.points)) or ask_subject(line.text) }
                     local first = type(d.talents) == "table" and type(d.talents[1]) == "table" and d.talents[1] or {}
                     local entry = WC.MakeEntry("talent", "talent", line, { title = plain(line.text), points = tonumber(line.points), ask = ask,
                         nextPick = first.line and plain(first.line) or nil, spell = item_id(first.spell_id) })
@@ -573,7 +583,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
             return name .. plain(e.line), e.item_id, { kind = "dungeon", subject = ask_subject(e.name or e.line) }
         end, "dungeon" },
         { "talents", d.talents, "spell", function(e)
-            return plain(e.line), e.spell_id, { kind = "talent", subject = ask_subject(e.line) }
+            return plain(e.line), e.spell_id, { kind = "talent_pick", subject = ask_subject(e.line) }
         end, "talent" },
     }
     for _, x in ipairs(extras) do
@@ -625,9 +635,39 @@ function WC.RowsText(rows)
     return table.concat(t, "\n")
 end
 
+-- Who is asking, as the first words of a fallback prompt: "I'm a level 10 warrior" (the client's live level
+-- and localized class), degrading to what is known.
+function WC.AskWho()
+    local level = UnitLevel and tonumber(UnitLevel("player"))
+    local class = UnitClass and UnitClass("player")
+    class = type(class) == "string" and class ~= "" and class:lower() or nil
+    level = level and level > 0 and math.floor(level) or nil
+    if level and class then return string.format(L.ASK_WHO, level, class) end
+    if class then return string.format(L.ASK_WHO_CLASS, class) end
+    if level then return string.format(L.ASK_WHO_LEVEL, level) end
+    return L.ASK_WHO_NONE
+end
+
+-- A subject made safe to drop into the middle of a sentence: no pipes or list dashes, one line, bounded.
+-- A talent pick loses its "Next point:" style label.
+function WC.AskSubjectText(kind, subject)
+    local s = tostring(subject or ""):gsub("|", ""):gsub("%s+", " ")
+    s = s:gsub("^[%s%-]+", ""):gsub("[%s]+$", "")
+    if kind == "talent_pick" then s = s:gsub("^[^:]-:%s*", "") end
+    if kind == "note" then s = s:gsub('"', "'") end
+    return s:sub(1, 200)
+end
+
+-- The fallback prompt for an ask kind and subject: one natural sentence or two, at most MAX_ASK_LEN long.
+-- Returns nil for a kind with no template.
+function WC.FallbackPrompt(kind, subject)
+    local tpl = kind and rawget(L, "ASK_ABOUT_" .. kind)
+    if not tpl then return nil end
+    return (string.format(tpl, WC.AskWho(), WC.AskSubjectText(kind, subject)):sub(1, WC.MAX_ASK_LEN or 500))
+end
+
 -- The question "ask about this" pre-fills for a row, or nil when the row has none.
 function WC.AskTemplate(row)
     local a = row and row.ask
-    local tpl = a and rawget(L, "ASK_ABOUT_" .. a.kind)
-    return tpl and string.format(tpl, a.subject) or nil
+    return a and WC.FallbackPrompt(a.kind, a.subject) or nil
 end
