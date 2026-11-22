@@ -65,7 +65,7 @@ SlashCmdList["WOWC"] = function(msg)
     elseif cmd == "settings" or cmd == "options" then
         WC.OpenSettings()
     elseif cmd == "plan" then
-        WC.TogglePlan((msg:match("^%s*%S+%s+(%S+)") or ""):lower() == "map")
+        WC.TogglePlan((msg:match("^%s*%S+%s+(%S+)") or ""):lower(), (msg:match("^%s*%S+%s+%S+%s+(%S+)") or ""):lower())
     elseif cmd == "status" then
         WC.PrintStatus()
     elseif cmd == "reset" then

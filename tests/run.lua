@@ -451,7 +451,7 @@ local function upgrade_client(seen)
 end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
-    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("wrong place", 1, true))
+    assert(box and box.title.text == "What's new in " .. TOC_VERSION and box.body.text:find("round numbered", 1, true))
     assert(box.body.text:find("\n", 1, true) and not box.body.text:find("WHATS_NEW", 1, true))
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
@@ -1069,8 +1069,8 @@ cases[#cases + 1] = { "plan: pins are drawn on the matching map only, the next o
     WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
     WC.RefreshMapPins()
     local p = {}
-    for _, f in ipairs(frames) do if f.planStep then p[#p + 1] = f end end
-    assert(#p == 3 and p[1].shown and p[1].w > p[2].w)
+    for _, f in ipairs(frames) do if f.planGroup then p[#p + 1] = f end end
+    assert(#p == 2 and p[1].shown and p[1].w > p[2].w and p[1].num.text == "1\194\1833") -- steps 1 and 3 share a spot
     assert(p[2].points[1][4] == 600 and p[2].points[1][5] == -250)
     WorldMapFrame.GetMapID = function() return 1 end
     WC.RefreshMapPins()
@@ -1096,11 +1096,48 @@ cases[#cases + 1] = { "plan: pin tooltip names the step, quest and label", funct
     canvas:SetSize(1000, 500)
     WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
     WC.RefreshMapPins()
-    for _, f in ipairs(frames) do if f.planStep and f.planStep.n == 2 then f.scripts.OnEnter(f) end end
+    for _, f in ipairs(frames) do if f.planGroup and f.planGroup.steps[1].n == 2 then f.scripts.OnEnter(f) end end
     local text = {}
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
-    assert(text[#text - 1] == "Step 2: Quest 10" and text[#text] == "Kill 5 boars")
+    assert(text[1] == "Step 2 \226\128\148 Kill 5 boars" and text[2] == "Quest 10" and text[3] == "Objective")
     WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "plan: badge text, kind notch, next-step state and done steps", function()
+    local WC = plan_client("full")
+    assert(WC.PinLabel({ { n = 4 } }) == "4" and WC.PinLabel({ { n = 4 }, { n = 5 } }) == "4\194\1835")
+    assert(WC.PinLabel({ { n = 12 } }) == "12")
+    assert(WC.PinNotch("pickup") == "!" and WC.PinNotch("turnin") == "?")
+    assert(WC.PinNotch("objective") == nil and WC.PinNotch("travel") == nil)
+    local a = { n = 4, map = 7, x = 10, y = 10, kind = "pickup" }
+    local b = { n = 5, map = 7, x = 10.5, y = 10.2, kind = "turnin" }
+    local c = { n = 6, map = 7, x = 60, y = 60, kind = "objective" }
+    local g = WC.PinGroups({ a, b, c }, 7, {}, b)
+    assert(#g == 2 and #g[1].steps == 2 and g[1].isNext and not g[2].isNext)
+    assert(WC.PinGroupKind(g[1]) == "turnin" and WC.PinGroupKind(g[2]) == "objective")
+    g = WC.PinGroups({ a, b, c }, 7, { [4] = true, [5] = true }, c)
+    assert(#g == 1 and g[1].steps[1] == c)
+    assert(#WC.PinGroups({ a, b, c }, 8, {}, a) == 0)
+    assert(WC.PinSize("normal", false) == 28 and WC.PinSize("large", true) > WC.PinSize("large", false))
+    assert(WC.PinSize("small", false) < WC.PinSize("normal", false) and WC.PinSize("bogus") == 28)
+end }
+
+cases[#cases + 1] = { "plan: /wowc plan size and lines change the settings", function()
+    local WC = plan_client("full")
+    assert(WoWCompanionDB.settings.planSize == "normal" and WoWCompanionDB.settings.planLines == true)
+    SlashCmdList.WOWC("plan size large")
+    assert(WoWCompanionDB.settings.planSize == "large")
+    SlashCmdList.WOWC("plan size")
+    assert(WoWCompanionDB.settings.planSize == "small")
+    SlashCmdList.WOWC("plan lines")
+    assert(WoWCompanionDB.settings.planLines == false and WoWCompanionOptionPlanLines ~= nil)
+end }
+
+cases[#cases + 1] = { "plan: no Questie asset or code is referenced", function()
+    for _, file in ipairs({ "PlanUI.lua", "Plan.lua", "Settings.lua", "WhatsNew.lua" }) do
+        local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
+        assert(not src:lower():find("questie", 1, true), file)
+    end
 end }
 
 local failed = 0
