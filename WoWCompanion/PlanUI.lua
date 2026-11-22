@@ -188,8 +188,9 @@ local function pinFor(i, canvas)
             GameTooltip:AddLine(line.text, c[1], c[2], c[3])
         end
         GameTooltip:Show()
+        WC.HoverEnterBadge(g)
     end)
-    p:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    p:SetScript("OnLeave", function() GameTooltip:Hide() WC.HoverLeaveBadge() end)
     pins[i] = p
     return p
 end
@@ -473,7 +474,7 @@ function WC.RefreshMapPins()
         p.glow:SetSize(gd, gd)
         p.glow:SetVertexColor(gc[1], gc[2], gc[3], WC.Setting("glowOpacity"))
         if p.pulseAnim then p.pulseAnim:SetDuration(PULSE_SECONDS.map / WC.Setting("pulseSpeed")) end
-        p.glow:SetShown(g.isNext)
+        p.glow:SetShown(g.isNext or WC.GroupHot(g))
         p.num:SetText(label)
         if not marker then
             local notch = WC.PinNotch(WC.PinGroupKind(g))
@@ -483,7 +484,7 @@ function WC.RefreshMapPins()
         a:Show()
         p:Show()
         WC.ApplyBadgeFill(p, marker and "tag" or nil)
-        if g.isNext and p.pulse and WC.Setting("nextPulse") then p.pulse:Play() end
+        if p.pulse and ((g.isNext and WC.Setting("nextPulse")) or WC.GroupHot(g)) then p.pulse:Play() end
         local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
@@ -631,7 +632,7 @@ local function placeMinimap(m, mapID, px, py, step)
     local notch = WC.PinNotch(step.kind)
     b.mark:SetText(notch or "")
     b.notchBg:SetShown(notch ~= nil)
-    local arrived = WC.Setting("arrivalPulse") and WC.PinArrived(step.kind, dist)
+    local arrived = (WC.Setting("arrivalPulse") and WC.PinArrived(step.kind, dist)) or WC.StepHot(step) or false
     b.glow:SetShown(arrived)
     if b.pulse then
         if arrived and not b.pulsing then b.pulse:Play() elseif not arrived and b.pulsing then b.pulse:Stop() end
@@ -655,6 +656,22 @@ local function tick()
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
     end
+end
+
+-- Applies the hover pulse to the badges already drawn (world map pins and the minimap badge) without a redraw:
+-- a badge whose quest is hovered in the panel glows and pulses; the next step's own glow stays as it was.
+function WC.ApplyMapHover()
+    for _, p in ipairs(pins) do
+        local g = p.planGroup
+        if g and p:IsShown() then
+            local hot = WC.GroupHot(g)
+            p.glow:SetShown(g.isNext or hot)
+            if p.pulse then
+                if (g.isNext and WC.Setting("nextPulse")) or hot then p.pulse:Play() else p.pulse:Stop() end
+            end
+        end
+    end
+    if WC.planMinimap and WC.planMinimap:IsShown() then tick() end
 end
 
 -- Redraws everything from the current plan and the settings.

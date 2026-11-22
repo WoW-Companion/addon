@@ -1,4 +1,4 @@
-# Digest format (schema 1.3 and 2.0)
+# Digest format (schema 1.4 and 2.0)
 
 The companion writes advice into `WoWCompanion_Digest/Digest.lua`, a data-only
 Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else.
@@ -15,7 +15,7 @@ Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else
 
 | Field | Type | Meaning |
 | ----- | ---- | ------- |
-| `schema` | number or string | Format version. This document is `"1.3"`. The panel accepts `1`, `"1.0"`, `"1.1"`, `"1.2"` and `"1.3"` and refuses any other major version. |
+| `schema` | number or string | Format version. This document is `"1.4"`. The panel accepts `1`, `"1.0"` to `"1.4"` and refuses any other major version. |
 | `generated` | number | Unix time (seconds) the digest was computed. The panel shows its time and age ("advice from 11:23 (3 h ago)"); the panel adds a note to refresh the digest and `/reload` only when the digest is older than 12 hours, or the character's last capture is more than 15 minutes newer than `generated` (a `/reload` right after a fresh digest does not count). |
 | `build` | string | Game build it was computed for, e.g. `"1.60.0.64000"`. |
 | `character` | string | Character name it is for. The panel refuses a digest for a different character. |
@@ -29,6 +29,14 @@ are ignored.
 
 Each line is `{ text = "short line", item = <item id>, quest = <quest id> }`.
 `text` is required; `item` and `quest` are optional numbers. A line with an `item` shows that item's tooltip on mouseover (display only). Files without `item` render as before.
+
+### Schema 1.4: details, prompts and training
+
+Schema 1.4 adds two optional fields to every `next_quests` and `upgrades` line and to `dungeons` and `talents` entries: `details` (a list of 1 to 4 short strings, shown as the first rows of the entry's detail card) and `prompt` (a ready question of at most 500 characters, pre-filled in the card's ask box). Without them the card falls back to the `ASK_ABOUT_*` templates and shows only what the client knows live.
+
+`next_quests` may hold a `kind = "training"` line: `text`, `level`, `spells = { { id, name, rank (only when ranked), new (false for an upgrade of a known rank) }, ... }`, and optionally `npc`, `zone`, `x`, `y`. The panel shows `New at level 10: Charge (Rank 2), Thunder Clap` with the class icon, drops spells the client reports as known, and hides the entry when none is left. The talent entry's card shows the first `talents` entry as the plan's next pick (its `prompt` is used when the talent line has none).
+
+Clicking a quest in the log opens it in the client's quest log; any other entry (and a right-click on any entry) opens its detail card. **Send** queues the box through the ask queue (`docs/ask-format.md`); **Copy** selects the text for Ctrl+C. The panel accepts every `1.x`, so older digests keep working with the template prompts.
 
 ### Schema 1.3: structured lines
 
