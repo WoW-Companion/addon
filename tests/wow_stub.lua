@@ -100,6 +100,7 @@ local function new_region(kind)
     function r:SetVerticalScroll(v) self.vscroll = v end
     function r:GetVerticalScroll() return self.vscroll or 0 end
     function r:GetCenter() return 0, 0 end
+    function r:GetChildren() return (table.unpack or unpack)(self.children or {}) end
     function r:GetEffectiveScale() return 1 end
     return r
 end
@@ -163,12 +164,13 @@ function Stub.install(env)
         assert(loadfile(file))()
         return true
     end }
-    env.CreateFrame = function(kind, name, parent)
+    env.CreateFrame = function(kind, name, parent, template)
         -- Strict like the client's argument order: the name is a string, the parent a frame.
         assert(name == nil or type(name) == "string", "CreateFrame name must be nil or a string")
         assert(parent == nil or (type(parent) == "table" and parent.kind), "CreateFrame parent must be nil or a frame")
         local f = new_region(kind)
-        f.parent = parent
+        f.parent, f.template = parent, template
+        if parent then parent.children = parent.children or {}; parent.children[#parent.children + 1] = f end
         if kind == "ScrollFrame" then f.h = 200 end
         if name then env[name] = f end
         return f
