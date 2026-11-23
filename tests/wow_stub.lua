@@ -97,6 +97,7 @@ local function new_region(kind)
         self.scripts[name] = prev and function(...) prev(...); return fn(...) end or fn
     end
     function r:SetAlpha(a) self.alpha = a end
+    function r:SetMaxLines(n) self.maxLines = n end
     function r:SetMultiLine(v) self.multiLine = v end
     function r:SetFontObject() end
     function r:SetNormalFontObject() end
