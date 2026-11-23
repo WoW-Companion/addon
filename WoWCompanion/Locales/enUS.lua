@@ -323,6 +323,7 @@ local L = {
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_14_1 = "The WoW Companion tab now appears with the quest-log tabs on the map, with or without other map addons.",
     WHATS_NEW_0_6_13_1 = "Fixed an error on login that hid the map tab.",
+    WHATS_NEW_0_6_14_1 = "The gear in the panel header opens the options again.",
     WHATS_NEW_0_6_11_1 = "The map tab now lines up with the other tabs and moves with them; the plan panel uses the map's own frame.",
     WHATS_NEW_0_6_10_1 = "The map tab is tidier; if another map addon moved things, Shift-drag our tab to where you like it. The plan panel no longer tucks under the frame's top.",
     MAP_TAB_POSITION = "Map tab position",

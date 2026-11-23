@@ -34,11 +34,28 @@ function WC.ApplyPanelLook()
     WC.LayoutPanelHeader()
 end
 
+-- Header controls, right to left: close, view button (sized to its label), gear. Their click areas never overlap.
+function WC.LayoutHeaderButtons()
+    local f = WC.panel
+    if not f or not f.close or not f.compactButton or not f.gear then return end
+    local c, g = f.compactButton, f.gear
+    local label = c.label
+    local w = label and ((label.GetStringWidth and label:GetStringWidth()) or 0) or 0
+    if not w or w <= 0 then w = #(label and label:GetText() or "") * 6 end
+    c:SetSize(math.ceil(w) + 4, 16)
+    c:ClearAllPoints()
+    c:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
+    g:ClearAllPoints()
+    g:SetPoint("RIGHT", c, "LEFT", -6, 0)
+    g:SetFrameLevel(f:GetFrameLevel() + 5)
+end
+
 -- Places the next-step line under the title (it wraps), the advice time under it and the scroll area below both.
 -- The scroll area's offset from the frame's top is kept in f.scrollTop.
 function WC.LayoutPanelHeader()
     local f = WC.panel
     if not f then return end
+    WC.LayoutHeaderButtons()
     local pad = WC.Setting("padding")
     local text = f.step:GetText()
     f.step:ClearAllPoints()
@@ -228,8 +245,8 @@ function WC.CreatePanel()
 
     -- The compact toggle: a small text button beside the close button.
     local c = CreateFrame("Button", "WoWCompanionCompactButton", f)
-    c:SetSize(72, 16)
-    c:SetPoint("TOPRIGHT", f, "TOPRIGHT", -24, -6)
+    c:SetSize(40, 16)
+    c:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
     c.label = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.label:SetPoint("RIGHT", c, "RIGHT", 0, 0)
     c.label:SetJustifyH("RIGHT")
@@ -243,7 +260,7 @@ function WC.CreatePanel()
         GameTooltip:Show()
     end)
     c:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    c.SetText = function(self, t) self.label:SetText(t) end
+    c.SetText = function(self, t) self.label:SetText(t); WC.LayoutHeaderButtons() end
     c.GetText = function(self) return self.label:GetText() end
     c:SetText(L.COMPACT)
     f.compactButton = c
@@ -251,7 +268,8 @@ function WC.CreatePanel()
     -- The gear: opens the options window.
     local g = CreateFrame("Button", "WoWCompanionGearButton", f)
     g:SetSize(16, 16)
-    g:SetPoint("TOPRIGHT", f, "TOPRIGHT", -82, -6)
+    g:SetPoint("RIGHT", c, "LEFT", -6, 0)
+    g:SetFrameLevel(f:GetFrameLevel() + 5)
     g.icon = g:CreateTexture(nil, "ARTWORK")
     g.icon:SetAllPoints()
     g.icon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
@@ -263,6 +281,7 @@ function WC.CreatePanel()
     end)
     g:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.gear = g
+    WC.LayoutHeaderButtons()
 
     f:SetScript("OnHide", function()
         WC.view.expanded = {}
