@@ -321,6 +321,7 @@ local L = {
     VIEW_BUTTON_next = "Next step",
     VIEW_CLICK = "Click to switch",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
+    WHATS_NEW_0_6_16_1 = "Badge colours and opacity in Options now show on the map.",
     WHATS_NEW_0_6_15_1 = "The WoW Companion tab now appears with the quest-log tabs on the map, with or without other map addons.",
     WHATS_NEW_0_6_13_1 = "Fixed an error on login that hid the map tab.",
     WHATS_NEW_0_6_14_1 = "The gear in the panel header opens the options again.",
