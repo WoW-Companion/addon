@@ -227,8 +227,6 @@ local L = {
     -- Ask about this (right-click a digest line) and /ask
     ASK_QUEUED = "Queued for WoW Companion. The overlay answers it after the game's next save.",
     ASK_ITEM_SUBJECT = "%s (item %d)",
-    -- Fallback prompts (used when the digest has no prompt of its own). The first %s is who is asking
-    -- ("I'm a level 10 warrior"), the second the subject; each makes one full sentence.
 
     -- Hover, click and the detail card
     HOVER_HIGHLIGHT = "Highlight the entry under the mouse",
