@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.12" and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1")
+    assert(TOC_VERSION == "0.6.13" and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2208,6 +2208,7 @@ cases[#cases + 1] = { "world map tab: built from the client's side-tab template 
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
     QuestMapFrame = fake_column({})
     fresh_client(nil)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local b = WC.mapButton
     assert(b and WC.mapButtonMode == "tab" and b.parent == QuestMapFrame and b.template == "QuestLogTabButtonTemplate")
@@ -2230,6 +2231,7 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
     QuestMapFrame.EventsTab.w, QuestMapFrame.EventsTab.h = 40, 42
     fresh_client(nil)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local function point() local p = WC.mapButton.points[1] return p[1], p[2], p[3], p[4], p[5] end
     local pt, rel, relPt, px, py = point()
@@ -2252,6 +2254,7 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     QuestMapFrame = fake_column({})
     WC.mapButton, WC.mapButtonParent = nil, nil
     WC.CreateMapButton()
+    WC.PlaceMapTab()
     assert(WC.mapButton.points[1][3] == "TOPLEFT" and WC.mapButton.points[1][1] == "TOPRIGHT")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
@@ -2308,6 +2311,7 @@ cases[#cases + 1] = { "map tab column: placed flush right in the free slot, foll
     local map, col, tabs = geo_map(tab_rects({ 800, 753 }, 1000, 44))
     WorldMapFrame, QuestMapFrame = map, col
     fresh_client(nil)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local b = WC.mapButton
     local function pt() local p = b.points[1] return p[1], p[3], p[4], p[5] end
@@ -2412,6 +2416,7 @@ cases[#cases + 1] = { "side tabs: the client's own tabs are found by their atlas
     local plain = CreateFrame("Button", nil, QuestMapFrame); plain.w, plain.h = 40, 42; plain.shown = true
     local hidden = fake_sidetab(QuestMapFrame, 700); hidden.shown = false
     fresh_client(nil)
+    WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local found = WC.FindClientSideTabs(QuestMapFrame)
     assert(#found == 2 and found[1] == a and found[2] == c, "client sidetab art only: not ours, not plain buttons, not hidden ones")
@@ -2428,6 +2433,77 @@ cases[#cases + 1] = { "side tabs: the client's own tabs are found by their atlas
     for _, f in ipairs({ a, c }) do f.Background.atlas = nil end
     WC.PlaceMapTab()
     assert(WC.mapTabPlace.mode ~= "sidetab")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+-- A client quest-log tab as QuestMapFrame.xml makes it: displayMode and activeAtlas fields; GetTop returns nothing
+-- until the tab is laid out.
+local function client_tab(col, mode, name, laid)
+    local t = CreateFrame("CheckButton", name, col)
+    t.w, t.h, t.shown = 40, 42, true
+    t.displayMode, t.activeAtlas, t.inactiveAtlas, t.tooltipText = mode, "questlog-tab-icon-x", "questlog-tab-icon-x-inactive", name
+    t.Background = t:CreateTexture(); t.Background.atlas = "common-sidetab-c60"
+    t.SelectedTexture = t:CreateTexture(); t.SelectedTexture.atlas = "client-selected"
+    t.Mask = t:CreateTexture(); t.Mask.atlas = "client-mask"
+    t.HighlightTexture = t:CreateTexture(); t.HighlightTexture.atlas = "client-hover"
+    function t:GetTop() if laid then return laid end end -- returns nothing when unplaced
+    function t:GetBottom() if laid then return laid - 42 end end
+    return t
+end
+
+cases[#cases + 1] = { "map tab: a client tab whose GetTop returns nothing no longer breaks creation (regression)", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    local a = client_tab(QuestMapFrame, 3, "Legend")
+    local c = client_tab(QuestMapFrame, 1, "Events")
+    local q = client_tab(QuestMapFrame, 0, "Quests")
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(WC.mapButton, "the tab is created")
+    assert(not pcall(function() return tonumber(a:GetTop()) end), "the stub reproduces the failing call")
+    local ok = pcall(WorldMapFrame.scripts.OnShow, WorldMapFrame)
+    assert(ok, "showing the map does not throw")
+    local found = WC.FindClientSideTabs(QuestMapFrame)
+    assert(#found == 3 and found[1] == q and found[2] == c and found[3] == a, "ordered by displayMode, not by position")
+    local p = WC.mapButton.points[1]
+    assert(p[2] == a and p[1] == "TOPRIGHT", "placed below the highest displayMode")
+    assert(WC.GeoNum(a, "GetTop") == nil and WC.GeoNum({}, "GetTop") == nil)
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map tab: placement waits for the map or log to be shown", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    client_tab(QuestMapFrame, 0, "Quests")
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(#WC.mapButton.points == 0, "no placement at creation")
+    QuestMapFrame.scripts.OnShow(QuestMapFrame)
+    assert(#WC.mapButton.points == 1, "placed when the log is shown")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map tab: the client tab's own atlases dress ours; a thrown placement falls back and is recorded once", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    client_tab(QuestMapFrame, 0, "Quests")
+    fresh_client({})
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local A = WC.SIDETAB_ATLAS
+    assert(A.selected == "client-selected" and A.hover == "client-hover" and A.mask == "client-mask", "atlases read from the client tab")
+    assert(WC.mapButton.sideSel.atlas == "client-selected")
+    -- a placement that throws: no error out, ADDON-063's position, the error kept once
+    local real = WC.SideTabGap
+    WC.SideTabGap = function() error("boom") end
+    assert(pcall(WC.PlaceMapTab))
+    assert(WC.mapTabPlace.mode == "client" and #WC.mapButton.points == 1)
+    local first = WC.db.observed.placeError
+    assert(type(first) == "string" and first:find("boom"))
+    WC.SideTabGap = function() error("second") end
+    WC.PlaceMapTab()
+    assert(WC.db.observed.placeError == first, "recorded once")
+    WC.SideTabGap = real
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 

@@ -192,20 +192,65 @@ local function has_sidetab_art(f)
     return false
 end
 
--- The client's own quest-log side tabs: the shown children of the quest log whose art is the side-tab atlas family,
--- top first. Only the client's frames: ours and any frame with an addon-style name are skipped. Returns a list.
+-- A frame's geometry number, or nil when the client has not laid it out (a getter that returns nothing is "unknown",
+-- never 0, and never an argument-less tonumber call).
+function WC.GeoNum(f, method)
+    if type(f) ~= "table" or type(f[method]) ~= "function" then return nil end
+    local ok, v = pcall(f[method], f)
+    if not ok then return nil end
+    return tonumber(v)
+end
+
+-- True for the client's own quest-log tab: a numeric displayMode and a string activeAtlas, as QuestMapFrame.xml gives it.
+local function is_client_tab(f)
+    return type(f) == "table" and type(f.displayMode) == "number" and type(f.activeAtlas) == "string"
+end
+
+-- The client's own quest-log side tabs: the shown children of the quest log carrying displayMode and activeAtlas,
+-- ordered by displayMode. Fallback (none carry them): children whose art is the side-tab atlas family, top first,
+-- a tab with no position yet kept in child order. Only the client's frames: ours and any addon-named frame are skipped.
 function WC.FindClientSideTabs(parent)
     local out = {}
     if type(parent) ~= "table" or not parent.GetChildren then return out end
-    for _, c in ipairs({ parent:GetChildren() }) do
+    local function ours(c, nm)
+        return c == WC.mapButton or c == WC.mapPanel or (nm and nm:find("^WoWCompanion"))
+    end
+    local byMode, byArt = {}, {}
+    for i, c in ipairs({ parent:GetChildren() }) do
         local nm = type(c) == "table" and c.GetName and c:GetName() or nil
-        if type(c) == "table" and c ~= WC.mapButton and c ~= WC.mapPanel and not (nm and nm:find("^WoWCompanion"))
-            and c.IsShown and c:IsShown() and has_sidetab_art(c) then
-            out[#out + 1] = c
+        if type(c) == "table" and not ours(c, nm) and c.IsShown and c:IsShown() then
+            if is_client_tab(c) then
+                byMode[#byMode + 1] = { f = c, mode = c.displayMode, i = i }
+            elseif has_sidetab_art(c) then
+                byArt[#byArt + 1] = { f = c, top = WC.GeoNum(c, "GetTop"), i = i }
+            end
         end
     end
-    local function top(f) return f.GetTop and tonumber(f:GetTop()) or 0 end
-    table.sort(out, function(a, b) return top(a) > top(b) end)
+    if #byMode > 0 then
+        table.sort(byMode, function(a, b) if a.mode ~= b.mode then return a.mode < b.mode end return a.i < b.i end)
+        for _, e in ipairs(byMode) do out[#out + 1] = e.f end
+        return out
+    end
+    table.sort(byArt, function(a, b)
+        if a.top and b.top and a.top ~= b.top then return a.top > b.top end
+        return a.i < b.i
+    end)
+    for _, e in ipairs(byArt) do out[#out + 1] = e.f end
+    return out
+end
+
+-- The atlases the client's own tab wears, read at runtime (Background, Mask, SelectedTexture, HighlightTexture);
+-- a name the tab does not give stays absent.
+function WC.ClientTabArt(tab)
+    local out = {}
+    if type(tab) ~= "table" then return out end
+    local function atlas(r)
+        if type(r) ~= "table" or not r.GetAtlas then return nil end
+        local ok, a = pcall(r.GetAtlas, r)
+        if ok and type(a) == "string" and a ~= "" then return a end
+    end
+    local hl = atlas(tab.HighlightTexture) or (tab.GetHighlightTexture and atlas(tab:GetHighlightTexture())) or nil
+    out.normal, out.mask, out.selected, out.hover = atlas(tab.Background), atlas(tab.Mask), atlas(tab.SelectedTexture), hl
     return out
 end
 
@@ -241,6 +286,8 @@ function WC.ApplySideTabArt(b)
             pcall(b.sideMask.SetAtlas, b.sideMask, A.mask)
             b.sideMask:SetAllPoints(b)
             pcall(b.icon.AddMaskTexture, b.icon, b.sideMask)
+        elseif b.sideMask.SetAtlas then
+            pcall(b.sideMask.SetAtlas, b.sideMask, A.mask)
         end
     end
     for _, name in ipairs({ "Background", "Border", "SelectedTexture" }) do
@@ -388,7 +435,7 @@ end
 -- Anchors the tab in the column's first free gap, right-aligned and at the column's tab size. With a Shift-drag
 -- position saved it stays there until Reset. Without any rectangle it falls back to sitting under the lowest of the
 -- client's own tabs, else (alone) at the saved or default height, 44 x 44. Re-run on map show, resize and change.
-function WC.PlaceMapTab()
+local function place_map_tab()
     local b, parent = WC.mapButton, WC.mapButtonParent
     if not b or WC.mapButtonMode ~= "tab" or not parent then return end
     local side = WC.FindClientSideTabs(parent)
@@ -399,9 +446,15 @@ function WC.PlaceMapTab()
         if not (w > 0 and h > 0) then w, h = WC.SIDETAB_W, WC.SIDETAB_H end
         local rects = {}
         for _, t in ipairs(side) do
-            if t.GetTop and t.GetBottom and tonumber(t:GetTop()) and tonumber(t:GetBottom()) then rects[#rects + 1] = { top = t:GetTop(), bottom = t:GetBottom() } end
+            local tp, bt = WC.GeoNum(t, "GetTop"), WC.GeoNum(t, "GetBottom")
+            if tp and bt then rects[#rects + 1] = { top = tp, bottom = bt } end
         end
         local gap = WC.SideTabGap(rects)
+        local art, changed = WC.ClientTabArt(side[1]), false
+        for k, v in pairs(art) do
+            if WC.SIDETAB_ATLAS[k] ~= v then WC.SIDETAB_ATLAS[k] = v; changed = true end
+        end
+        if changed and b.sideArt then WC.ApplySideTabArt(b) end
         b:ClearAllPoints()
         b:SetSize(w, h)
         b:SetPoint("TOPRIGHT", last, "BOTTOMRIGHT", 0, -gap)
@@ -448,6 +501,48 @@ function WC.PlaceMapTab()
     if WC.HookClientTabs then WC.HookClientTabs() end
 end
 
+-- ADDON-063's position: under the client's lowest tab, else alone at the default. No geometry is read, so it cannot
+-- fail on an unplaced frame.
+local function fallback_place(b, parent)
+    b:ClearAllPoints()
+    local side = WC.FindClientSideTabs(parent)
+    local low = side[#side] or WC.FindClientTab(parent)
+    if low then
+        b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP)
+        WC.mapTabPlace = { w = WC.SIDETAB_W, h = WC.SIDETAB_H, gap = WC.MAP_TAB_GAP, x = 0, y = -WC.MAP_TAB_GAP, n = 0, mode = "client" }
+    else
+        b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, 0)
+        WC.mapTabPlace = { w = WC.MAP_TAB_SIZE, h = WC.MAP_TAB_SIZE, gap = 0, x = WC.MAP_TAB_DEFAULT_X, y = 0, n = 0, mode = "alone" }
+    end
+end
+
+-- Records a placement error once (data only, in WoWCompanionDB.observed).
+local function note_place_error(err)
+    if WC.placeErrorSeen then return end
+    WC.placeErrorSeen = true
+    local db = WC.db or WoWCompanionDB
+    if type(db) ~= "table" then return end
+    if type(db.observed) ~= "table" then db.observed = {} end
+    db.observed.placeError = tostring(err):sub(1, 300)
+end
+
+-- Places the tab; a failure never propagates: the tab falls back to ADDON-063's position and the error is recorded once.
+function WC.PlaceMapTab()
+    local b, parent = WC.mapButton, WC.mapButtonParent
+    if not b or WC.mapButtonMode ~= "tab" or not parent then return end
+    local ok, err = pcall(place_map_tab)
+    if ok then return end
+    note_place_error(err)
+    pcall(fallback_place, b, parent)
+end
+
+-- Places now, and once more on the next frame (geometry may not exist yet when the map or log has just been shown).
+function WC.PlaceMapTabSoon()
+    WC.PlaceMapTab()
+    if C_Timer and C_Timer.After then C_Timer.After(0, WC.PlaceMapTab) end
+end
+
 -- Every 0.5 s while the map is shown: re-place only when the strip changed.
 function WC.WatchTabColumn(elapsed)
     WC.columnClock = (WC.columnClock or 0) + (tonumber(elapsed) or 0)
@@ -486,6 +581,14 @@ end
 function WC.ResetMapTabPosition()
     WC.SetSetting("mapTabY", WC.DEF_OF["mapTabY"].default)
     if WC.PlaceMapTab then WC.PlaceMapTab() end
+end
+
+-- The client changes its quest-log display mode through SetDisplayMode: place again then.
+function WC.HookDisplayMode(column)
+    if type(column) == "table" and type(column.SetDisplayMode) == "function" and hooksecurefunc and not WC.displayModeHooked then
+        WC.displayModeHooked = true
+        pcall(hooksecurefunc, column, "SetDisplayMode", function() WC.PlaceMapTabSoon() end)
+    end
 end
 
 -- One square side tab in the world map's tab column, built from the client's own side-tab template. A client without
@@ -550,11 +653,11 @@ function WC.CreateMapButton()
     WC.mapButton = b
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
-        if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTab(); WC.RefreshMapTab() end) end
+        if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RefreshMapTab() end) end
         if column.HookScript then column:HookScript("OnHide", function() b:Hide() end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnShow", function()
-            WC.PlaceMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
+            WC.PlaceMapTabSoon(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
             if C_Timer and C_Timer.After then -- again once the client has laid the map out
                 C_Timer.After(0.5, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
             end
@@ -562,8 +665,8 @@ function WC.CreateMapButton()
         if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnUpdate", function(_, elapsed) WC.WatchTabColumn(elapsed) end) end
         if map.HookScript then map:HookScript("OnHide", function() WC.ClearSelectedStep() end) end -- the selection ends with the map
-        WC.PlaceMapTab()
-        if C_Timer and C_Timer.After then C_Timer.After(0, WC.PlaceMapTab) end -- once the client has laid its tabs out
+        -- no placement here: the tab is made without any layout and placed on the map's and the log's OnShow
+        if WC.HookDisplayMode then WC.HookDisplayMode(column) end
         WC.InitMapPanel()
     end
     WC.RefreshMapTab()
