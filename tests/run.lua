@@ -90,7 +90,7 @@ local cases = {
         local h, t = p.header:GetText(), p.plain
         assert(p.title:GetText() == "WoW Companion: Thrall" and h:find("advice from", 1, true) and h:find("1 h ago", 1, true))
         local last = 0
-        for _, want in ipairs({ "Next quests", "Turn in The Hungry Ettin", "Upgrades", "Equip Hammer of Fate", "Keep materials", "Notes" }) do
+        for _, want in ipairs({ "Next quests", "Turn in The Hungry Ettin", "Upgrades", "Hammer of Fate", "Keep materials", "Notes" }) do
             local at = t:find(want, last + 1, true)
             assert(at, "missing " .. want)
             last = at
@@ -1578,7 +1578,7 @@ cases[#cases + 1] = { "tracker rows: each entry kind renders with its icon, colo
     local _, _, meta = WC.RenderDigest(WoWCompanionDigest, NOW, "Genaenyu", {})
     assert(meta.chips[1].kind == "talent" and meta.chips[1].count == 1 and meta.chips[1].icon == WC.ICONS.talent)
     local up = row_of(rows, "Hammer of Fate")
-    assert(up.item == 5678 and up.kind == "line" and same_color(row_of(rows, "Main Hand, ilvl 25").color, WC.COLORS.dim))
+    assert(up.item == 5678 and up.kind == "line" and up.text == "Main Hand: Hammer of Fate" and not WC.RowsText(rows):find("ilvl", 1, true))
     assert(row_of(rows, "Linen Cloth").indent == 1 and row_of(rows, "Bank has 3").kind == "line")
     assert(same_color(row_of(rows, "Next quests").color, WC.COLORS.grey) and row_of(rows, "Next quests").kind == "header")
     UnitLevel = nil
@@ -1900,7 +1900,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.3" and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.4" and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -2966,7 +2966,7 @@ cases[#cases + 1] = { "card: the rows for a quest, a pick-up, training, talents 
     assert(card_text(WC, entry_of(p, "unspent talent")) == "Spend them soon\nPlan's next pick: Next point: Mortal Strike" and tal.title == "You have 2 unspent talent points")
     assert(tal.hints[1] == "Talents (N)" and tal.asks[1] == "Where should my talent point go?")
     local up = WC.CardModel(entry_of(p, "Hammer of Fate"))
-    assert(card_text(WC, entry_of(p, "Hammer of Fate")) == "Drops in Deadmines\nMain Hand, ilvl 25" and up.link == "item:5678")
+    assert(card_text(WC, entry_of(p, "Hammer of Fate")) == "Drops in Deadmines\nMain Hand" and up.link == "item:5678")
     GetBindingKey = function(a) return a == "TOGGLETALENTS" and "K" or nil end
     assert(WC.CardModel(entry_of(p, "unspent talent")).hints[1] == "Talents (K)")
     GetBindingKey = nil
@@ -3368,18 +3368,122 @@ cases[#cases + 1] = { "chips: a schema 1.3 digest with no live count falls back 
     assert(tip_text(chip_of(p, "talent").chip):find("2 unspent talent points", 1, true))
 end }
 
+-- Upgrades in plain words (schema 1.7): slot, item, gain, how to get it with a path icon.
+local function upgrade_digest()
+    local d = digest14()
+    d.schema = "1.7"
+    d.sections[2].lines = {
+        { text = "Traveler's Shawl (back, ilvl 23)", item = 1001, slot = "Cloak", ilvl = 23, wear = "Wear now", gain = "Big upgrade",
+          replaces = "instead of your Worn Cloak", how = "Finish Lost Shawl and choose it", pathKind = "quest", quest = 10,
+          asks = { "How do I get Traveler's Shawl?" } },
+        { text = "Copper Chain Vest", item = 1002, slot = "Chest", ilvl = 12, wear = "Wear now", gain = "Solid upgrade",
+          replaces = "fills an empty slot", how = "Make it with Blacksmithing", pathKind = "craft",
+          materials = { { name = "Copper Bar", have = 3, need = 6 } }, asks = { "How do I get Copper Chain Vest?" } },
+        { text = "Tough Bracers", item = 1003, slot = "Wrists", ilvl = 15, wear = "From level 12", gain = "Small upgrade",
+          replaces = "fills an empty slot", how = "Usually on the Auction House", pathKind = "auction", asks = { "How do I get Tough Bracers?" } },
+        { text = "Deadmines Helm", item = 1004, slot = "Head", wear = "Wear now", gain = "Big upgrade",
+          how = "Dropped by Edwin in the Deadmines", pathKind = "dungeon" },
+        { text = "Fang Boots", item = 1005, slot = "Feet", wear = "Wear now", gain = "Small upgrade",
+          how = "Dropped by Gnoll Boss", pathKind = "creature" },
+        { text = "Extra Ring", item = 1006, slot = "Ring", wear = "Wear now", gain = "Small upgrade", how = "Dropped by Rat", pathKind = "creature" },
+    }
+    return d
+end
+local function no_ilvl_anywhere(p, WC)
+    for _, r in ipairs(p.rows or {}) do
+        local t = (r.label and r.label.text) or ""
+        assert(not t:lower():find("ilvl", 1, true), t)
+    end
+    local chip = chip_of(p, "upgrade").chip
+    assert(not tip_text(chip):lower():find("ilvl", 1, true))
+    assert(not card_text(WC, chip.entry):lower():find("ilvl", 1, true))
+    for _, u in ipairs(chip.entry.upgrades) do assert(not card_text(WC, u):lower():find("ilvl", 1, true)) end
+end
+
+cases[#cases + 1] = { "upgrades: tooltip lines, path icons, the +N more cap, no ilvl or doubled slot", function()
+    UnitLevel = function() return 10 end
+    local d = upgrade_digest()
+    local p, WC = card_client(d, { [10] = "active" })
+    local chip = chip_of(p, "upgrade").chip
+    local lines = {}
+    for _, l in ipairs(WC.ChipTipLines(chip)) do lines[#lines + 1] = l.text end
+    assert(lines[1] == "6 upgrades you can get", lines[1])
+    assert(lines[2] == "Cloak: Traveler's Shawl \226\128\148 Big upgrade", lines[2])
+    assert(lines[3] == "|TInterface\\GossipFrame\\AvailableQuestIcon:12|t Finish Lost Shawl and choose it", lines[3])
+    assert(lines[4] == "Chest: Copper Chain Vest \226\128\148 Solid upgrade")
+    assert(lines[5]:find("^|TInterface\\Icons\\Trade_BlackSmithing:12|t Make it with Blacksmithing$"))
+    assert(lines[6] == "Wrists: Tough Bracers \226\128\148 Small upgrade")
+    assert(lines[7] == "|TInterface\\Icons\\INV_Misc_Coin_01:12|t Usually on the Auction House \194\183 from level 12", lines[7])
+    assert(lines[8] == "Head: Deadmines Helm \226\128\148 Big upgrade")
+    assert(lines[9]:find("^|TInterface\\Icons\\INV_Misc_Map_01:12|t Dropped by Edwin"))
+    assert(lines[10] == "+2 more \194\183 click for all", lines[10])
+    assert(lines[11] == "Click for details" and #lines == 11)
+    -- the creature icon
+    local one = { count = 1, items = { WC.chipsOf and nil or chip.items[5] }, kind = "upgrade", entry = chip.entry }
+    local t = {}
+    for _, l in ipairs(WC.ChipTipLines(one)) do t[#t + 1] = l.text end
+    assert(t[3]:find("^|TInterface\\Icons\\INV_Misc_Bone_HumanSkull_01:12|t Dropped by Gnoll Boss"), t[3])
+    no_ilvl_anywhere(p, WC)
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: the panel shows the same two lines under each item", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(upgrade_digest(), { [10] = "active" })
+    assert(row_with(p, "Cloak: Traveler's Shawl \226\128\148 Big upgrade"))
+    local sub = row_with(p, "Finish Lost Shawl and choose it")
+    assert(sub.icon:IsShown() and sub.icon.texture == WC.PATH_ICONS.quest)
+    assert(row_with(p, "Usually on the Auction House \194\183 from level 12").icon.texture == WC.PATH_ICONS.auction)
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: the card lists every upgrade with its path, chips and Show on map", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(upgrade_digest(), { [10] = "active" })
+    local entry = chip_of(p, "upgrade").chip.entry
+    local m = WC.CardModel(entry)
+    local text = card_text(WC, entry)
+    assert(m.title == "6 upgrades you can get", m.title)
+    assert(text:find("Cloak: Traveler's Shawl \226\128\148 Big upgrade", 1, true) and text:find("instead of your Worn Cloak", 1, true))
+    assert(text:find("fills an empty slot", 1, true) and text:find("Copper Bar: have 3 of 6", 1, true))
+    assert(text:find("Fang Boots", 1, true) and text:find("Extra Ring", 1, true), "every upgrade, not four")
+    assert(table.concat(m.asks, "|") == "How do I get Traveler's Shawl?|How do I get Copper Chain Vest?|How do I get Tough Bracers?")
+    assert(#m.actions == 1 and m.actions[1].label == "Show on map")
+    -- one upgrade's own card
+    local own = entry.upgrades[1]
+    local om = WC.CardModel(own)
+    assert(om.asks[1] == "How do I get Traveler's Shawl?" and #om.actions == 1 and om.actions[1].label == "Show on map")
+    local craft = WC.CardModel(entry.upgrades[2])
+    assert(#craft.actions == 0 and craft.asks[1] == "How do I get Copper Chain Vest?")
+    assert(card_text(WC, entry.upgrades[3]):find("Usually on the Auction House \194\183 from level 12", 1, true))
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: an older digest shows <Slot>: <Item> only", function()
+    UnitLevel = function() return 10 end
+    local d = digest14()
+    d.sections[2].lines = { { text = "Equip Boots (+12 ilvl)", slot = "Feet", ilvl = 12, atLevel = 12 } }
+    local p, WC = card_client(d)
+    local chip = chip_of(p, "upgrade").chip
+    assert(tip_text(chip) == "1 gear upgrade|Feet: Boots|Click for details", tip_text(chip))
+    assert(row_with(p, "Feet: Boots"))
+    assert(card_text(WC, chip.entry.upgrades[1]) == "Feet\nat level 12")
+    no_ilvl_anywhere(p, WC)
+    UnitLevel = nil
+end }
+
 cases[#cases + 1] = { "chips: tooltip lines per kind", function()
     UnitLevel = function() return 10 end
     local p, WC = card_client()
     assert(tip_text(chip_of(p, "talent").chip) == "2 unspent talent points|Next in your plan: Mortal Strike|Click for details")
     assert(tip_text(chip_of(p, "training").chip) == "New at level 10:|Thunder Clap - new|Click for details" or tip_text(chip_of(p, "training").chip):find("^New at level 10:|"))
-    assert(tip_text(chip_of(p, "upgrade").chip) == "1 gear upgrade|Equip Hammer of Fate (Main Hand, ilvl 25)|Click for details")
+    assert(tip_text(chip_of(p, "upgrade").chip) == "1 gear upgrade|Main Hand: Hammer of Fate|Click for details")
     local d = digest14()
     for i = 2, 5 do d.sections[2].lines[i] = { text = "Gear " .. i, slot = "Head", ilvl = i } end
     WoWCompanionDigest = d
     WC.Refresh()
     local t = tip_text(chip_of(p, "upgrade").chip)
-    assert(t:find("^5 gear upgrades|") and t:find("Gear 3", 1, true) and not t:find("Gear 4", 1, true), "the top three only: " .. t)
+    assert(t:find("^5 gear upgrades|") and t:find("Head: Gear 4", 1, true) and not t:find("Gear 5", 1, true) and t:find("+1 more", 1, true) and not t:find("ilvl", 1, true), "plain lines: " .. t)
     local b = chip_of(p, "talent")
     b.scripts.OnEnter(b)
     local call = GameTooltip.calls[#GameTooltip.calls]
@@ -3400,7 +3504,7 @@ cases[#cases + 1] = { "chips: left and right click open the card for that chip",
             assert(#WC.CardModel(WC.card.entry).asks > 0)
         end
     end
-    assert(WC.card.entry.key == "upgrades" and WC.CardModel(WC.card.entry).rows[1].text == "Equip Hammer of Fate")
+    assert(WC.card.entry.key == "upgrades" and WC.CardModel(WC.card.entry).rows[1].text == "Hammer of Fate")
     WC.CloseCard()
     local b = chip_of(p, "talent")
     b.scripts.OnClick(b, "LeftButton")

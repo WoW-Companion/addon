@@ -45,18 +45,75 @@ WC.CHIP_DEFS = {
     upgrade = {
         icon = function() return WC.ICONS.gear end,
         tip = function(chip)
-            local out = { line(string.format(chip.count == 1 and L.CHIP_UPGRADES_ONE or L.CHIP_UPGRADES_MANY, chip.count), WC.COLORS.gold) }
+            local planned = false
+            for _, it in ipairs(chip.items) do if WC.HasUpgradePath(it) then planned = true end end
+            local head = planned and L.CHIP_UPGRADES_GET or (chip.count == 1 and L.CHIP_UPGRADES_ONE or L.CHIP_UPGRADES_MANY)
+            local out = { line(string.format(head, chip.count), WC.COLORS.gold) }
             for i, it in ipairs(chip.items) do
-                if i > 3 then break end
-                local meta = {}
-                if it.slot then meta[#meta + 1] = it.slot end
-                if it.ilvl then meta[#meta + 1] = string.format(L.ILVL, it.ilvl) end
-                out[#out + 1] = line(#meta > 0 and string.format(L.CHIP_UPGRADE_LINE, it.title, table.concat(meta, ", ")) or it.title)
+                if i > WC.CHIP_UPGRADE_MAX then break end
+                out[#out + 1] = line(WC.UpgradeMain(it))
+                local sub = WC.UpgradeSub(it, true)
+                if sub then out[#out + 1] = line(sub, WC.COLORS.dim) end
+            end
+            if chip.count > WC.CHIP_UPGRADE_MAX then
+                out[#out + 1] = line(string.format(L.CHIP_UPGRADES_MORE, chip.count - WC.CHIP_UPGRADE_MAX), WC.COLORS.grey)
             end
             return out
         end,
     },
 }
+
+-- ------------------------------------------------------------ upgrade lines in plain words
+
+WC.CHIP_UPGRADE_MAX = 4
+
+-- The path icon per way of getting an item, all the client's own art.
+WC.PATH_ICONS = {
+    quest = "Interface\\GossipFrame\\AvailableQuestIcon",
+    craft = "Interface\\Icons\\Trade_BlackSmithing",
+    auction = "Interface\\Icons\\INV_Misc_Coin_01",
+    dungeon = "Interface\\Icons\\INV_Misc_Map_01",
+    creature = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
+}
+
+-- Whether an upgrade (entry or chip item) came from a digest that says how to get it.
+function WC.HasUpgradePath(u)
+    return type(u) == "table" and type(u.how) == "string" and u.how ~= ""
+end
+
+-- The item's name from a digest line's text: no "Equip " lead and no "(... ilvl ...)" tail.
+function WC.UpgradeName(u)
+    local t = tostring(u.title or "")
+    t = t:gsub("%s*%([^)]*ilvl[^)]*%)", ""):gsub("^Equip%s+", "")
+    return t
+end
+
+-- "<Slot>: <Item> - <gain>"; an older digest has no gain, and a line with no slot is the item alone.
+function WC.UpgradeMain(u)
+    local out = WC.UpgradeName(u)
+    if u.slot and u.slot ~= "" then out = u.slot .. ": " .. out end
+    if u.gain and u.gain ~= "" then out = out .. " \226\128\148 " .. u.gain end
+    return out
+end
+
+local function inline_icon(path, size) return "|T" .. path .. ":" .. size .. "|t " end
+
+-- The dim second line: the path icon, how to get it, and "from level N" when it can't be worn yet. Nil with
+-- nothing to say. inline puts the icon in the text (a tooltip line); the panel draws it as a texture.
+function WC.UpgradeSub(u, inline)
+    if not WC.HasUpgradePath(u) then return nil end -- an older digest: just "<Slot>: <Item>"
+    local parts = { u.how }
+    local wear = u.wear
+    if type(wear) == "string" and wear ~= "" and not wear:lower():find("^wear now") then
+        parts[#parts + 1] = wear:sub(1, 1):lower() .. wear:sub(2)
+    elseif not wear and u.atLevel then
+        parts[#parts + 1] = string.format(L.FROM_LEVEL, math.floor(u.atLevel))
+    end
+    if #parts == 0 then return nil end
+    local text = table.concat(parts, " \194\183 ")
+    local icon = WC.PATH_ICONS[u.pathKind]
+    return (inline and icon) and inline_icon(icon, 12) .. text or text
+end
 
 -- The chips for what RenderDigest found: found.talent = { count, entry }, found.training = { entries },
 -- found.upgrade = { entries }. A kind with nothing to do has no chip. d is the digest entry (for the live
@@ -85,14 +142,21 @@ function WC.BuildChips(found, d)
     if #found.upgrade > 0 then
         local items, details, titles = {}, {}, {}
         for i, e in ipairs(found.upgrade) do
-            items[i] = { title = e.title, slot = e.slot, ilvl = e.ilvl }
-            details[#details + 1] = i <= 6 and e.title or nil
+            items[i] = e
+            details[#details + 1] = i <= 6 and WC.UpgradeName(e) or nil
             if i <= 3 then titles[#titles + 1] = e.title end
         end
         local n = #found.upgrade
         local title = string.format(n == 1 and L.CHIP_UPGRADES_ONE or L.CHIP_UPGRADES_MANY, n)
         local entry = WC.MakeEntry("upgrade", "upgrades", {}, { title = title, ask = { kind = "upgrades", subject = table.concat(titles, "; ") } })
         entry.details = details
+        entry.upgrades = found.upgrade
+        local asks = {}
+        for _, e in ipairs(found.upgrade) do
+            for _, a in ipairs(e.asks or {}) do if #asks < 3 and a:find("^How do I get") then asks[#asks + 1] = a end end
+            if not entry.quest and e.pathKind == "quest" and e.quest and #WC.QuestSteps(e.quest) > 0 then entry.quest = e.quest end
+        end
+        entry.asks = #asks > 0 and asks or nil
         list.upgrade = { count = n, entry = entry, items = items }
     end
     for _, id in ipairs(WC.CHIP_ORDER) do
