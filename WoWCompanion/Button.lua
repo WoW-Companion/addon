@@ -152,6 +152,18 @@ function WC.FindClientTab(parent)
             if bt then cands[#cands + 1] = { frame = t, bottom = bt } end
         end
     end
+    if #cands == 0 and parent.GetChildren then
+        -- the client moved or renamed its tab fields: take its own shown check buttons of tab size, never ours or
+        -- another addon's (those carry a name of their own)
+        for _, t in ipairs({ parent:GetChildren() }) do
+            local nm = type(t) == "table" and t.GetName and t:GetName() or nil
+            local w, h = t.GetWidth and t:GetWidth() or 0, t.GetHeight and t:GetHeight() or 0
+            if t ~= WC.mapButton and t ~= WC.mapPanel and t.GetObjectType and t:GetObjectType() == "CheckButton" and (nm == nil or not nm:find("^WoWCompanion"))
+                and t.IsShown and t:IsShown() and t.GetBottom and t:GetBottom() and w > 0 and w <= 80 and h > 0 and h <= 80 then
+                cands[#cands + 1] = { frame = t, bottom = t:GetBottom() }
+            end
+        end
+    end
     return WC.LowestTab(cands)
 end
 
@@ -165,11 +177,12 @@ function WC.PlaceMapTab()
     if low then
         local w, h = low.GetWidth and low:GetWidth() or 0, low.GetHeight and low:GetHeight() or 0
         if w > 0 and h > 0 then b:SetSize(w, h) end
-        b:SetPoint("TOPLEFT", low, "BOTTOMLEFT", 0, -WC.MAP_TAB_GAP)
+        b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP) -- centred under it, so the two share one column
     else
         b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
         b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y)
     end
+    if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     if WC.HookClientTabs then WC.HookClientTabs() end
 end
 
@@ -181,7 +194,7 @@ function WC.CreateMapButton()
     local b
     local column = QuestMapFrame
     if column and type(CreateFrame) == "function" then
-        local ok, frame = pcall(CreateFrame, "Button", "WoWCompanionMapTab", column, WC.MAP_TAB_TEMPLATE)
+        local ok, frame = pcall(CreateFrame, "CheckButton", "WoWCompanionMapTab", column, WC.MAP_TAB_TEMPLATE) -- the client's own tabs are check buttons
         if ok and type(frame) == "table" then b, WC.mapButtonMode, WC.mapButtonParent = frame, "tab", column end
     end
     if not b then
@@ -223,7 +236,12 @@ function WC.CreateMapButton()
     if WC.mapButtonMode == "tab" then
         if column.HookScript then column:HookScript("OnShow", function() WC.PlaceMapTab(); WC.RefreshMapTab() end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
-        if map.HookScript then map:HookScript("OnShow", function() WC.PlaceMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab() end) end
+        if map.HookScript then map:HookScript("OnShow", function()
+            WC.PlaceMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
+            if C_Timer and C_Timer.After then -- again once the client has laid the map out
+                C_Timer.After(0.5, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
+            end
+        end) end
         if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnHide", function() WC.ClearSelectedStep() end) end -- the selection ends with the map
         WC.PlaceMapTab()

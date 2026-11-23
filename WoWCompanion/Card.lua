@@ -1,13 +1,14 @@
 -- WoW Companion: clicking panel entries, and the detail card.
 -- A left-click on a quest in the log opens it in the client's own quest log (out of combat); a click on
 -- anything else, or a right-click on anything, opens a card beside the panel with the entry's details, live
--- facts and the entry's natural questions as one-click chips. Read-only: the only thing that leaves the game is
--- a queued question (see docs/ask-format.md), and "copy" is a selected edit box the player copies with Ctrl+C.
+-- facts and the entry's natural questions as one-click chips. Read-only: nothing leaves the game. A question chip
+-- opens a selected edit box under it that the player copies with Ctrl+C and pastes into the overlay.
 
 local WC = WoWCompanion
 local L = WC.L
 
-local CARD_W, PAD, ANSWER_H = 300, 10, 84
+local CARD_W, PAD = 300, 10
+local MAX_ASK_LEN = 500
 local GREY, GOLD, GREEN = { 0.72, 0.72, 0.72 }, { 1, 0.82, 0 }, { 0.25, 0.9, 0.25 }
 local ART = "Interface\\Icons\\"
 local KIND_ICON = {
@@ -120,24 +121,6 @@ end
 
 -- ---------------------------------------------------------------- card contents (pure data)
 
--- The answer the companion wrote for a question asked from this entry, or nil. Answers are plain data in
--- the global WoWCompanionAnswers = { answers = { { id = "<ask id>", question = "<text>", text = "<answer>" }, ... } },
--- written by the companion into WoWCompanion_Answers/Answers.lua; the card matches by the ask id it remembered
--- when it sent the question, or by the question text.
-function WC.AnswerFor(key)
-    local data = WoWCompanionAnswers
-    local list = type(data) == "table" and type(data.answers) == "table" and data.answers or nil
-    local sent = WC.db and type(WC.db.cardAsks) == "table" and WC.db.cardAsks[key]
-    if not list or type(sent) ~= "table" then return nil end
-    local best
-    for _, a in ipairs(list) do
-        if type(a) == "table" and type(a.text) == "string" and a.text ~= "" and (a.id == sent.id or (a.question ~= nil and a.question == sent.text)) then
-            best = a
-        end
-    end
-    return best and (best.text:gsub("|", "||")) or nil
-end
-
 local function row(text, color) return { text = text, color = color or GREY } end
 
 -- The facts a quest card shows live: its state and objectives with counts, or where to pick it up.
@@ -224,19 +207,22 @@ function WC.CardModel(entry)
             m.hints[#m.hints + 1] = string.format(L.CARD_OPEN_TALENTS_KEY, key)
         end
     elseif kind == "upgrade" then
-        -- one upgrade: slot, item and gain; how to get it with its path icon; what it replaces; material counts
+        -- one upgrade as two lines that compare it with what you wear, then how to get it with its path icon
         local function upgrade_rows(u)
-            rows[#rows + 1] = row(WC.UpgradeMain(u), WC.COLORS.white)
-            local sub = WC.UpgradeSub(u, true)
-            if sub then rows[#rows + 1] = row(sub) end
-            if u.replaces then rows[#rows + 1] = row(u.replaces) end
+            rows[#rows + 1] = row(string.format(L.CARD_YOU_WEAR, WC.UpgradeWorn(u)), WC.COLORS.white)
+            local look = WC.UpgradeName(u)
+            if u.slot and u.slot ~= "" and look:lower():sub(1, #u.slot + 1) == u.slot:lower() .. ":" then look = look:sub(#u.slot + 2):gsub("^%s+", "") end
+            if u.gain and u.gain ~= "" then look = look .. " \226\128\148 " .. u.gain end
+            rows[#rows + 1] = row(string.format(L.CARD_LOOK_FOR, look), WC.COLORS.white)
+            local how = WC.UpgradeSub(u, true)
+            if how then rows[#rows + 1] = row(how) end
             for _, mat in ipairs(u.materials or {}) do rows[#rows + 1] = row(string.format(L.CARD_MATERIAL_HAVE, mat.name, mat.have, mat.need)) end
         end
         if entry.upgrades then -- the chip's card: every upgrade
             local planned = false
             for _, u in ipairs(entry.upgrades) do if WC.HasUpgradePath(u) then planned = true end end
-            if planned then
-                for i = #rows, 1, -1 do rows[i] = nil end -- the item names are replaced by full lines
+            if planned then -- an older digest keeps the plain item names
+                for i = #rows, 1, -1 do rows[i] = nil end
                 m.title = string.format(#entry.upgrades == 1 and L.CHIP_UPGRADES_GET_ONE or L.CHIP_UPGRADES_GET, #entry.upgrades)
                 for i, u in ipairs(entry.upgrades) do
                     if i > 1 then rows[#rows + 1] = row(" ") end
@@ -269,12 +255,12 @@ function WC.CardModel(entry)
         if #rows == 0 then rows[#rows + 1] = row(entry.line, WC.COLORS.white) end
     end
     drop_repeats(rows, m.title, entry.title)
-    -- a note's whole text is its title, so it never claims to have no details
-    if #rows == 0 and kind ~= "note" and (kind ~= "talent" or #m.hints == 0) then rows[#rows + 1] = row(L.CARD_NO_DETAILS) end
+    -- a card with nothing more shows the entry's own text (its reason came in above); a note's text is its title
+    if #rows == 0 and kind ~= "note" and (kind ~= "talent" or #m.hints == 0) and m.title ~= "" then rows[#rows + 1] = row(m.title, WC.COLORS.white) end
     m.icon = m.icon or KIND_ICON.note
-    m.asks = entry.asks or WC.FallbackAsks(entry, m.title)
+    -- an upgrade set and the stats card ask only what the digest gave: never a question built from a summary
+    m.asks = entry.asks or ((entry.upgrades or kind == "stats") and {} or WC.FallbackAsks(entry, m.title))
     m.ref = entry.ref
-    m.answer = WC.AnswerFor(entry.key)
     return m
 end
 
@@ -293,53 +279,13 @@ local function make_button(name, parent, text, w)
     return b
 end
 
-local fill_card -- defined below; asking redraws the card
+local fill_card -- defined below; a question click redraws the card
 
--- Queues one question through the ask queue (the data-only WoWCompanionDB.asks path) with the entry's ref,
--- remembers its id for the answer, and says what happens next. When selectIt, the question also sits selected
--- in a small box for an optional Ctrl+C. Returns the queued record, or nil when the text was empty.
-local copy_begin
-local function card_ask(text, selectIt)
-    local c = card
-    if not c or not c.entry then return nil end
-    local sent = WC.SubmitAsk(tostring(text or ""):sub(1, WC.MAX_ASK_LEN), c.entry.ref)
-    if not sent then return nil end
-    WC.db.cardAsks = type(WC.db.cardAsks) == "table" and WC.db.cardAsks or {}
-    WC.db.cardAsks[c.entry.key] = { id = sent.id, text = sent.text }
-    local n = 0
-    for _ in pairs(WC.db.cardAsks) do n = n + 1 end
-    if n > 30 then -- keep the remembered asks bounded: drop any other entry's
-        for k in pairs(WC.db.cardAsks) do
-            if k ~= c.entry.key then WC.db.cardAsks[k] = nil break end
-        end
-    end
-    c.selected = selectIt and sent.text or nil
-    c.ownOpen = nil
-    c.asked = true
-    c.status:SetText(L.CARD_ASKED)
-    fill_card(c.entry, true)
-    if selectIt then copy_begin(c) end
-    return sent
-end
-
--- A click on the i-th question chip.
-function WC.CardAsk(i)
-    local c = card
-    local q = c and c.asksShown and c.asksShown[i]
-    if not q then return nil end
-    return card_ask(q, true)
-end
-
--- A free-text question typed into the "Type your own..." box.
-function WC.CardAskOwn(text)
-    return card_ask(text, false)
-end
-
--- Copy. Addons cannot write the clipboard, so "copy" leaves the selected question in a focused edit box and
--- the player's own Ctrl+C does the rest. The button's mouse-up can undo a single SetFocus/HighlightText, so
--- the selection is made again on the next frame, whenever the box gains focus, and on a click into the box.
--- After Ctrl+C (or Cmd+C) "Copied" shows for COPIED_SECONDS, then the selection and focus are let go so the
--- movement keys return to the game; typing or Esc ends it too.
+-- Copy. Addons cannot write the clipboard, so a click on a question chip leaves the question selected and
+-- focused in an edit box under that chip, and the player's own Ctrl+C does the copy. The key handler changes
+-- nothing: not the box's text, selection or focus, since the client copies after the handler returns. The
+-- confirmation shows on a following frame, the text stays, and the focus is let go a moment later so the
+-- movement keys return to the game.
 local COPIED_SECONDS = 1.5
 
 local function copy_select(c)
@@ -347,42 +293,43 @@ local function copy_select(c)
     c.box:HighlightText()
 end
 
-local function copy_end(c)
-    c.copying = nil
-end
-
-function copy_begin(c)
+local function copy_begin(c)
     c.copying = true
     c.copyToken = (c.copyToken or 0) + 1
     copy_select(c)
     if C_Timer and C_Timer.After then
-        C_Timer.After(0, function()
+        C_Timer.After(0, function() -- the button's mouse-up can undo a single SetFocus/HighlightText
             if c.copying then copy_select(c) end
         end)
     end
 end
 
-function WC.CardCopy()
+-- A click on the i-th question chip: the question opens, selected, in the box under that chip.
+function WC.CardAsk(i)
     local c = card
-    if not (c and c.selected) then return end
+    local q = c and c.asksShown and c.asksShown[i]
+    if not q then return nil end
+    c.selected, c.selectedIndex = q, i
     c.status:SetText("")
+    fill_card(c.entry, true)
     copy_begin(c)
+    return q
 end
 
--- Called on a key press in the box: Ctrl+C (Cmd+C on a Mac client) confirms, then frees the keyboard.
+-- Called on a key press in the box (Ctrl+C, or Cmd+C on a Mac client). Changes nothing itself.
 function WC.CardKeyDown(key)
     local c = card
     if not (c and c.copying and type(key) == "string" and key:upper() == "C") then return false end
     if not ((IsControlKeyDown and IsControlKeyDown()) or (IsMetaKeyDown and IsMetaKeyDown())) then return false end
-    copy_end(c)
-    c.status:SetText(L.CARD_COPIED)
     local token = c.copyToken
     if C_Timer and C_Timer.After then
-        C_Timer.After(COPIED_SECONDS, function()
-            if c.copyToken == token and not c.copying then
-                c.box:ClearFocus()
-                c.status:SetText(c.asked and L.CARD_ASKED or "")
-            end
+        C_Timer.After(0, function()
+            if c.copyToken ~= token or not c.copying then return end
+            c.status:SetText(L.CARD_COPIED)
+            c.copying = nil
+            C_Timer.After(COPIED_SECONDS, function()
+                if c.copyToken == token and not c.copying then c.box:ClearFocus() end
+            end)
         end)
     end
     return true
@@ -392,7 +339,7 @@ end
 function WC.CardEscape()
     local c = card
     if not c then return end
-    copy_end(c)
+    c.copying = nil
     c.box:ClearFocus()
 end
 
@@ -438,36 +385,15 @@ local function create_card()
     c.link:SetScript("OnLeave", function() GameTooltip:Hide() end)
     c.askLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.askLabel:SetText(L.CARD_ASK)
+    c.askLabel:SetTextColor(GREY[1], GREY[2], GREY[3])
     c.askLabel:SetJustifyH("LEFT")
-    -- "Type your own..." opens a one-line box; Enter queues what is typed
-    c.own = CreateFrame("Button", "WoWCompanionCardOwn", c)
-    c.own.label = c.own:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    c.own.label:SetPoint("TOPLEFT", c.own, "TOPLEFT", 0, 0)
-    c.own.label:SetText(L.CARD_OWN)
-    c.own.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    c.own:SetScript("OnClick", function()
-        c.ownOpen = true
-        fill_card(c.entry, true)
-        c.ownBox:SetFocus()
-    end)
-    c.ownBox = CreateFrame("EditBox", "WoWCompanionCardOwnBox", c, "BackdropTemplate")
-    c.ownBox:SetAutoFocus(false)
-    c.ownBox:SetMaxLetters(WC.MAX_ASK_LEN)
-    c.ownBox:SetSize(CARD_W - PAD * 2, 22)
-    if c.ownBox.SetFontObject then c.ownBox:SetFontObject("GameFontHighlightSmall") end
-    if c.ownBox.SetTextInsets then c.ownBox:SetTextInsets(4, 4, 2, 2) end
-    bordered(c.ownBox)
-    c.ownBox:SetScript("OnEnterPressed", function(self)
-        WC.CardAskOwn(self:GetText())
-        self:SetText("")
-        self:ClearFocus()
-    end)
-    c.ownBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    c.ownBox:Hide()
-    -- the question just asked, selected for an optional Ctrl+C
+    c.ownLine = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    c.ownLine:SetText(L.CARD_OWN_DIM)
+    c.ownLine:SetJustifyH("LEFT")
+    -- the clicked question, selected for Ctrl+C
     c.box = CreateFrame("EditBox", "WoWCompanionCardAsk", c, "BackdropTemplate")
     c.box:SetAutoFocus(false)
-    c.box:SetMaxLetters(WC.MAX_ASK_LEN)
+    c.box:SetMaxLetters(MAX_ASK_LEN)
     c.box:SetSize(CARD_W - PAD * 2, 22)
     if c.box.SetFontObject then c.box:SetFontObject("GameFontHighlightSmall") end
     if c.box.SetTextInsets then c.box:SetTextInsets(4, 4, 2, 2) end
@@ -482,12 +408,9 @@ local function create_card()
     end)
     c.box:SetScript("OnTextChanged", function(_, user)
         if not user then return end
-        copy_end(c) -- the player is editing the question: stop selecting it all
+        c.copying = nil -- the player is editing the question: stop selecting it all
     end)
     c.box:Hide()
-    c.copy = make_button("WoWCompanionCardCopy", c, L.CARD_COPY, 80)
-    c.copy:SetScript("OnClick", function() WC.CardCopy() end)
-    c.copy:Hide()
     c.copyHint = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.copyHint:SetText(L.CARD_COPY_HINT)
     c.copyHint:SetJustifyH("LEFT")
@@ -495,17 +418,7 @@ local function create_card()
     c.status = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     c.status:SetJustifyH("LEFT")
     c.status:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
-    c.answerLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    c.answerLabel:SetText(L.CARD_ANSWER)
-    c.answerScroll = CreateFrame("ScrollFrame", "WoWCompanionCardAnswerScroll", c, "UIPanelScrollFrameTemplate")
-    c.answerBody = CreateFrame("Frame", nil, c.answerScroll)
-    c.answerBody:SetSize(CARD_W - PAD * 2 - 24, 1)
-    c.answerScroll:SetScrollChild(c.answerBody)
-    c.answer = c.answerBody:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    c.answer:SetPoint("TOPLEFT", c.answerBody, "TOPLEFT", 0, 0)
-    c.answer:SetWidth(CARD_W - PAD * 2 - 24)
-    c.answer:SetJustifyH("LEFT")
-    c:SetScript("OnHide", function() c.entry = nil c.copying = nil c.selected, c.ownOpen, c.asked = nil, nil, nil end)
+    c:SetScript("OnHide", function() c.entry = nil c.copying = nil c.selected, c.selectedIndex = nil, nil end)
     c:Hide()
     if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "WoWCompanionCard") end -- Esc closes it
     return c
@@ -639,16 +552,22 @@ function fill_card(entry, keepText)
     end
     for i = #m.actions + 1, #c.actions do c.actions[i]:Hide() end
     if #m.actions > 0 then y = y + math.ceil(#m.actions / 2) * 26 + 4 end
-    c.askLabel:ClearAllPoints()
-    c.askLabel:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-    y = y + WC.LINE_HEIGHT + 2
+    if #m.asks > 0 then
+        c.askLabel:ClearAllPoints()
+        c.askLabel:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+        c.askLabel:Show()
+        y = y + WC.LINE_HEIGHT + 2
+    else
+        c.askLabel:Hide()
+    end
     if not keepText then
-        c.copying, c.selected, c.ownOpen, c.asked = nil, nil, nil, nil
+        c.copying, c.selected, c.selectedIndex = nil, nil, nil
         c.status:SetText("")
         c.box:SetText("")
-        c.ownBox:SetText("")
     end
     c.asksShown = m.asks
+    if c.selected and c.selected ~= m.asks[c.selectedIndex] then c.selected, c.selectedIndex = nil, nil end
+    local boxShown = false
     for i, q in ipairs(m.asks) do
         local b = get_chip(c, i)
         b.index = i
@@ -661,65 +580,37 @@ function fill_card(entry, keepText)
         b:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
         b:Show()
         y = y + h + 3
+        if c.selected and c.selectedIndex == i then
+            -- the copy box sits directly under the chip that was clicked
+            if c.box:GetText() ~= c.selected then c.box:SetText(c.selected) end -- never reset a box being copied from
+            c.box:ClearAllPoints()
+            c.box:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+            c.box:Show()
+            y = y + 25
+            c.copyHint:ClearAllPoints()
+            c.copyHint:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+            c.copyHint:Show()
+            y = y + WC.LINE_HEIGHT + 2
+            c.status:SetWidth(width)
+            c.status:ClearAllPoints()
+            c.status:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+            WC.StyleText(c.status)
+            c.status:Show()
+            y = y + WC.LINE_HEIGHT * 2 + 4 -- room for the confirmation, which appears a frame after the key
+            boxShown = true
+        end
     end
     for i = #m.asks + 1, #c.chips do c.chips[i]:Hide() end
-    c.own:SetSize(width, WC.LINE_HEIGHT)
-    c.own:ClearAllPoints()
-    c.own:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-    WC.StyleText(c.own.label)
-    c.own:Show()
-    y = y + WC.LINE_HEIGHT + 4
-    if c.ownOpen then
-        c.ownBox:ClearAllPoints()
-        c.ownBox:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.ownBox:Show()
-        y = y + 26
-    else
-        c.ownBox:Hide()
-    end
-    if c.selected then
-        c.box:SetText(c.selected)
-        c.box:ClearAllPoints()
-        c.box:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.box:Show()
-        y = y + 25
-        c.copy:ClearAllPoints()
-        c.copy:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.copy:Show()
-        c.copyHint:ClearAllPoints()
-        c.copyHint:SetPoint("LEFT", c.copy, "RIGHT", 8, 0)
-        c.copyHint:Show()
-        y = y + 26
-    else
+    if not boxShown then
         c.box:Hide()
-        c.copy:Hide()
         c.copyHint:Hide()
+        c.status:Hide()
     end
-    c.status:SetWidth(width)
-    c.status:ClearAllPoints()
-    c.status:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-    WC.StyleText(c.status)
-    y = y + ((c.status:GetText() or "") ~= "" and (text_height(c.status, WC.LINE_HEIGHT * 2) + 4) or 2)
-    c.hasAnswer = m.answer ~= nil
-    if m.answer then
-        c.answerLabel:ClearAllPoints()
-        c.answerLabel:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.answerLabel:Show()
-        y = y + WC.LINE_HEIGHT + 2
-        c.answer:SetText(m.answer)
-        WC.StyleText(c.answer)
-        c.answerBody:SetHeight(text_height(c.answer, ANSWER_H))
-        c.answerScroll:ClearAllPoints()
-        c.answerScroll:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.answerScroll:SetSize(width - 22, ANSWER_H)
-        c.answerScroll:Show()
-        c.answerShown = m.answer
-        y = y + ANSWER_H + 6
-    else
-        c.answerLabel:Hide()
-        c.answerScroll:Hide()
-        c.answerShown = nil
-    end
+    c.ownLine:SetWidth(width)
+    c.ownLine:ClearAllPoints()
+    c.ownLine:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -(y + 2))
+    WC.StyleText(c.ownLine)
+    y = y + WC.LINE_HEIGHT + 6
     c:SetHeight(y + PAD)
 end
 

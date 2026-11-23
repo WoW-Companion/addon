@@ -41,29 +41,14 @@ late:SetScript("OnEvent", function()
 end)
 
 SLASH_WOWC1 = "/wowc"
-SLASH_WOWCASK1 = "/ask"
-
--- Queues the text (see docs/ask-format.md) and says so; empty text just toggles the panel.
-local function ask(text)
-    if WC.SubmitAsk(text) then
-        print(L.ASK_QUEUED)
-    else
-        WC.TogglePanel()
-    end
-end
-WC.Ask = ask
-
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_ASK, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_RESET_VISUALS, L.HELP_RESET_ALL, L.HELP_STATUS, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_RESET_VISUALS, L.HELP_RESET_ALL, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
     msg = msg or ""
-    local question = msg:match("^%s*ask%s+(.*)$")
     local cmd = (msg:match("^%s*(%S+)") or ""):lower()
-    if question then
-        ask(question)
-    elseif cmd == "" or cmd == "ask" then
+    if cmd == "" then
         WC.TogglePanel()
     elseif cmd == "settings" or cmd == "options" or cmd == "config" then
         WC.OpenOptions()
@@ -85,4 +70,3 @@ SlashCmdList["WOWC"] = function(msg)
     end
 end
 
-SlashCmdList["WOWCASK"] = ask
