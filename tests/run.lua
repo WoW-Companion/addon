@@ -1900,7 +1900,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.2" and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.3" and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -3690,6 +3690,52 @@ cases[#cases + 1] = { "chains: the new settings have defaults, reset one by one,
     WC.SetSetting("showUpcoming", false)
     WC.ResetSetting("showUpcoming"); WC.ResetSetting("ghostsPerChain")
     assert(WC.IsDefault("showUpcoming") and WC.IsDefault("ghostsPerChain"))
+end }
+
+cases[#cases + 1] = { "why: shows in the panel, card and map row; absent changes nothing; the toggle hides it", function()
+    local WC = plan_client(nil)
+    local WHY = "Class quest: unlocks your next spell"
+    live_digest({ { kind = "pickup", title = "Seena's Task", quest = 91, class = true, why = WHY .. string.rep("x", 80) },
+        { kind = "pickup", title = "Plain Task", quest = 92 } })
+    local with = panel_text()
+    assert(with:find(WHY, 1, true), "why in the panel")
+    local rows = WC.QuestEntryRows({ kind = "pickup", title = "Plain Task", quest = 92 }, 92, nil, 5)
+    assert(#rows == 2 or #rows == 1, "no extra row without why")
+    for _, r in ipairs(rows) do assert(not r.why) end
+    local m = WC.QuestEntryRows({ kind = "pickup", title = "T", why = WHY }, nil, nil, 5)
+    assert(m[2].why and m[2].text == WHY and m[2].color == WC.COLORS.dim)
+    assert(#WC.MakeEntry("note", "k", { why = string.rep("y", 200) }).why == 70)
+    -- card: why first
+    local card = WC.CardModel(WC.MakeEntry("note", "n", { why = WHY, details = { "More" } }, { title = "Note" }))
+    assert(card.rows[1].text == WHY and card.rows[2].text == "More")
+    -- map row
+    local step = { kind = "turnin", questID = 91, quest = "Seena's Task", label = "Turn in Seena's Task", n = 1 }
+    assert(WC.StepSubLine(step) == WHY:sub(1, 70) or WC.StepSubLine(step):find("Class quest", 1, true), "why on the map row")
+    local plain_step = { kind = "turnin", questID = 92, quest = "Plain Task", label = "Turn in Plain Task", n = 2 }
+    assert(WC.StepSubLine(plain_step) == WoWCompanion.L.PANEL_TURNIN, "absent why: unchanged")
+    local obj = { kind = "objective", questID = 91, quest = "Seena's Task", label = "Kill Boar (0/1)", n = 3 }
+    assert(WC.StepSubLine(obj) == "Kill Boar (0/1)", "objective progress wins over why")
+    local obj2 = { kind = "objective", questID = 91, quest = "Seena's Task", label = "Explore the cave", n = 4 }
+    assert(WC.StepSubLine(obj2):find("Class quest", 1, true))
+    -- toggle
+    assert(WC.Setting("showWhy") == true)
+    WC.SetSetting("showWhy", false)
+    assert(not panel_text():find("Class quest", 1, true), "hidden in the panel")
+    assert(WC.StepSubLine(step) == WoWCompanion.L.PANEL_TURNIN, "hidden on the map")
+    WC.SetSetting("showWhy", true)
+end }
+
+cases[#cases + 1] = { "plan: plain step labels render in details and tooltips", function()
+    local WC = plan_client(nil)
+    local steps = WC.ParsePlan({ schema = 1, characters = { Thrall = { steps = {
+        { kind = "pickup", quest = "Crab Season", label = "Pick up Crab Season", map = 1, x = 1, y = 1 },
+        { kind = "objective", quest = "Crab Season", label = "Collect Meat (0/8)", map = 1, x = 1, y = 1 },
+        { kind = "objective", quest = "Crab Season", label = "Kill Crab (0/1)", map = 1, x = 1, y = 1 },
+        { kind = "turnin", quest = "Crab Season", label = "Turn in Crab Season", map = 1, x = 1, y = 1 } } } } }, "Thrall")
+    assert(#steps == 4 and steps[1].label == "Pick up Crab Season" and steps[4].label == "Turn in Crab Season")
+    assert(WC.PlanDetail(steps[2]) == "Collect Meat (0/8)" and WC.PlanDetail(steps[3]) == "Kill Crab (0/1)")
+    assert(WC.PlanDetail(steps[1]) == "" and WC.PlanDetail(steps[4]) == "")
+    assert(WC.StepSubLine(steps[2]) == "Collect Meat (0/8)")
 end }
 
 cases[#cases + 1] = { "read-only: nothing asks for a /reload", function()

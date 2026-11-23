@@ -39,6 +39,7 @@ local D = {
     { key = "showLevels", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_LEVELS", name = "Levels" },
     { key = "colorByDifficulty", type = "bool", default = true, page = "panel", box = "content", label = "COLOR_DIFFICULTY", name = "Difficulty" },
     { key = "showOptional", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_OPTIONAL", name = "Optional" },
+    { key = "showWhy", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_WHY", name = "Why" },
     { key = "showNpcLines", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_NPC_LINES", name = "Npc" },
     { key = "timeFormat", type = "choice", default = "client", choices = { "client", "12", "24" }, page = "panel", box = "content", label = "TIME_FORMAT_LABEL", name = "TimeFormat", choiceKey = "TIME_", widget = "dropdown" },
     { key = "showThen", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_THEN", name = "ShowThen" },

@@ -103,6 +103,7 @@ function WC.MakeEntry(kind, key, src, fields)
         e.asks = #asks > 0 and asks or nil
     end
     e.ref = clean(src.ref, 120)
+    e.why = clean(src.why, 70) -- schema 1.6: a short factual reason this entry is worth doing
     return e
 end
 
@@ -197,6 +198,16 @@ local function objective_row(o, optional_names)
     return { kind = "obj", indent = 2, text = plain(text), color = color, done = done }, opt and true or false
 end
 
+-- The dim "why" row under an entry (nil when the entry has none or the player switched it off).
+function WC.WhyRow(entry, group)
+    if not (entry and entry.why) or not WC.Setting("showWhy") then return nil end
+    return { kind = "status", why = true, indent = 2, text = plain(entry.why), color = WC.COLORS.dim, group = group or entry.key }
+end
+
+-- questID -> the why of its entry in the digest last rendered (read by the map plan's rows).
+WC.whyByQuest = {}
+function WC.QuestWhy(questID) return questID and WC.whyByQuest[questID] or nil end
+
 -- The rows of one structured next-quest line: the title row (state icon, collapse button, [level]
 -- Title, (Class), right-aligned (Elite)) and, unless collapsed, its objective and status rows.
 -- Live quest state overrides the digest's. Returns nil when the quest is already turned in.
@@ -228,8 +239,10 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         zone = line.zone and plain(line.zone) or nil, class = line.class == true, ask = head.ask,
     })
     head.group = id
+    if quest and head.entry.why then WC.whyByQuest[quest] = head.entry.why end
     if quest and WC.QuestIsNew and WC.QuestIsNew(quest) then head.right = head.right or L.NEW_TAG end
     local out = { head }
+    out[#out + 1] = WC.WhyRow(head.entry, id)
     if closed then return out end
 
     local digest_objs = type(line.objectives) == "table" and line.objectives or {}
@@ -498,7 +511,7 @@ local function extra_lines(list, kind, build, ekind)
                 row = WC.TalentEntry(n, ask, entry)
                 if row then row[kind] = id and item_id(id) or nil end
             end
-            if row then lines[#lines + 1] = row end
+            if row then lines[#lines + 1] = row; lines[#lines + 1] = WC.WhyRow(entry) end
         end
     end
     return lines
@@ -567,6 +580,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
 
     local plevel = UnitLevel and UnitLevel("player") or nil
     local out = {}
+    WC.whyByQuest = {}
     local found = { training = {}, upgrade = {} } -- what the chip row counts; see WC.BuildChips
     for _, section in ipairs(type(d.sections) == "table" and d.sections or {}) do
         local title = TITLES[section.id]
@@ -618,6 +632,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             if tonumber(line.ilvl) then meta[#meta + 1] = string.format(L.ILVL, tonumber(line.ilvl)) end
                             if tonumber(line.atLevel) then meta[#meta + 1] = string.format(L.AT_LEVEL, tonumber(line.atLevel)) end
                             lines[#lines + 1] = row
+                            lines[#lines + 1] = WC.WhyRow(entry)
                             if #meta > 0 then -- slot and item level sit dim on a line of their own, so nothing needs cutting
                                 row = { kind = "status", indent = 2, text = table.concat(meta, ", "), color = WC.COLORS.dim, group = entry.key }
                             else
@@ -625,6 +640,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             end
                         end
                         lines[#lines + 1] = row
+                        if row then lines[#lines + 1] = WC.WhyRow(entry) end
                     end
                 end
             end

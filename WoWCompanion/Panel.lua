@@ -410,7 +410,7 @@ function WC.Refresh()
         WC.StyleText(row.right, -1)
         local x = layout_row(row, r)
         row.label:SetText(r.text)
-        if row.label.SetMaxLines then row.label:SetMaxLines(r.kind == "line" and 2 or 0) end -- a note wraps to 2 lines; its card shows all
+        if row.label.SetMaxLines then row.label:SetMaxLines((r.kind == "line" or r.why) and 2 or 0) end -- a note wraps to 2 lines; its card shows all
         row.baseColor = r.color or WC.COLORS.white
         row.right:SetText(r.right or "")
         row.right:SetTextColor(unpack(WC.COLORS.dim))
