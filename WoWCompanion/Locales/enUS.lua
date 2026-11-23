@@ -386,6 +386,7 @@ local L = {
     WHATS_NEW_0_3_0_3 = "Type /wowc plan to hide or show the tracker and /wowc plan map for the pins.",
     WHATS_NEW_0_4_8_1 = "Copy on the detail card now works first time (press Ctrl+C, no clicking into the box), and every fallback question reads as a proper sentence.",
     WHATS_NEW_0_4_7_1 = "The minimap badge and every map badge now have a quest-tracker-style tooltip: [level] title (XP), who, live objectives, and the step.",
+    WHATS_NEW_0_5_1_1 = "Click the WoW Companion tab on the world map to see your plan in the map's side panel: steps in order, the next one highlighted. Hover a step to find it on the map, or click to centre on it.",
     WHATS_NEW_0_5_0_1 = "Talent points, training and gear upgrades now sit in a row of icon chips under the header instead of in the quest list. Hover a chip for the details, click it for the full card, and a chip pulses when something new turns up.",
     WHATS_NEW_0_4_9_1 = "The WoW Companion button on the world map is now a square side tab beside the map's other tabs.",
     WHATS_NEW_0_4_9_2 = "Click that tab to see the plan, in order, in the map's right-hand panel: hover a row to pulse its badge, click it to centre the map, right-click for its card. The eye (or shift-click on the tab) shows or hides the route on the map.",
