@@ -190,11 +190,11 @@ function WC.BuildChips(found, d)
         entry.asks = #asks > 0 and asks or nil
         list.upgrade = { count = n, entry = entry, items = items }
     end
-    list.stats = { count = 1, entry = WC.StatsEntry(type(d) == "table" and d.stats or nil) }
+    list.stats = { count = 1, noBadge = true, entry = WC.StatsEntry(type(d) == "table" and d.stats or nil) }
     for _, id in ipairs(WC.CHIP_ORDER) do
         local c = list[id]
         if c then
-            chips[#chips + 1] = { kind = id, count = c.count, entry = c.entry, items = c.items or {}, icon = WC.CHIP_DEFS[id].icon() }
+            chips[#chips + 1] = { kind = id, count = c.count, entry = c.entry, items = c.items or {}, noBadge = c.noBadge, icon = WC.CHIP_DEFS[id].icon() }
         end
     end
     return chips

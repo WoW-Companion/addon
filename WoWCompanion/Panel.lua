@@ -131,7 +131,7 @@ function WC.PlaceChips(f, pad, top)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", f, "TOPLEFT", pad + pos[i].x, -(top + pos[i].y))
         b.icon:SetTexture(c.icon)
-        b.count:SetText(c.kind == "stats" and "" or tostring(c.count))
+        b.count:SetText(not c.noBadge and tostring(c.count) or nil)
         b:Show()
         WC.StyleChip(b)
     end
