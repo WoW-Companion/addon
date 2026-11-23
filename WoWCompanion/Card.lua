@@ -9,6 +9,7 @@ local L = WC.L
 
 local CARD_W, PAD = 300, 10
 local MAX_ASK_LEN = 500
+local BOX_H = 50 -- three wrapped lines and the insets; a shorter question shrinks it
 local GREY, GOLD, GREEN = { 0.72, 0.72, 0.72 }, { 1, 0.82, 0 }, { 0.25, 0.9, 0.25 }
 local ART = "Interface\\Icons\\"
 local KIND_ICON = {
@@ -343,12 +344,82 @@ function WC.CardEscape()
     c.box:ClearFocus()
 end
 
-local function bordered(box)
+-- The copy box, built the way 0.6.0's was, which copied fine: a multi-line EditBox from BackdropTemplate, no
+-- auto-focus, a fixed width, its height fitted to the question. /wowc copytest builds its box A with this too.
+local BOX_LINES_MIN, BOX_LINES_MAX = 2, 3
+
+function WC.MakeCopyBox(name, parent, w, h)
+    local box = CreateFrame("EditBox", name, parent, "BackdropTemplate")
+    box:SetMultiLine(true)
+    box:SetAutoFocus(false)
+    box:SetMaxLetters(MAX_ASK_LEN)
+    box:SetSize(w, h)
+    if box.SetFontObject then box:SetFontObject("GameFontHighlightSmall") end
+    if box.SetTextInsets then box:SetTextInsets(4, 4, 4, 4) end
     if box.SetBackdrop then
         box:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
         box:SetBackdropColor(0, 0, 0, 0.5)
         box:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.8)
     end
+    return box
+end
+
+-- /wowc copytest: a small window with two boxes, so the real client can say which one Ctrl+C copies from.
+-- A is built exactly like the card's copy box; B is the bare client InputBoxTemplate. Local UI only.
+function WC.CopyTest()
+    local f = WoWCompanionCopyTest
+    if not f then
+        f = CreateFrame("Frame", "WoWCompanionCopyTest", UIParent, "BackdropTemplate")
+        f:SetSize(CARD_W, 210)
+        f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        if f.SetFrameStrata then f:SetFrameStrata("DIALOG") end
+        if f.SetBackdrop then
+            f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+            f:SetBackdropColor(0, 0, 0, 0.9)
+        end
+        f:EnableMouse(true)
+        f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        f.title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -PAD)
+        f.title:SetText(L.COPYTEST_TITLE)
+        f.close = CreateFrame("Button", "WoWCompanionCopyTestClose", f, "UIPanelCloseButton")
+        f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+        f.close:SetScript("OnClick", function() f:Hide() end)
+        local function label(y)
+            local fs = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            fs:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -y)
+            fs:SetWidth(CARD_W - PAD * 2)
+            fs:SetJustifyH("LEFT")
+            fs:SetText(L.COPYTEST_LABEL)
+            return fs
+        end
+        f.labelA, f.labelB = label(34), label(120)
+        f.boxA = WC.MakeCopyBox("WoWCompanionCopyTestA", f, CARD_W - PAD * 2, BOX_H)
+        f.boxA:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -52)
+        f.boxA:SetText(L.COPYTEST_A)
+        f.boxA:SetScript("OnEscapePressed", function(b) b:ClearFocus() end)
+        f.boxA:SetScript("OnEditFocusGained", function(b) b:HighlightText() end)
+        f.boxA:SetScript("OnMouseUp", function(b)
+            b:HighlightText()
+            if C_Timer and C_Timer.After then C_Timer.After(0, function() b:HighlightText() end) end
+        end)
+        f.boxB = CreateFrame("EditBox", "WoWCompanionCopyTestB", f, "InputBoxTemplate")
+        f.boxB:SetAutoFocus(false)
+        f.boxB:SetSize(CARD_W - PAD * 2 - 10, 22)
+        f.boxB:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 5, -138)
+        f.boxB:SetText(L.COPYTEST_B)
+        f.boxB:SetScript("OnEscapePressed", function(b) b:ClearFocus() end)
+        if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "WoWCompanionCopyTest") end
+    end
+    f:Show()
+    return f
+end
+
+-- Height for a question wrapped to the box: two or three lines.
+local function box_height(c, text)
+    c.boxMeasure:SetText(text)
+    local lines = math.ceil(((c.boxMeasure.GetStringHeight and c.boxMeasure:GetStringHeight()) or 0) / WC.LINE_HEIGHT - 0.01)
+    lines = math.max(BOX_LINES_MIN, math.min(BOX_LINES_MAX, lines))
+    return lines * WC.LINE_HEIGHT + 8
 end
 
 local function create_card()
@@ -391,13 +462,7 @@ local function create_card()
     c.ownLine:SetText(L.CARD_OWN_DIM)
     c.ownLine:SetJustifyH("LEFT")
     -- the clicked question, selected for Ctrl+C
-    c.box = CreateFrame("EditBox", "WoWCompanionCardAsk", c, "BackdropTemplate")
-    c.box:SetAutoFocus(false)
-    c.box:SetMaxLetters(MAX_ASK_LEN)
-    c.box:SetSize(CARD_W - PAD * 2, 22)
-    if c.box.SetFontObject then c.box:SetFontObject("GameFontHighlightSmall") end
-    if c.box.SetTextInsets then c.box:SetTextInsets(4, 4, 2, 2) end
-    bordered(c.box)
+    c.box = WC.MakeCopyBox("WoWCompanionCardAsk", c, CARD_W - PAD * 2, BOX_H)
     c.box:SetScript("OnEscapePressed", function() WC.CardEscape() end)
     c.box:SetScript("OnKeyDown", function(_, key) WC.CardKeyDown(key) end)
     c.box:SetScript("OnEditFocusGained", function() if c.copying then c.box:HighlightText() end end)
@@ -410,6 +475,9 @@ local function create_card()
         if not user then return end
         c.copying = nil -- the player is editing the question: stop selecting it all
     end)
+    c.boxMeasure = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    c.boxMeasure:SetWidth(CARD_W - PAD * 2 - 8)
+    c.boxMeasure:Hide()
     c.box:Hide()
     c.copyHint = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.copyHint:SetText(L.CARD_COPY_HINT)
@@ -583,10 +651,12 @@ function fill_card(entry, keepText)
         if c.selected and c.selectedIndex == i then
             -- the copy box sits directly under the chip that was clicked
             if c.box:GetText() ~= c.selected then c.box:SetText(c.selected) end -- never reset a box being copied from
+            local bh = box_height(c, c.selected)
+            c.box:SetHeight(bh)
             c.box:ClearAllPoints()
             c.box:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
             c.box:Show()
-            y = y + 25
+            y = y + bh + 3
             c.copyHint:ClearAllPoints()
             c.copyHint:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
             c.copyHint:Show()

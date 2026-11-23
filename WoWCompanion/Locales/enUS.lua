@@ -97,6 +97,7 @@ local L = {
     KEEP_OBSERVED = "Keep a log of my quest events for the overlay",
     WHATS_NEW_0_6_0_1 = "Quests that unlock on a turn-in now show up quietly: a faint ghost badge on the map and a \"then:\" line under the turn-in. Turn it in and the follow-up turns solid on the spot, with a \"New\" tag. No /reload.",
     WHATS_NEW_0_6_0_2 = "A quest you accept that is not in the plan appears as \"Unplanned\", and the addon keeps a small log of quest events so the overlay can route it after your next save. Turn the log off in the Panel options.",
+    WHATS_NEW_0_6_7_1 = "The question box is a multi-line box again, so Ctrl+C really fills the clipboard. /wowc help debug lists a copy test.",
     WHATS_NEW_0_6_6_1 = "Click a question to copy it, then paste it into the overlay. Upgrade cards now show what you wear and what to look for. The map tab and plan panel sit where they should.",
     WHATS_NEW_0_6_5_1 = "A new Stats chip reads your stats for your play style: what to raise, what's wasted, and why.",
     WHATS_NEW_0_6_4_1 = "Upgrades now only show gear you can actually get, and say how: a quest, something you can make, the Auction House or a dungeon.",
@@ -381,6 +382,11 @@ local L = {
     HELP_RESET_VISUALS = "  /wowc reset visuals - restore every colour, opacity and size to its default",
     HELP_RESET_ALL = "  /wowc reset all - restore every setting to its default (saved positions stay)",
     HELP_STATUS = "  /wowc status - show versions, digest age, queued questions and the digest slot",
+    HELP_COPYTEST = "  /wowc copytest - open two test boxes to check that Ctrl+C reaches the clipboard",
+    COPYTEST_TITLE = "Copy test",
+    COPYTEST_LABEL = "Click, Ctrl+A, Ctrl+C, then paste into the overlay",
+    COPYTEST_A = "WoWC copy test A",
+    COPYTEST_B = "WoWC copy test B",
     HELP_HELP = "  /wowc help - show this list",
 
     -- Status
