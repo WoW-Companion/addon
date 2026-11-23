@@ -206,30 +206,58 @@ local function is_client_tab(f)
     return type(f) == "table" and type(f.displayMode) == "number" and type(f.activeAtlas) == "string"
 end
 
--- The client's own quest-log side tabs: the shown children of the quest log carrying displayMode and activeAtlas,
--- ordered by displayMode. Fallback (none carry them): children whose art is the side-tab atlas family, top first,
--- a tab with no position yet kept in child order. Only the client's frames: ours and any addon-named frame are skipped.
-function WC.FindClientSideTabs(parent)
+-- Every client quest-log tab (shown or not) reachable from the quest log: frames with a displayMode and an
+-- activeAtlas among its children, their children (a container) and the siblings of any one found, ordered by
+-- displayMode. Only the client's frames: ours and any addon-named frame are skipped.
+function WC.CollectClientTabs(root)
     local out = {}
-    if type(parent) ~= "table" or not parent.GetChildren then return out end
-    local function ours(c, nm)
+    if type(root) ~= "table" or not root.GetChildren then return out end
+    local seen, scanned = {}, {}
+    local function ours(c)
+        local nm = c.GetName and c:GetName() or nil
         return c == WC.mapButton or c == WC.mapPanel or (nm and nm:find("^WoWCompanion"))
     end
-    local byMode, byArt = {}, {}
-    for i, c in ipairs({ parent:GetChildren() }) do
-        local nm = type(c) == "table" and c.GetName and c:GetName() or nil
-        if type(c) == "table" and not ours(c, nm) and c.IsShown and c:IsShown() then
-            if is_client_tab(c) then
-                byMode[#byMode + 1] = { f = c, mode = c.displayMode, i = i }
-            elseif has_sidetab_art(c) then
-                byArt[#byArt + 1] = { f = c, top = WC.GeoNum(c, "GetTop"), i = i }
+    local function scan(f, depth)
+        if type(f) ~= "table" or scanned[f] or not f.GetChildren then return end
+        scanned[f] = true
+        for _, c in ipairs({ f:GetChildren() }) do
+            if type(c) == "table" and not ours(c) then
+                if is_client_tab(c) then
+                    if not seen[c] then seen[c] = true; out[#out + 1] = { f = c, mode = c.displayMode, i = #out + 1 } end
+                elseif depth < 2 then
+                    scan(c, depth + 1)
+                end
             end
         end
     end
-    if #byMode > 0 then
-        table.sort(byMode, function(a, b) if a.mode ~= b.mode then return a.mode < b.mode end return a.i < b.i end)
-        for _, e in ipairs(byMode) do out[#out + 1] = e.f end
-        return out
+    scan(root, 1)
+    for _, e in ipairs({ table.unpack(out) }) do -- the parent of any one found (the client may keep them elsewhere)
+        local par = e.f.GetParent and e.f:GetParent() or nil
+        if par ~= root then scan(par, 2) end
+    end
+    table.sort(out, function(a, b) if a.mode ~= b.mode then return a.mode < b.mode end return a.i < b.i end)
+    local list = {}
+    for _, e in ipairs(out) do list[#list + 1] = e.f end
+    return list
+end
+
+-- The client's own quest-log side tabs that are shown, ordered by displayMode. Fallback (none carry the fields):
+-- shown children of the quest log whose art is the side-tab atlas family, top first, a tab with no position yet kept
+-- in child order.
+function WC.FindClientSideTabs(parent)
+    local out = {}
+    if type(parent) ~= "table" or not parent.GetChildren then return out end
+    for _, t in ipairs(WC.CollectClientTabs(parent)) do
+        if t.IsShown and t:IsShown() then out[#out + 1] = t end
+    end
+    if #out > 0 then return out end
+    local byArt = {}
+    for i, c in ipairs({ parent:GetChildren() }) do
+        local nm = type(c) == "table" and c.GetName and c:GetName() or nil
+        local mine = c == WC.mapButton or c == WC.mapPanel or (nm and nm:find("^WoWCompanion"))
+        if type(c) == "table" and not mine and c.IsShown and c:IsShown() and has_sidetab_art(c) then
+            byArt[#byArt + 1] = { f = c, top = WC.GeoNum(c, "GetTop"), i = i }
+        end
     end
     table.sort(byArt, function(a, b)
         if a.top and b.top and a.top ~= b.top then return a.top > b.top end
@@ -237,6 +265,23 @@ function WC.FindClientSideTabs(parent)
     end)
     for _, e in ipairs(byArt) do out[#out + 1] = e.f end
     return out
+end
+
+-- The shown set's signature: re-place when it changes.
+function WC.SideTabSig(side)
+    return "side:" .. #side .. ":" .. tostring(side[#side])
+end
+
+-- Our tab rides with the client's: it is shown and hidden by their OnShow and OnHide (HookScript only, once each),
+-- and re-anchored under the last one still shown.
+local ridden = {}
+function WC.HookRideTabs(root)
+    for _, t in ipairs(WC.CollectClientTabs(root)) do
+        if not ridden[t] and t.HookScript then
+            ridden[t] = pcall(t.HookScript, t, "OnShow", function() WC.PlaceMapTab() end)
+                and pcall(t.HookScript, t, "OnHide", function() WC.PlaceMapTab() end)
+        end
+    end
 end
 
 -- The atlases the client's own tab wears, read at runtime (Background, Mask, SelectedTexture, HighlightTexture);
@@ -250,7 +295,7 @@ function WC.ClientTabArt(tab)
         if ok and type(a) == "string" and a ~= "" then return a end
     end
     local hl = atlas(tab.HighlightTexture) or (tab.GetHighlightTexture and atlas(tab:GetHighlightTexture())) or nil
-    out.normal, out.mask, out.selected, out.hover = atlas(tab.Background), atlas(tab.Mask), atlas(tab.SelectedTexture), hl
+    out.normal, out.mask, out.selected, out.hover, out.glow = atlas(tab.Background), atlas(tab.Mask), atlas(tab.SelectedTexture), hl, atlas(tab.TabGlow)
     return out
 end
 
@@ -292,6 +337,12 @@ function WC.ApplySideTabArt(b)
     end
     for _, name in ipairs({ "Background", "Border", "SelectedTexture" }) do
         if type(b[name]) == "table" and b[name].Hide then b[name]:Hide() end
+    end
+    if A.glow then -- the client's glow art, kept hidden: our tab never flashes
+        b.sideGlow = b.sideGlow or b:CreateTexture(nil, "OVERLAY")
+        b.sideGlow:SetAllPoints(b)
+        pcall(b.sideGlow.SetAtlas, b.sideGlow, A.glow)
+        b.sideGlow:Hide()
     end
     b.sideArt = true
     return true
@@ -442,8 +493,8 @@ local function place_map_tab()
     if #side > 0 then
         -- the client's own side tabs: ours stacks flat below the last one, right edges together, at their size and spacing
         local last = side[#side]
-        local w, h = last.GetWidth and last:GetWidth() or 0, last.GetHeight and last:GetHeight() or 0
-        if not (w > 0 and h > 0) then w, h = WC.SIDETAB_W, WC.SIDETAB_H end
+        local w, h2 = last.GetWidth and last:GetWidth() or 0, last.GetHeight and last:GetHeight() or 0
+        if not (w > 0 and h2 > 0) then w, h2 = WC.SIDETAB_W, WC.SIDETAB_H end
         local rects = {}
         for _, t in ipairs(side) do
             local tp, bt = WC.GeoNum(t, "GetTop"), WC.GeoNum(t, "GetBottom")
@@ -456,15 +507,27 @@ local function place_map_tab()
         end
         if changed and b.sideArt then WC.ApplySideTabArt(b) end
         b:ClearAllPoints()
-        b:SetSize(w, h)
-        b:SetPoint("TOPRIGHT", last, "BOTTOMRIGHT", 0, -gap)
-        WC.columnSig = "side:" .. #side
-        WC.mapTabPlace = { w = w, h = h, gap = gap, x = 0, y = -gap, n = #side, mode = "sidetab" }
+        -- same parent, level and strata as the last client tab; its horizontal alignment copied from its own anchor
+        local par = last.GetParent and last:GetParent() or nil
+        if type(par) == "table" and b.SetParent and b.GetParent and b:GetParent() ~= par then b:SetParent(par) end
+        if b.SetFrameStrata and last.GetFrameStrata then b:SetFrameStrata(last:GetFrameStrata()) end
+        if b.SetFrameLevel and last.GetFrameLevel then b:SetFrameLevel(last:GetFrameLevel()) end
+        local lp = last.GetPoint and last:GetPoint(1) or nil
+        local h = type(lp) == "string" and (lp:find("LEFT") and "LEFT" or lp:find("RIGHT") and "RIGHT" or "") or "RIGHT"
+        b:SetSize(w, h2)
+        b:SetPoint("TOP" .. h, last, "BOTTOM" .. h, 0, -gap)
+        b:Show()
+        WC.columnSig = WC.SideTabSig(side)
+        WC.mapTabPlace = { w = w, h = h2, gap = gap, x = 0, y = -gap, n = #side, mode = "sidetab", path = "client-tabs" }
         WC.FitMapTabArt(b)
         if WC.PlaceMapPanel then WC.PlaceMapPanel() end
         if WC.HookClientTabs then WC.HookClientTabs() end
+        WC.HookRideTabs(parent)
         return
     end
+    -- no client tab shown: back on the quest log's own frame, in the free-space placement below
+    if b.SetParent and b.GetParent and b:GetParent() ~= parent then b:SetParent(parent) end
+    if b.SetFrameLevel then b:SetFrameLevel(parent.GetFrameLevel and parent:GetFrameLevel() + 1 or 2) end
     local rects, pl, pt = WC.ScanTabColumn()
     WC.columnSig = column_signature(rects, pl, pt)
     local place = WC.ColumnPlacement(rects)
@@ -551,7 +614,7 @@ function WC.WatchTabColumn(elapsed)
     if not WC.mapButton or WC.mapButtonMode ~= "tab" then return false end
     local side = WC.FindClientSideTabs(WC.mapButtonParent)
     if #side > 0 then
-        if WC.columnSig == "side:" .. #side then return false end
+        if WC.columnSig == WC.SideTabSig(side) then return false end
         WC.PlaceMapTab()
         return true
     end
@@ -654,7 +717,6 @@ function WC.CreateMapButton()
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
         if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RefreshMapTab() end) end
-        if column.HookScript then column:HookScript("OnHide", function() b:Hide() end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnShow", function()
             WC.PlaceMapTabSoon(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()

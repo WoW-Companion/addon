@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.13" and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1")
+    assert(TOC_VERSION == "0.6.14" and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -4502,6 +4502,73 @@ cases[#cases + 1] = { "read-only: nothing asks for a /reload", function()
         assert(not code:find("ReloadUI", 1, true) and not code:find("StaticPopup", 1, true), f)
         assert(not code:find("ConsoleExec", 1, true) and not code:find("RestartGx", 1, true), f)
     end
+end }
+
+-- ADDON-067: our tab rides with the client's quest-log tabs.
+local function ride_setup(modes, container)
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    local home = container and CreateFrame("Frame", nil, QuestMapFrame) or QuestMapFrame
+    local tabs = {}
+    for i, m in ipairs(modes) do
+        local t = client_tab(home, m, "ClientTab" .. m, 800 - (i - 1) * 44)
+        t:SetPoint("TOPLEFT", home, "TOPLEFT", 3, -10 * i)
+        t.TabGlow = t:CreateTexture(); t.TabGlow.atlas = "client-glow"
+        t.level = 5 + i
+        tabs[#tabs + 1] = t
+    end
+    fresh_client(nil)
+    return tabs, home
+end
+
+cases[#cases + 1] = { "ride: client tabs found by displayMode under a container; ours parents and anchors to the last shown with its alignment", function()
+    local tabs, home = ride_setup({ 2, 0, 1 }, true)
+    local WC = WoWCompanion
+    local all = WC.CollectClientTabs(QuestMapFrame)
+    assert(#all == 3 and all[1].displayMode == 0 and all[3].displayMode == 2, "ordered by displayMode, found in the container")
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local b, last = WC.mapButton, all[3]
+    assert(b:GetParent() == home, "same parent as the last tab")
+    assert(b:GetFrameLevel() == last:GetFrameLevel(), "same level")
+    local p = b.points[1]
+    assert(p[1] == "TOPLEFT" and p[2] == last and p[3] == "BOTTOMLEFT", "alignment copied from the tab's own anchor")
+    assert(WC.mapTabPlace.mode == "sidetab" and b:IsShown())
+    assert(WC.mapTabPlace.path == nil or WC.mapTabPlace.path == "client-tabs")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "ride: our tab follows the last tab's show and hide and re-anchors", function()
+    local tabs = ride_setup({ 0, 1, 2 })
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local b = WC.mapButton
+    local q, e, l = tabs[1], tabs[2], tabs[3]
+    assert(b.points[1][2] == l)
+    l:Hide()
+    assert(b.points[1][2] == e and b:IsShown(), "last hides: anchored under the previous shown one")
+    e:Hide(); q:Hide()
+    assert(WC.mapTabPlace.mode ~= "sidetab" and b:IsShown(), "none shown: the fallback placement keeps the tab")
+    q:Show()
+    assert(b.points[1][2] == q and WC.mapTabPlace.mode == "sidetab", "back on the client's tab when it shows")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "ride: atlases copied from the client's tab, fallback keeps the plain placement under the quest log", function()
+    local tabs = ride_setup({ 0 })
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local A = WC.SIDETAB_ATLAS
+    assert(A.normal == "common-sidetab-c60" and A.selected == "client-selected" and A.hover == "client-hover" and A.mask == "client-mask" and A.glow == "client-glow")
+    assert(WC.mapButton.sideGlow.atlas == "client-glow" and WC.mapButton.sideBack.atlas == "common-sidetab-c60")
+    tabs[1]:Hide()
+    assert(WC.mapButton:GetParent() == QuestMapFrame and WC.mapTabPlace.mode == "alone")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "ride: no other addon's names in the tab code", function()
+    local banned = { "ElvUI", "Questie", "Leatrix", "Mapster", "HandyNotes", "TomTom", "WorldQuestTracker", "Chinchilla", "Carbonite", "SexyMap", "Lib%u" }
+    local src = assert(io.open("WoWCompanion/Button.lua")):read("*a")
+    for _, n in ipairs(banned) do assert(not src:find(n), "Button names " .. n) end
 end }
 
 local failed = 0

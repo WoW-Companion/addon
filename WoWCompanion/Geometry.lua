@@ -47,7 +47,7 @@ function WC.MapGeometry()
     end
     -- our tab's computed placement, as numbers only (never a name of any frame in the column)
     local tp = WC.mapTabPlace
-    if type(tp) == "table" then g.column = { n = tp.n, w = r1(tp.w), h = r1(tp.h), gap = r1(tp.gap), x = r1(tp.x), y = r1(tp.y), mode = tp.mode } end
+    if type(tp) == "table" then g.column = { n = tp.n, w = r1(tp.w), h = r1(tp.h), gap = r1(tp.gap), x = r1(tp.x), y = r1(tp.y), mode = tp.mode, path = tp.mode == "sidetab" and "client-tabs" or "fallback" } end
     g.tabOffset = WC.db and WC.db.settings and tonumber(WC.db.settings.mapTabY) or 0
     g.panel = frame_info(WC.mapPanel, "WoWCompanionMapPanel")
     local col = QuestMapFrame
