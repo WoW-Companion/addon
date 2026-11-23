@@ -16,7 +16,7 @@ Lua file. The panel reads the global table `WoWCompanionDigest` and nothing else
 | Field | Type | Meaning |
 | ----- | ---- | ------- |
 | `schema` | number or string | Format version. This document is `"1.4"`. The panel accepts `1`, `"1.0"` to `"1.4"` and refuses any other major version. |
-| `generated` | number | Unix time (seconds) the digest was computed. The panel shows its time and age ("advice from 11:23 (3 h ago)"); the panel adds a note to refresh the digest and `/reload` only when the digest is older than 12 hours, or the character's last capture is more than 15 minutes newer than `generated` (a `/reload` right after a fresh digest does not count). |
+| `generated` | number | Unix time (seconds) the digest was computed. The panel shows its time and age ("advice from 11:23 (3 h ago)"); the time turns amber (with an explanatory tooltip) when the digest is older than 12 hours, and the panel notes when the character's last capture is more than 15 minutes newer than `generated` (a save right after a fresh digest does not count). |
 | `build` | string | Game build it was computed for, e.g. `"1.60.0.64000"`. |
 | `character` | string | Character name it is for. The panel refuses a digest for a different character. |
 | `sections` | list | Ordered list of sections, shown in this order. |
@@ -113,3 +113,7 @@ WoWCompanionDigest = {
 ## Changing the format
 
 Any incompatible change bumps `schema`; the panel only renders versions it knows.
+
+## Schema 1.5 additions (all optional)
+
+On any digest entry (a line of a section, a talent, a dungeon): `asks` (1-3 natural questions, at most 90 characters each, shown as clickable chips on the card), `ref` (a reference string sent back with each question asked from that entry). A note line may carry `kind = "giver"` with `npc`, `zone`, `x`, `y`, `quest` and `title`: the panel shows the client's "!" quest icon and its card offers "Show on map" when the plan has a step for `quest`.

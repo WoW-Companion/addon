@@ -8,14 +8,14 @@ WC.SCHEMA = 1
 WC.MAX_EXTRA = 3 -- dungeons and talents show at most this many entries
 WC.STALE_SECONDS = 12 * 60 * 60
 WC.LINE_HEIGHT = 14
+WC.MAX_CARD_ASK_LEN = 90
 WC.CAPTURE_GRACE = 15 * 60 -- a capture this much newer than the digest makes it out of date (a /reload right after a fresh digest re-saves the capture)
 
-WC.STALE_NOTE = L.STALE_NOTE
 
 -- Text colours ({ r, g, b }) and the client's own art the rows use.
 WC.COLORS = {
     white = { 1, 1, 1 }, dim = { 0.55, 0.55, 0.55 }, grey = { 0.72, 0.72, 0.72 },
-    green = { 0.25, 0.9, 0.25 }, gold = { 1, 0.82, 0 },
+    green = { 0.25, 0.9, 0.25 }, gold = { 1, 0.82, 0 }, amber = { 1, 0.6, 0.1 },
 }
 WC.ICONS = {
     pickup = "Interface\\GossipFrame\\AvailableQuestIcon",
@@ -93,6 +93,16 @@ function WC.MakeEntry(kind, key, src, fields)
     src = type(src) == "table" and src or {}
     e.details = clean_details(src.details)
     e.prompt = clean(src.prompt, 2000)
+    -- schema 1.5: 1-3 natural questions (at most 90 characters each) and a reference the answer is filed under
+    if type(src.asks) == "table" then
+        local asks = {}
+        for _, a in ipairs(src.asks) do
+            local t = clean(a, WC.MAX_CARD_ASK_LEN)
+            if t and #asks < 3 then asks[#asks + 1] = t end
+        end
+        e.asks = #asks > 0 and asks or nil
+    end
+    e.ref = clean(src.ref, 120)
     return e
 end
 
@@ -588,11 +598,19 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         local kind = ASK_KIND[section.id]
                         local ask = kind and { kind = kind, subject = ask_subject(line.text, kind ~= "quest" and id or nil) } or nil
                         local ekind = (section.id == "upgrades" and "upgrade") or (section.id == "keep_materials" and "material") or "note"
-                        local entry = WC.MakeEntry(ekind, section.id .. ":" .. (id or quest or li), line, {
+                        local giver = line.kind == "giver" and ekind == "note"
+                        local entry = WC.MakeEntry(giver and "giver" or ekind, section.id .. ":" .. (id or quest or li), line, {
                             title = plain(line.text), item = id, quest = quest, ask = ask, slot = line.slot and plain(line.slot) or nil,
                             ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel) })
+                        if giver then
+                            entry.npc, entry.zone = line.npc and plain(line.npc) or nil, line.zone and plain(line.zone) or nil
+                            entry.x, entry.y = tonumber(line.x), tonumber(line.y)
+                            entry.questTitle = line.title and plain(line.title) or nil
+                            if entry.npc and entry.questTitle then live = string.format(L.GIVER_LINE, entry.npc, entry.questTitle) end
+                        end
                         if section.id == "upgrades" then found.upgrade[#found.upgrade + 1] = entry end
-                        local row = { kind = "line", indent = INDENT, text = plain(live), item = id, quest = quest, ask = ask, entry = entry, group = entry.key }
+                        local row = { kind = "line", indent = INDENT, text = plain(live), item = id, quest = quest, ask = ask, entry = entry, group = entry.key,
+                            icon = giver and WC.ICONS.pickup or nil }
                         if section.id == "upgrades" then
                             row.color = quality_color(id)
                             local meta = {}
@@ -635,8 +653,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
     if captured and captured - (tonumber(d.generated) or 0) > WC.CAPTURE_GRACE then
         table.insert(out, 1, { kind = "text", text = string.format(L.OLDER_THAN_CAPTURE, WC.FormatClock(captured)) })
     end
-    if age > WC.STALE_SECONDS then table.insert(out, 1, { kind = "text", text = WC.STALE_NOTE }) end
-    local meta = { name = plain(d.character or player), advice = string.format(L.ADVICE_FROM, WC.FormatClock(tonumber(d.generated) or 0), WC.FormatAge(age)) }
+    local meta = { stale = age > WC.STALE_SECONDS, name = plain(d.character or player), advice = string.format(L.ADVICE_FROM, WC.FormatClock(tonumber(d.generated) or 0), WC.FormatAge(age)) }
     meta.chips = WC.BuildChips(found, d)
     return header, out, meta
 end
@@ -675,39 +692,38 @@ function WC.RowsText(rows)
     return table.concat(t, "\n")
 end
 
--- Who is asking, as the first words of a fallback prompt: "I'm a level 10 warrior" (the client's live level
--- and localized class), degrading to what is known.
-function WC.AskWho()
-    local level = UnitLevel and tonumber(UnitLevel("player"))
-    local class = UnitClass and UnitClass("player")
-    class = type(class) == "string" and class ~= "" and class:lower() or nil
-    level = level and level > 0 and math.floor(level) or nil
-    if level and class then return string.format(L.ASK_WHO, level, class) end
-    if class then return string.format(L.ASK_WHO_CLASS, class) end
-    if level then return string.format(L.ASK_WHO_LEVEL, level) end
-    return L.ASK_WHO_NONE
+-- A name made safe to drop into a short question: no pipes, one line, no ellipsis, bounded.
+local function ask_name(s, max)
+    s = tostring(s or ""):gsub("|", ""):gsub("%s+", " "):gsub("\226\128\166", ""):gsub("%.%.+", "")
+    s = s:gsub("^%s+", ""):gsub("[%s%p]+$", "")
+    return s:sub(1, max or 50)
 end
 
--- A subject made safe to drop into the middle of a sentence: no pipes or list dashes, one line, bounded.
--- A talent pick loses its "Next point:" style label.
-function WC.AskSubjectText(kind, subject)
-    local s = tostring(subject or ""):gsub("|", ""):gsub("%s+", " ")
-    s = s:gsub("^[%s%-]+", ""):gsub("[%s]+$", "")
-    if kind == "talent_pick" then s = s:gsub("^[^:]-:%s*", "") end
-    if kind == "note" then s = s:gsub('"', "'") end
-    return s:sub(1, 200)
-end
-
--- The fallback prompt for an ask kind and subject: one natural sentence or two, at most MAX_ASK_LEN long.
--- Returns nil for a kind with no template.
-function WC.FallbackPrompt(kind, subject)
-    local tpl = kind and rawget(L, "ASK_ABOUT_" .. kind)
-    if not tpl then return nil end
-    return (string.format(tpl, WC.AskWho(), WC.AskSubjectText(kind, subject)):sub(1, WC.MAX_ASK_LEN or 500))
-end
-
--- The question "ask about this" pre-fills for a row, or nil when the row has none.
-function WC.AskTemplate(row)
-    local a = row and row.ask
-    return a and WC.FallbackPrompt(a.kind, a.subject) or nil
+-- Up to 2 natural questions for an entry the digest gave none for (older digests). Never who-am-I text, a
+-- digest line verbatim or "My plan says"; each is short enough for a chip.
+function WC.FallbackAsks(entry, title)
+    local kind = entry.kind
+    local name = ask_name(title or entry.title)
+    local out = {}
+    if kind == "quest" or kind == "giver" then
+        local st = entry.quest and WC.PlanQuestState and WC.PlanQuestState(entry.quest) or "none"
+        if kind == "giver" and entry.questTitle then name = ask_name(entry.questTitle) end
+        if st == "ready" then out[1] = string.format(L.FALLBACK_ASK_TURNIN, name)
+        elseif st == "active" then out[1] = string.format(L.FALLBACK_ASK_PROGRESS, name)
+        else out[1] = string.format(L.FALLBACK_ASK_PICKUP, name) end
+    elseif kind == "talent" then
+        out[1] = L.FALLBACK_ASK_TALENT
+    elseif kind == "training" then
+        out[1] = L.FALLBACK_ASK_TRAINING
+    elseif kind == "upgrade" then
+        local item = ask_name((tostring(title or entry.title or ""):gsub("^%s*[Ee]quip%s+", ""):gsub("%s*%b()", "")))
+        out[1] = string.format(L.FALLBACK_ASK_UPGRADE, item ~= "" and item or name)
+    elseif kind == "dungeon" then
+        out[1] = string.format(L.FALLBACK_ASK_DUNGEON, name)
+    elseif kind == "material" then
+        out[1] = string.format(L.FALLBACK_ASK_MATERIAL, name)
+    else
+        out[1] = L.FALLBACK_ASK_NOTE
+    end
+    return out
 end

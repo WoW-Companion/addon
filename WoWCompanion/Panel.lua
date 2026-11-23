@@ -52,6 +52,9 @@ function WC.LayoutPanelHeader()
     end
     f.header:ClearAllPoints()
     f.header:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -(26 + h1))
+    f.headerTip:ClearAllPoints()
+    f.headerTip:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(pad + 2), -(26 + h1))
+    f.headerTip:SetSize(math.max(60, (f.header.GetStringWidth and f.header:GetStringWidth()) or 160), WC.LINE_HEIGHT)
     -- the to-do chips sit under the advice time; the scroll area starts below them
     local chipH = f.chipH or 0
     WC.PlaceChips(f, pad, SCROLL_TOP + h1 - 2)
@@ -201,6 +204,16 @@ function WC.CreatePanel()
     f.header:SetTextColor(unpack(WC.COLORS.dim))
     shadow(f.header)
 
+    -- the advice time explains itself when it has gone amber
+    f.headerTip = CreateFrame("Frame", "WoWCompanionPanelHeaderTip", f)
+    f.headerTip:EnableMouse(true)
+    f.headerTip:SetScript("OnEnter", function(self)
+        if not f.stale then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine(L.STALE_TIP, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.headerTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.close = CreateFrame("Button", "WoWCompanionPanelClose", f, "UIPanelCloseButton")
     f.close:SetSize(20, 20)
     f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
@@ -375,6 +388,9 @@ function WC.Refresh()
     WC.SetChips(f, meta and meta.chips)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
     f.header:SetText(meta and meta.advice or header)
+    f.stale = meta and meta.stale or false
+    local hc = f.stale and WC.COLORS.amber or WC.COLORS.dim
+    f.header:SetTextColor(hc[1], hc[2], hc[3])
     local mode = WC.ViewMode()
     WC.view.mode = mode
     local mapID, px, py
@@ -394,6 +410,7 @@ function WC.Refresh()
         WC.StyleText(row.right, -1)
         local x = layout_row(row, r)
         row.label:SetText(r.text)
+        if row.label.SetMaxLines then row.label:SetMaxLines(r.kind == "line" and 2 or 0) end -- a note wraps to 2 lines; its card shows all
         row.baseColor = r.color or WC.COLORS.white
         row.right:SetText(r.right or "")
         row.right:SetTextColor(unpack(WC.COLORS.dim))
