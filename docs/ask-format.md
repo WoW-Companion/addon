@@ -1,7 +1,11 @@
 # Ask format (schema 1)
 
-`/ask <question>` (or `/wowc ask <question>`) queues a question in SavedVariables.
-The companion reads the queue from `WoWCompanion.lua` in `WTF/.../SavedVariables`
+**The in-game ask queue was removed in 0.6.6.** The addon no longer has `/ask` or `/wowc ask`, never writes
+`WoWCompanionDB.asks`, and ships no Send path; copy and paste into the overlay is the way to ask. Data an earlier
+version already wrote to `WoWCompanionDB.asks` is left as it was. The format below is kept for reading that data.
+
+`/ask <question>` (the removed command) queued a question in SavedVariables.
+The companion read the queue from `WoWCompanion.lua` in `WTF/.../SavedVariables`
 whenever the game saves (logout, quit or a UI reload), and the overlay answers it there; the addon shows no answers (the old `WoWCompanion_Answers` slot was removed in 0.2.0).
 The addon never sends anything itself; a question only leaves the game through
 SavedVariables.
@@ -25,8 +29,4 @@ both print: "Queued for WoW Companion. The overlay answers it after the game's n
 
 ## Detail card
 
-Left-clicking a non-quest entry, or right-clicking any entry, opens a card beside the panel. Under "Ask the companion" it shows the entry's `asks` (digest schema 1.5: 1-3 questions of at most 90 characters) as clickable chips; an older digest gets up to 2 questions built from the entry's own fields ("What's <title> for?", "Where should my talent point go?"...), never a digest line verbatim. Clicking a chip queues that question exactly like `/ask`, adding the entry's `ref`, and the card remembers the ask id in `WoWCompanionDB.cardAsks[<entry key>]`. The status line reads "Asked. The answer appears in the overlay. The same questions are one click away there too." The question also sits selected in a small box with a **Copy** button and a "Ctrl+C" hint; after Ctrl+C the card shows "Copied" for 1.5 s and lets go of the selection (addons cannot write the clipboard). "Type your own..." opens a one-line box; Enter queues the typed question with the entry's `ref`.
-
-## Answers file (optional)
-
-When the companion writes `WoWCompanion_Answers/Answers.lua`, a data-only file holding one statement, `WoWCompanionAnswers = { answers = { { id = "<ask id>", question = "<text>", text = "<answer>" }, ... } }`, the card shows the answer to the question sent from that entry (matched by `id`, or by the `question` text) under the prompt. The addon only reads it; nothing in the repo ships that folder.
+Left-clicking a non-quest entry, or right-clicking any entry, opens a card beside the panel. Under the plain label "Ask the companion" (hidden when the entry has no questions) it shows the entry's `asks` (digest schema 1.5: 1-3 questions of at most 90 characters) as clickable chips; an older digest gets up to 2 questions built from the entry's own fields ("What's <title> for?", "Where should my talent point go?"...), never a digest line verbatim and never a question built from a section summary (the upgrade set and the Stats card ask only what the digest gave). Clicking a chip opens a copy box directly under it, with the question selected and focused and a "Ctrl+C" hint. Addons cannot write the clipboard, so the player's own Ctrl+C copies it; the key handler changes nothing, and on a following frame the card says "Copied. Paste it into the overlay with Ctrl+V." Nothing is queued or written. A dim line reads "Or ask anything in the overlay."

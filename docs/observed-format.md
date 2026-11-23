@@ -17,3 +17,19 @@ WoWCompanionDB.observed = {
 ```
 
 A removal that follows a turn-in is not an abandon; an abandon is logged about a second after the quest leaves the log.
+
+## Map geometry (`WoWCompanionDB.observed.mapGeometry`)
+
+Each time the world map opens, the addon records where its own tab and panel and the client's own side tabs and
+content inset really sit. It is data only (no chat, nothing sent); it reaches disk at the next client save.
+
+```lua
+WoWCompanionDB.observed.mapGeometry = {
+  version = 1, t = <unix s>,
+  tab = <frame>, panel = <frame>,          -- WoWCompanionMapTab, WoWCompanionMapPanel
+  tabs = { <frame>, ... },                 -- the client's QuestsTab, EventsTab, MapLegendTab (those that exist)
+  inset = <frame>,                         -- the client content-area inset the panel is anchored to
+}
+-- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
+-- `rel` is the relative-to frame's name, or "(unnamed)"; sizes and offsets are rounded to 0.1.
+```

@@ -239,7 +239,8 @@ local polish_cases = {
         fresh_client(nil)
         SlashCmdList.WOWC("help")
         local all = table.concat(PRINTED, "\n")
-        for _, want in ipairs({ "/wowc ask", "/wowc reset", "/wowc help", "/ask" }) do assert(all:find(want, 1, true), want) end
+        for _, want in ipairs({ "/wowc reset", "/wowc help" }) do assert(all:find(want, 1, true), want) end
+        assert(not all:find("ask", 1, true), "no ask command is listed")
         assert(not WoWCompanionPanel:IsShown())
     end },
     { "/wowc reset restores position and collapse state", function()
@@ -256,35 +257,16 @@ local polish_cases = {
 for _, c in ipairs(polish_cases) do cases[#cases + 1] = c end
 
 local ask_cases = {
-    { "/ask queues a question and prints the queued line", function()
+    { "the ask queue is gone: no /ask, no /wowc ask, nothing written to asks", function()
         fresh_client(nil)
-        NOW = 1800000100
-        SlashCmdList.WOWCASK("  What should I do next?  ")
-        local a = WoWCompanionDB.asks[1]
-        assert(a.text == "What should I do next?" and a.character == "Thrall" and a.asked_at == NOW and a.id)
-        assert(SLASH_WOWCASK1 == "/ask")
-        assert(PRINTED[#PRINTED] == "Queued for WoW Companion. The overlay answers it after the game's next save.")
-    end },
-    { "/wowc ask queues; bare /wowc ask and empty /ask do not", function()
-        fresh_client(nil)
+        assert(SLASH_WOWCASK1 == nil and SlashCmdList.WOWCASK == nil)
+        assert(not WoWCompanion.SubmitAsk and not WoWCompanion.QueueAsk and not WoWCompanion.Ask)
         SlashCmdList.WOWC("ask hello there")
-        SlashCmdList.WOWC("ask")
-        SlashCmdList.WOWCASK("   ")
-        assert(#WoWCompanionDB.asks == 1 and WoWCompanionDB.asks[1].text == "hello there")
-    end },
-    { "queue is capped at 10 (oldest dropped) and text at 500", function()
-        fresh_client(nil)
-        for i = 1, 12 do SlashCmdList.WOWCASK("q" .. i) end
-        assert(#WoWCompanionDB.asks == 10)
-        assert(WoWCompanionDB.asks[1].text == "q3" and WoWCompanionDB.asks[10].text == "q12")
-        SlashCmdList.WOWCASK(string.rep("x", 800))
-        assert(#WoWCompanionDB.asks[10].text == 500)
-        local ids = {}
-        for _, a in ipairs(WoWCompanionDB.asks) do assert(not ids[a.id]); ids[a.id] = true end
+        assert(WoWCompanionDB.asks == nil and WoWCompanionDB.ask_seq == nil and not table.concat(PRINTED, "\n"):find("Queued", 1, true))
+        for k in pairs(WoWCompanion.L) do assert(not k:find("^ASK_QUEUED") and k ~= "CARD_SENT" and k ~= "CARD_ASKED" and k ~= "CARD_NO_DETAILS" and k ~= "CARD_OWN", k) end
     end },
     { "the panel has no Ask box, History or answers, and shows no queued questions", function()
         fresh_client(nil)
-        SlashCmdList.WOWCASK("anything")
         local p = WoWCompanion.panel
         assert(not p.askBox and not p.histButton and not p.copyBox and not p.questionBox)
         assert(not WoWCompanion.ShowHistory and not WoWCompanion.LoadAnswers and not WoWCompanion.MatchAnswers)
@@ -1900,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.5" and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1")
+    assert(TOC_VERSION == "0.6.6" and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_6_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2251,7 +2233,7 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     local WC = WoWCompanion
     local function point() local p = WC.mapButton.points[1] return p[1], p[2], p[3], p[4], p[5] end
     local pt, rel, relPt, px, py = point()
-    assert(pt == "TOPLEFT" and rel == QuestMapFrame.EventsTab and relPt == "BOTTOMLEFT" and px == 0 and py == -WC.MAP_TAB_GAP)
+    assert(pt == "TOP" and rel == QuestMapFrame.EventsTab and relPt == "BOTTOM" and px == 0 and py == -WC.MAP_TAB_GAP)
     assert(WC.mapButton.w == 40 and WC.mapButton.h == 42, "the same size as its sibling")
     -- a third client tab appears lower (a map addon moved things): the display-mode hook and map show re-anchor
     local t = CreateFrame("Button", nil, QuestMapFrame)
@@ -2271,6 +2253,48 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     WC.mapButton, WC.mapButtonParent = nil, nil
     WC.CreateMapButton()
     assert(WC.mapButton.points[1][3] == "TOPLEFT" and WC.mapButton.points[1][1] == "TOPRIGHT")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map panel: anchored to the client's content inset; the probe records the real geometry as data", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
+    local inset = CreateFrame("Frame", "QuestMapContentsInset", QuestMapFrame)
+    QuestMapFrame.ContentsAnchor = inset
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    assert(b.kind == "CheckButton" and b.template == "QuestLogTabButtonTemplate", "the client's own tab template and frame type")
+    PRINTED = {}
+    b.scripts.OnClick(b, "LeftButton")
+    local f = WC.mapPanel
+    assert(f.allPointsTo == inset and f.inset == inset and f.points[1][2] == inset, "not the outer frame")
+    -- no ContentsAnchor: the frame the client's own quest list is anchored to
+    local list_parent = CreateFrame("Frame", nil, QuestMapFrame)
+    QuestScrollFrame = CreateFrame("ScrollFrame", nil, QuestMapFrame)
+    QuestScrollFrame:SetPoint("TOPLEFT", list_parent, "TOPLEFT", 0, 0)
+    QuestMapFrame.ContentsAnchor = nil
+    assert(WC.MapInset() == list_parent)
+    QuestScrollFrame:SetPoint("TOPLEFT", QuestMapFrame, "TOPLEFT", 0, 0)
+    assert(WC.MapInset() == QuestMapFrame)
+    QuestScrollFrame = nil
+    QuestMapFrame.ContentsAnchor = inset
+    WC.PlaceMapPanel()
+    assert(f.allPointsTo == inset)
+    -- the map opens: geometry is recorded, quietly
+    WoWCompanionDB.observed = nil
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local g = WoWCompanionDB.observed.mapGeometry
+    assert(g.version == 1 and type(g.t) == "number" and #PRINTED == 0)
+    assert(g.tab.name == "WoWCompanionMapTab" and g.tab.w == 44 and g.tab.h == 44 and g.tab.scale == 1)
+    assert(g.tab.points[1].point == "TOP" and g.tab.points[1].relPoint == "BOTTOM" and g.tab.points[1].rel == "(unnamed)" and g.tab.points[1].y == -WC.MAP_TAB_GAP)
+    assert(g.panel.name == "WoWCompanionMapPanel" and g.panel.points[1].rel == "QuestMapContentsInset")
+    assert(#g.tabs == 2 and g.tabs[1].field == "QuestsTab" and g.tabs[2].field == "EventsTab" and g.tabs[2].w == 44)
+    assert(g.inset.name == "QuestMapContentsInset" and g.inset.field == "inset")
+    local seen = {}
+    for k in pairs(g) do seen[k] = true end
+    for _, k in ipairs({ "version", "t", "tab", "panel", "tabs", "inset" }) do assert(seen[k], k); seen[k] = nil end
+    assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
@@ -2396,7 +2420,7 @@ end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, GetChildren = true, HookScript = true }
+        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, GetChildren = true, HookScript = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do
@@ -3017,38 +3041,22 @@ cases[#cases + 1] = { "card: Show on map opens the map to the step's zone and pu
 end }
 
 
-cases[#cases + 1] = { "card: an answer in Answers.lua shows under the prompt after the question was sent from that entry", function()
-    local p, WC = card_client()
-    open_card(p, "Quest 10")
-    assert(WC.AnswerFor("q10") == nil and not WoWCompanionCard.answerShown)
-    WC.CardAsk(1)
-    local id = WoWCompanionDB.asks[1].id
-    WoWCompanionAnswers = { answers = { { id = "other", text = "Not mine" }, { id = id, text = "Go north |cffff0000twice" } } }
-    WC.Refresh()
-    assert(WoWCompanionCard.answerShown == "Go north ||cffff0000twice" and WoWCompanionCard.answer:GetText() == "Go north ||cffff0000twice")
-    assert(WoWCompanionCard.answerScroll:IsShown())
-    local other = WC.CardModel(entry_of(p, "Blood Tithe"))
-    assert(other.answer == nil, "another entry shows no answer")
-    WoWCompanionAnswers = nil
-    WoWCompanionCard = nil
-end }
-
 cases[#cases + 1] = { "card: schema 1.3 and 1.2 digests open cards with the template prompt and no details", function()
     local p = ask_row_client()
     local WC = WoWCompanion
     local m = WC.CardModel(entry_of(p, "Hammer of Fate"))
     assert(m.asks[1] == "Is Hammer of Fate worth getting now?", tostring(m.asks[1]))
 
-    assert(#m.rows == 1 and m.rows[1].text == "No more details for this entry.")
+    assert(#m.rows == 1 and m.rows[1].text == m.title, "a card with nothing more shows the entry's own text")
     p = v13_client()
     WC = WoWCompanion
     local q = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
-    assert(q.asks[1] == "What's Blood Tithe for?" and q.rows[1].text == "No more details for this entry.")
+    assert(q.asks[1] == "What's Blood Tithe for?" and q.rows[1].text == q.title)
     local t = WC.CardModel(entry_of(p, "unspent talent"))
     assert(t.asks[1] == "Where should my talent point go?")
     assert(t.hints[1] == "Open your talents (N)" and t.title == "You have 1 unspent talent point" and #t.rows == 0)
     local train = WC.CardModel(WC.TrainingEntry({ text = "x", level = 5 }).entry)
-    assert(train.rows[1].text == "No more details for this entry.")
+    assert(train.rows[1].text == train.title)
     PLAYER_NAME = nil
 end }
 
@@ -3099,7 +3107,7 @@ cases[#cases + 1] = { "card questions: chips render from asks (at most 3, at mos
     assert(WoWCompanionCardChip1:GetText() == nil or true)
     assert(c.chips[1].label:GetText() == "What's Quest 10 for?" and c.chips[2].label:GetText() == "Is the bag worth the detour?" and c.chips[3].label:GetText() == "Who gives the next one?")
     assert(c.chips[3]:IsShown() and not c.chips[4], "a fourth ask is not shown")
-    assert(c.askLabel:GetText() == "Ask the companion" and c.own.label:GetText() == "Type your own...")
+    assert(c.askLabel:GetText() == "Ask the companion" and c.askLabel:IsShown() and c.ownLine:GetText() == "Or ask anything in the overlay.")
     local long = WC.MakeEntry("note", "n", { asks = { ("x"):rep(200), "", 5 } }, {})
     assert(#long.asks == 1 and #long.asks[1] == 90)
     -- older digest: one fallback chip
@@ -3109,35 +3117,85 @@ cases[#cases + 1] = { "card questions: chips render from asks (at most 3, at mos
     WoWCompanionCard = nil
 end }
 
-cases[#cases + 1] = { "card questions: a chip queues the question with the entry's ref; Asked status; the question sits selected; own text queues too", function()
+cases[#cases + 1] = { "card questions: a chip opens the copy box under it, selected; nothing is queued or printed", function()
     local p, WC = card_client(ask_digest(), { [11] = "active" })
     local c = open_card(p, "Quest 10")
     PRINTED = {}
     c.chips[2].scripts.OnClick(c.chips[2])
-    local a = WoWCompanionDB.asks[1]
-    assert(a.text == "Is the bag worth the detour?" and a.ref == "quest:10" and a.character == "Thrall" and a.asked_at == NOW and a.id)
-    assert(c.status:GetText() == "Asked. The answer appears in the overlay. The same questions are one click away there too.")
-    assert(#PRINTED == 0, "the card queues quietly")
-    assert(WoWCompanionCardAsk:GetText() == a.text and WoWCompanionCardAsk.focused and WoWCompanionCardAsk.highlighted and WoWCompanionCardAsk:IsShown())
-    assert(WoWCompanionCardCopy:IsShown() and c.copyHint:GetText() == "Ctrl+C")
-    -- Type your own...
-    assert(not WoWCompanionCardOwnBox:IsShown())
-    c.own.scripts.OnClick(c.own)
-    assert(WoWCompanionCardOwnBox:IsShown())
-    WoWCompanionCardOwnBox:SetText("  Where is the bank?  ")
-    WoWCompanionCardOwnBox.scripts.OnEnterPressed(WoWCompanionCardOwnBox)
-    local b = WoWCompanionDB.asks[2]
-    assert(b.text == "Where is the bank?" and b.ref == "quest:10" and #WoWCompanionDB.asks == 2)
-    -- an entry with no ref queues no ref; an empty box queues nothing
-    WoWCompanionCardOwnBox.scripts.OnEnterPressed(WoWCompanionCardOwnBox)
-    assert(#WoWCompanionDB.asks == 2)
+    local box = WoWCompanionCardAsk
+    assert(box:GetText() == "Is the bag worth the detour?" and box.focused and box.highlighted and box:IsShown())
+    assert(c.copyHint:GetText() == "Ctrl+C" and c.copyHint:IsShown() and c.selectedIndex == 2)
+    local y = function(f) return f.points[1][5] end
+    assert(y(box) < y(c.chips[2]) and y(c.chips[3]) < y(box), "the box sits directly under the clicked chip")
+    assert(#PRINTED == 0 and WoWCompanionDB.asks == nil and WoWCompanionDB.cardAsks == nil, "nothing is queued, kept or said")
+    assert(not WoWCompanionCardCopy and not WoWCompanionCardOwnBox and not WoWCompanionCardOwn, "no Copy button, no Type your own box")
+    -- another entry: its card has its own chips and no stale box
     local n = open_card(p, "Blood Tithe")
+    assert(not box:IsShown() and n.selected == nil)
     n.chips[1].scripts.OnClick(n.chips[1])
-
-    assert(WoWCompanionDB.asks[3].ref == nil and WoWCompanionDB.asks[3].text == "How do I finish Blood Tithe?", tostring(WoWCompanionDB.asks[3].text))
+    assert(box:GetText() == "How do I finish Blood Tithe?" and WoWCompanionDB.asks == nil)
     WoWCompanionCard = nil
 end }
 
+cases[#cases + 1] = { "card copy: the key handler changes nothing; the confirmation comes on a later frame; a redraw keeps the text", function()
+    local p, WC = card_client(ask_digest())
+    local c = open_card(p, "Quest 10")
+    local box = WoWCompanionCardAsk
+    local queued = {}
+    C_Timer = { After = function(sec, fn) queued[#queued + 1] = { sec, fn } end }
+    c.chips[1].scripts.OnClick(c.chips[1])
+    local q = "What's Quest 10 for?"
+    assert(box:GetText() == q and box.focused and box.highlighted and c.copying)
+    box.focused, box.highlighted = false, false -- the click's mouse-up undid it
+    queued[#queued][2]()
+    assert(box.focused and box.highlighted, "the next frame restores the selection")
+    -- a redraw of the open card (live refresh) never resets the box being copied from
+    local sets = 0
+    local set = box.SetText
+    box.SetText = function(self, t) sets = sets + 1 set(self, t) end
+    WC.RefreshCard()
+    assert(sets == 0 and box:GetText() == q and box.focused)
+    -- other keys, and C without Ctrl, do nothing
+    IsControlKeyDown = function() return false end
+    local n = #queued
+    box.scripts.OnKeyDown(box, "C")
+    IsControlKeyDown = function() return true end
+    box.scripts.OnKeyDown(box, "X")
+    assert(#queued == n)
+    -- Ctrl+C: the handler touches neither text, selection nor focus, and shows nothing yet
+    local hl, fc = box.highlightCalls, box.focusCalls
+    box.scripts.OnKeyDown(box, "C")
+    assert(box:GetText() == q and box.focused and box.highlighted and box.highlightCalls == hl and box.focusCalls == fc and sets == 0)
+    assert((c.status:GetText() or "") == "", "the confirmation is deferred")
+    assert(#queued == n + 1 and queued[#queued][1] == 0)
+    queued[#queued][2]() -- the following frame
+    assert(c.status:GetText() == "Copied. Paste it into the overlay with Ctrl+V." and box:GetText() == q)
+    assert(queued[#queued][1] == 1.5 and box.focused)
+    queued[#queued][2]()
+    assert(not box.focused and box:GetText() == q, "focus is let go later; the text stays")
+    -- Cmd+C on a Mac client, then Esc
+    IsControlKeyDown, IsMetaKeyDown = function() return false end, function() return true end
+    c.chips[1].scripts.OnClick(c.chips[1])
+    box.scripts.OnKeyDown(box, "c")
+    queued[#queued][2]()
+    assert(c.status:GetText():find("^Copied"))
+    c.chips[1].scripts.OnClick(c.chips[1])
+    box.scripts.OnEscapePressed(box)
+    assert(not box.focused and not c.copying)
+    C_Timer, IsControlKeyDown, IsMetaKeyDown = nil, nil, nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card: the Ask label hides without questions; the dim line stays", function()
+    local p, WC = card_client(ask_digest())
+    local c = open_card(p, "Quest 10")
+    assert(c.askLabel:IsShown() and c.askLabel.color[1] ~= 1, "a plain label, not a link colour")
+    assert(c.askLabel.scripts.OnClick == nil and c.askLabel.scripts.OnEnter == nil)
+    WC.CloseCard()
+    WC.OpenCard(WC.StatsEntry(nil))
+    assert(not WoWCompanionCard.askLabel:IsShown() and WoWCompanionCard.ownLine:GetText() == "Or ask anything in the overlay.")
+    WoWCompanionCard = nil
+end }
 cases[#cases + 1] = { "card questions: the fallback asks for every kind are short and natural", function()
     local p, WC = card_client()
     local cases_ = {
@@ -3187,7 +3245,7 @@ cases[#cases + 1] = { "giver note: the ! icon, the full text, the pin on the map
     assert(note.title:find("second line$") and #note.rows == 0, note.title .. #note.rows)
     assert(note.asks[1] == "Should I sell the bags?")
     local open = open_card(p, "Bank has 3 unused bags")
-    for _, fs in ipairs(open.lines) do assert(not fs:IsShown() or fs:GetText() ~= "No more details for this entry.") end
+    for _, fs in ipairs(open.lines) do assert(not fs:IsShown() or not (fs:GetText() or ""):find("No more details", 1, true)) end
     WoWCompanionCard = nil
 end }
 
@@ -3201,54 +3259,6 @@ cases[#cases + 1] = { "notes wrap to 2 lines with no ellipsis; other rows are un
     assert(head.label.maxLines == 0)
 end }
 
-cases[#cases + 1] = { "card copy: Copy selects the question; Ctrl+C shows Copied for 1.5 s, then clears the selection; Esc and typing end it", function()
-    local p, WC = card_client(ask_digest())
-    local c = open_card(p, "Quest 10")
-    local box, copy = WoWCompanionCardAsk, WoWCompanionCardCopy
-    local queued = {}
-    C_Timer = { After = function(sec, fn) queued[#queued + 1] = { sec, fn } end }
-    c.chips[1].scripts.OnClick(c.chips[1])
-    assert(box.focused and box.highlighted and c.copying and c.copyHint:IsShown())
-    box.focused, box.highlighted = false, false -- the button's mouse-up undid it
-    queued[#queued][2]()
-    assert(box.focused and box.highlighted, "the next frame restores the selection")
-    local h = box.highlightCalls
-    box.scripts.OnEditFocusGained(box)
-    assert(box.highlightCalls == h + 1)
-    -- other keys do nothing; Ctrl+C confirms
-    IsControlKeyDown = function() return false end
-    box.scripts.OnKeyDown(box, "C")
-    assert(c.copying and c.status:GetText():find("^Asked"))
-    IsControlKeyDown = function() return true end
-    box.scripts.OnKeyDown(box, "X")
-    assert(c.copying)
-    local before = #queued
-    box.scripts.OnKeyDown(box, "C")
-    assert(c.status:GetText() == "Copied \226\156\147" and not c.copying)
-    assert(#queued == before + 1 and queued[#queued][1] == 1.5 and box.focused)
-    queued[#queued][2]()
-    assert(not box.focused and not box.highlighted and c.status:GetText():find("^Asked"))
-    -- Cmd+C on a Mac client; a later Copy cancels the pending release
-    IsControlKeyDown, IsMetaKeyDown = function() return false end, function() return true end
-    copy.scripts.OnClick(copy)
-    box.scripts.OnKeyDown(box, "C")
-    assert(c.status:GetText():find("^Copied"))
-    local pending = queued[#queued][2]
-    copy.scripts.OnClick(copy)
-    pending()
-    assert(box.focused and c.copying)
-    box.scripts.OnEscapePressed(box)
-    assert(not box.focused and not c.copying)
-    copy.scripts.OnClick(copy)
-    box.scripts.OnTextChanged(box, true)
-    assert(not c.copying)
-    C_Timer = nil
-    copy.scripts.OnClick(copy)
-    assert(box.focused and box.highlighted)
-    IsControlKeyDown, IsMetaKeyDown = nil, nil
-    WoWCompanionCard = nil
-end }
-
 cases[#cases + 1] = { "no /reload in any current-locale player string (What's new history excepted)", function()
     fresh_client(nil)
     local n = 0
@@ -3259,7 +3269,7 @@ cases[#cases + 1] = { "no /reload in any current-locale player string (What's ne
         end
     end
     assert(n > 100)
-    for _, k in ipairs({ "ASK_QUEUED", "CARD_ASKED", "HELP_ASK", "OLDER_THAN_CAPTURE", "STALE_TIP" }) do assert(WoWCompanion.L[k], k) end
+    for _, k in ipairs({ "OLDER_THAN_CAPTURE", "STALE_TIP" }) do assert(WoWCompanion.L[k], k) end
     assert(rawget(WoWCompanion.L, "STALE_NOTE") == nil and rawget(WoWCompanion.L, "CARD_SENT") == nil)
 end }
 
@@ -3444,8 +3454,10 @@ cases[#cases + 1] = { "upgrades: the card lists every upgrade with its path, chi
     local m = WC.CardModel(entry)
     local text = card_text(WC, entry)
     assert(m.title == "6 upgrades you can get", m.title)
-    assert(text:find("Cloak: Traveler's Shawl \226\128\148 Big upgrade", 1, true) and text:find("instead of your Worn Cloak", 1, true))
-    assert(text:find("fills an empty slot", 1, true) and text:find("Copper Bar: have 3 of 6", 1, true))
+    assert(text:find("You wear: Worn Cloak\nLook for: Traveler's Shawl \226\128\148 Big upgrade\n", 1, true), text)
+    assert(text:find("You wear: nothing in this slot\nLook for: Copper Chain Vest \226\128\148 Solid upgrade", 1, true))
+    assert(text:find("Finish Lost Shawl and choose it", 1, true) and text:find("Copper Bar: have 3 of 6", 1, true))
+    assert(not text:find("instead of your", 1, true) and not text:find("fills an empty slot", 1, true))
     assert(text:find("Fang Boots", 1, true) and text:find("Extra Ring", 1, true), "every upgrade, not four")
     assert(table.concat(m.asks, "|") == "How do I get Traveler's Shawl?|How do I get Copper Chain Vest?|How do I get Tough Bracers?")
     assert(#m.actions == 1 and m.actions[1].label == "Show on map")
@@ -3468,6 +3480,10 @@ cases[#cases + 1] = { "upgrades: an older digest shows <Slot>: <Item> only", fun
     assert(tip_text(chip) == "1 gear upgrade|Feet: Boots|Click for details", tip_text(chip))
     assert(row_with(p, "Feet: Boots"))
     assert(card_text(WC, chip.entry.upgrades[1]) == "Feet\nat level 12")
+    -- an older digest whose line already leads with the slot never doubles it
+    local u = { title = "back: Traveler's Shawl", slot = "back" }
+    assert(WC.UpgradeMain(u) == "back: Traveler's Shawl", WC.UpgradeMain(u))
+    assert(WC.UpgradeMain({ title = "Traveler's Shawl", slot = "back" }) == "back: Traveler's Shawl")
     no_ilvl_anywhere(p, WC)
     UnitLevel = nil
 end }
@@ -3529,7 +3545,10 @@ end }
 
 cases[#cases + 1] = { "stats chip: tooltip and card with and without a stats entry", function()
     local p, WC = card_client()
-    assert(tip_text(chip_of(p, "stats").chip) == "Choose a play style in the overlay for a stat check|Click for details")
+    local none = "Choose a play style in the overlay (Settings \226\134\146 Play style) and your stat check appears here after the game next saves."
+    assert(tip_text(chip_of(p, "stats").chip) == none .. "|Click for details")
+    assert(card_text(WC, chip_of(p, "stats").chip.entry) == none, "the card says what the tooltip says")
+    assert(not WC.CardModel(chip_of(p, "stats").chip.entry).rows[1].text:find("No more details", 1, true))
     assert(chip_of(p, "stats").icon.texture == WC.ICONS.stats)
     assert(#WC.CardModel(chip_of(p, "stats").chip.entry).asks == 0)
     local d = digest14()
@@ -3580,7 +3599,10 @@ cases[#cases + 1] = { "chips: left and right click open the card for that chip",
             local b = chip_of(p, kind)
             b.scripts.OnClick(b, btn)
             assert(WC.card and WC.card:IsShown() and WC.card.entry.kind == kind, kind .. " " .. btn)
-            assert(#WC.CardModel(WC.card.entry).asks > 0)
+            local asks = WC.CardModel(WC.card.entry).asks
+            -- an upgrade set asks only what the digest gave per item, never a question from its own summary
+            assert(kind == "upgrade" and #asks == 0 or #asks > 0)
+            for _, a in ipairs(asks) do assert(not a:find("gear upgrades", 1, true), a) end
         end
     end
     assert(WC.card.entry.key == "upgrades" and WC.CardModel(WC.card.entry).rows[1].text == "Hammer of Fate")
@@ -3922,7 +3944,7 @@ cases[#cases + 1] = { "plan: plain step labels render in details and tooltips", 
 end }
 
 cases[#cases + 1] = { "read-only: nothing asks for a /reload", function()
-    for _, f in ipairs({ "Asks", "Button", "Card", "Chips", "Combat", "Core", "Digest", "Hover", "MapPanel", "Observed", "Options", "Panel", "Plan", "PlanTip", "PlanUI", "Settings", "Status", "Tooltips", "Tracker", "WhatsNew" }) do
+    for _, f in ipairs({ "Button", "Geometry", "Card", "Chips", "Combat", "Core", "Digest", "Hover", "MapPanel", "Observed", "Options", "Panel", "Plan", "PlanTip", "PlanUI", "Settings", "Status", "Tooltips", "Tracker", "WhatsNew" }) do
         local code = assert(io.open("WoWCompanion/" .. f .. ".lua")):read("*a"):gsub("%-%-[^\n]*", "")
         assert(not code:find("ReloadUI", 1, true) and not code:find("StaticPopup", 1, true), f)
         assert(not code:find("ConsoleExec", 1, true) and not code:find("RestartGx", 1, true), f)

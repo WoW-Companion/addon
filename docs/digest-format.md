@@ -36,7 +36,7 @@ Schema 1.4 adds two optional fields to every `next_quests` and `upgrades` line a
 
 `next_quests` may hold a `kind = "training"` line: `text`, `level`, `spells = { { id, name, rank (only when ranked), new (false for an upgrade of a known rank) }, ... }`, and optionally `npc`, `zone`, `x`, `y`. The panel shows `New at level 10: Charge (Rank 2), Thunder Clap` with the class icon, drops spells the client reports as known, and hides the entry when none is left. The talent entry's card shows the first `talents` entry as the plan's next pick (its `prompt` is used when the talent line has none).
 
-Clicking a quest in the log opens it in the client's quest log; any other entry (and a right-click on any entry) opens its detail card. **Send** queues the box through the ask queue (`docs/ask-format.md`); **Copy** selects the text for Ctrl+C. The panel accepts every `1.x`, so older digests keep working with the template prompts.
+Clicking a quest in the log opens it in the client's quest log; any other entry (and a right-click on any entry) opens its detail card. A question chip opens a copy box under it; the player presses Ctrl+C and pastes the question into the overlay (`docs/ask-format.md`). The panel accepts every `1.x`, so older digests keep working with the template prompts.
 
 ### Schema 1.3: structured lines
 

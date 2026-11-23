@@ -8,7 +8,7 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local PAD, TOP_INSET, SCROLL_W = 10, 24, 26
+local PAD, TOP_INSET, SCROLL_W = 10, 12, 26
 local ROW_MIN, ROW_PAD_T, ROW_PAD_B, ROW_GAP = 34, 6, 6, 2
 local LINE_TITLE, LINE_SUB = 13, 11 -- a line's height when the client cannot measure the text
 local SEL = { 0.45, 0.7, 1 } -- the selected step's accent (the current step stays gold)
@@ -392,6 +392,33 @@ function WC.RefreshMapPanelSoon()
     C_Timer.After(0.1, function() pending = false; WC.RefreshMapPanel() end)
 end
 
+-- The client's content-area inset: the frame the client's own quest list is anchored to, inside the panel's border.
+-- QuestMapFrame.ContentsAnchor when the client has it, else whatever the quest list's first anchor points at (when
+-- that is not the panel itself), else the panel. Only client frames; nil without a panel.
+function WC.MapInset()
+    local col = QuestMapFrame
+    if not col then return nil end
+    local a = col.ContentsAnchor
+    if type(a) == "table" and a.GetObjectType then return a end
+    local q = QuestScrollFrame
+    if type(q) == "table" and q.GetPoint then
+        local _, rel = q:GetPoint(1)
+        if type(rel) == "table" and rel ~= col and rel ~= q and rel ~= UIParent and rel.GetObjectType then return rel end
+    end
+    return col
+end
+
+-- Fits the panel to the inset, so its title, step line and toggle sit inside the border at every map size.
+function WC.PlaceMapPanel()
+    local f = WC.mapPanel
+    if not f then return end
+    local inset = WC.MapInset()
+    if not inset then return end
+    f:ClearAllPoints()
+    f:SetAllPoints(inset)
+    f.inset = inset
+end
+
 local function create_frame()
     local col = QuestMapFrame
     if WC.mapPanel or not col then return WC.mapPanel end
@@ -399,7 +426,8 @@ local function create_frame()
     if not ok or type(f) ~= "table" then return end
     f.rowWidth = 270
     f.rows = {}
-    f:SetAllPoints(col)
+    WC.mapPanel = f
+    WC.PlaceMapPanel()
     if f.SetFrameLevel and col.GetFrameLevel then f:SetFrameLevel((col:GetFrameLevel() or 1) + 20) end
     f:EnableMouse(true) -- swallows clicks so they never reach the quest list underneath
     f.bg = f:CreateTexture(nil, "BACKGROUND")

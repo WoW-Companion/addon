@@ -15,11 +15,16 @@ local function new_region(kind)
         self.anchors = self.anchors or {}
         self.anchors[point] = self.points[1] -- the latest anchor per point name
     end
-    function r:GetPoint()
-        local p = self.points[1]
+    function r:GetPoint(i)
+        local p = self.points[i or 1]
         if not p then return end
         return p[1], p[2], p[3], p[4], p[5]
     end
+    function r:GetNumPoints() return #self.points end
+    function r:GetSize() return self.w or 0, self.h or 0 end
+    function r:GetScale() return self.scale or 1 end
+    function r:GetName() return self.name end
+    function r:GetObjectType() return self.kind end
     function r:ClearAllPoints() self.points = {} end
     function r:StartMoving() self.moving = true end
     function r:StopMovingOrSizing() self.moving = false end
@@ -61,7 +66,7 @@ local function new_region(kind)
     function r:UpdateScrollChildRect() end
     function r:CreateFontString() return new_region("FontString") end
     function r:CreateTexture() return new_region("Texture") end
-    function r:SetAllPoints() end
+    function r:SetAllPoints(rel) self.allPointsTo = rel; self.points = { { "TOPLEFT", rel, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", rel, "BOTTOMRIGHT", 0, 0 } } end
     function r:SetColorTexture(...) self.colorTexture = { ... } end
     function r:SetShadowOffset(x, y) self.shadow = { x, y } end
     function r:SetShadowColor() end
@@ -174,7 +179,7 @@ function Stub.install(env)
         assert(name == nil or type(name) == "string", "CreateFrame name must be nil or a string")
         assert(parent == nil or (type(parent) == "table" and parent.kind), "CreateFrame parent must be nil or a frame")
         local f = new_region(kind)
-        f.parent, f.template = parent, template
+        f.parent, f.template, f.name = parent, template, name
         if parent then parent.children = parent.children or {}; parent.children[#parent.children + 1] = f end
         if kind == "ScrollFrame" then f.h = 200 end
         if name then env[name] = f end

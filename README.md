@@ -17,7 +17,7 @@ The addon is a window, and the app is what fills it. Three small pieces work tog
   button. Quest counts update live as you play.
 
 **The loop:** play, `/reload` (WoW saves), the app writes fresh advice within seconds, `/reload` again to see
-it. You can also ask a question in the game; the app answers it in its own window.
+it. You can also copy a question from a card and paste it into the app; it answers in its own window.
 
 Without the app, the addon has nothing to show beyond live quest progress.
 
@@ -29,8 +29,7 @@ in the advisor repo.
 **The panel.** Type `/wowc` to open or close it, and drag it to move it. It lists your next steps, grouped in
 sections you can collapse. Hover a line and the matching badge on the map lights up (and the other way round).
 Click a quest to open it in your quest log, or click anything else, or right-click, to open a small detail
-card. The card has a question already filled in: send it to the app, or copy it into your own AI chat. You can
-also type `/ask <question>` any time. If the advice looks old, the panel says so.
+card. Click one of its questions to copy it (Ctrl+C), then paste it into the overlay. If the advice looks old, the panel says so.
 
 **The route on the map.** Your steps appear on the world map as numbered gold badges, with lines between the
 steps still to do. A small line reading `Step 3/12: <quest> · 85 yd NE` tracks the next step and ticks off as
@@ -78,7 +77,6 @@ covers every character; if the one you are on has no entry, the panel shows a sh
 | `/wowc plan …` | Show or hide the next-step line; `map`, `lines` and `arrows` toggle the badges, route lines and arrowheads; `size small\|normal\|large` sets the badge size |
 | `/wowc reset visuals` | Put every colour, opacity and size back to its default (asks first) |
 | `/wowc reset all` | Put every setting back to its default; saved positions stay (asks first) |
-| `/ask <question>` | Queue a question for the app; `/reload` to hand it over |
 
 `/wowc status` prints versions and digest age, and `/wowc help` lists everything, including `/wowc reset`
 (restores the panel position).

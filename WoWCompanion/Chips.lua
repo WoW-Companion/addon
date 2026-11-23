@@ -101,12 +101,23 @@ end
 -- "<Slot>: <Item> - <gain>"; an older digest has no gain, and a line with no slot is the item alone.
 function WC.UpgradeMain(u)
     local out = WC.UpgradeName(u)
-    if u.slot and u.slot ~= "" then out = u.slot .. ": " .. out end
+    -- an older digest's line can already lead with the slot ("back: Traveler's Shawl"): never say it twice
+    local slot = u.slot
+    if slot and slot ~= "" and out:lower():sub(1, #slot + 1) ~= slot:lower() .. ":" then out = slot .. ": " .. out end
     if u.gain and u.gain ~= "" then out = out .. " \226\128\148 " .. u.gain end
     return out
 end
 
 local function inline_icon(path, size) return "|T" .. path .. ":" .. size .. "|t " end
+
+-- What the player wears in the slot, from the digest's `replaces` ("instead of your Flimsy Chain Cloak").
+function WC.UpgradeWorn(u)
+    local r = type(u.replaces) == "string" and u.replaces or ""
+    local worn = r:match("^[Ii]nstead of your (.+)$")
+    if worn then return worn end
+    if r == "" or r:lower():find("empty slot", 1, true) or r:lower():find("nothing", 1, true) then return L.CARD_NOTHING_WORN end
+    return r
+end
 
 -- The dim second line: the path icon, how to get it, and "from level N" when it can't be worn yet. Nil with
 -- nothing to say. inline puts the icon in the text (a tooltip line); the panel draws it as a texture.
@@ -138,7 +149,7 @@ function WC.StatsEntry(s)
         end
     end
     if #insights == 0 then
-        return WC.MakeEntry("stats", "stats", {}, { title = L.CHIP_STATS_TITLE, details = { L.CHIP_STATS_NONE }, asks = {} })
+        return WC.MakeEntry("stats", "stats", { details = { L.CHIP_STATS_NONE } }, { title = L.CHIP_STATS_TITLE, asks = {} })
     end
     local profile = type(s.profile) == "string" and s.profile:gsub("|", ""):gsub("^%s+", ""):gsub("%s+$", "") or ""
     local entry = WC.MakeEntry("stats", "stats", { asks = s.asks, ref = s.ref }, { title = profile ~= "" and profile:sub(1, 60) or L.CHIP_STATS_TITLE })
@@ -184,10 +195,10 @@ function WC.BuildChips(found, d)
         entry.upgrades = found.upgrade
         local asks = {}
         for _, e in ipairs(found.upgrade) do
-            for _, a in ipairs(e.asks or {}) do if #asks < 3 and a:find("^How do I get") then asks[#asks + 1] = a end end
+            for _, a in ipairs(e.asks or {}) do if #asks < 3 then asks[#asks + 1] = a end end
             if not entry.quest and e.pathKind == "quest" and e.quest and #WC.QuestSteps(e.quest) > 0 then entry.quest = e.quest end
         end
-        entry.asks = #asks > 0 and asks or nil
+        entry.asks = asks -- per item, from the digest; never a question built from this summary
         list.upgrade = { count = n, entry = entry, items = items }
     end
     list.stats = { count = 1, noBadge = true, entry = WC.StatsEntry(type(d) == "table" and d.stats or nil) }
