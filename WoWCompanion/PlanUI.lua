@@ -25,6 +25,7 @@ local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (8 px)
 local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
 local DISC = "Interface\\Minimap\\UI-Minimap-Background"
+WC.DISC = DISC
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
 -- Minimap radius in yards by zoom level (outdoors); only used to decide when the pin sits on the edge.
 local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
@@ -166,6 +167,18 @@ local function pinFor(i, canvas)
         WC.HoverEnterBadge(g)
     end)
     p:SetScript("OnLeave", function() GameTooltip:Hide() WC.HoverLeaveBadge() end)
+    -- a click selects one step of the badge (the next one when it is in the group, else the first), never the group
+    p.selRing = p:CreateTexture(nil, "BACKGROUND")
+    p.selRing:SetTexture(DISC)
+    p.selRing:SetPoint("TOPLEFT", p, "TOPLEFT", -3, 3)
+    p.selRing:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 3, -3)
+    p.selRing:SetVertexColor(0.45, 0.7, 1, 1)
+    p.selRing:Hide()
+    p:SetScript("OnClick", function(self)
+        local g = self.planGroup
+        if not g or g.ghost or not WC.SelectStep then return end
+        WC.SelectStep(g.next or g.steps[1])
+    end)
     pins[i] = p
     return p
 end
@@ -548,6 +561,7 @@ function WC.RefreshMapPins()
         a:Show()
         p:Show()
         WC.ApplyBadgeFill(p, marker and "tag" or nil)
+        WC.ApplyPinSelection(p)
         if p.pulse and ((g.isNext and WC.Setting("nextPulse")) or WC.GroupHot(g)) then p.pulse:Play() end
         local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
@@ -723,6 +737,22 @@ local function tick()
     local m = WC.planMinimap
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
+    end
+end
+
+-- Rings the badge that holds the selected step (the ghost badges never carry a selection).
+function WC.ApplyPinSelection(p)
+    if not p.selRing then return end
+    local g, sel, on = p.planGroup, WC.panelState and WC.panelState.selectedStep, false
+    if g and not g.ghost and sel then
+        for _, s in ipairs(g.steps) do if s.n == sel then on = true end end
+    end
+    p.selRing:SetShown(on)
+end
+
+function WC.ApplyMapSelection()
+    for _, p in ipairs(pins) do
+        if p:IsShown() then WC.ApplyPinSelection(p) end
     end
 end
 
