@@ -107,6 +107,17 @@ function WC.MakeEntry(kind, key, src, fields)
     return e
 end
 
+-- Schema 1.7: an upgrade's optional material counts, { { name, have, need } }, at most 6.
+function WC.CleanMaterials(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, m in ipairs(list) do
+        local name = type(m) == "table" and clean(m.name, 60)
+        if name and tonumber(m.need) and #out < 6 then out[#out + 1] = { name = name, have = tonumber(m.have) or 0, need = tonumber(m.need) } end
+    end
+    return #out > 0 and out or nil
+end
+
 -- The client's live count of unspent talent points, or nil when it cannot say.
 function WC.UnspentTalentPoints()
     local fns = { GetUnspentTalentPoints, C_SpecializationInfo and C_SpecializationInfo.GetUnspentTalentPoints }
@@ -616,6 +627,13 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         local entry = WC.MakeEntry(giver and "giver" or ekind, section.id .. ":" .. (id or quest or li), line, {
                             title = plain(line.text), item = id, quest = quest, ask = ask, slot = line.slot and plain(line.slot) or nil,
                             ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel) })
+                        if section.id == "upgrades" then
+                            -- schema 1.7: the plain gain, when it can be worn, what it replaces and how to get it
+                            entry.wear, entry.gain = clean(line.wear, 40), clean(line.gain, 40)
+                            entry.replaces, entry.how = clean(line.replaces, 80), clean(line.how, 120)
+                            entry.pathKind = WC.PATH_ICONS[line.pathKind] and line.pathKind or nil
+                            entry.materials = WC.CleanMaterials(line.materials)
+                        end
                         if giver then
                             entry.npc, entry.zone = line.npc and plain(line.npc) or nil, line.zone and plain(line.zone) or nil
                             entry.x, entry.y = tonumber(line.x), tonumber(line.y)
@@ -627,14 +645,13 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             icon = giver and WC.ICONS.pickup or nil }
                         if section.id == "upgrades" then
                             row.color = quality_color(id)
-                            local meta = {}
-                            if line.slot then meta[#meta + 1] = plain(line.slot) end
-                            if tonumber(line.ilvl) then meta[#meta + 1] = string.format(L.ILVL, tonumber(line.ilvl)) end
-                            if tonumber(line.atLevel) then meta[#meta + 1] = string.format(L.AT_LEVEL, tonumber(line.atLevel)) end
                             lines[#lines + 1] = row
-                            lines[#lines + 1] = WC.WhyRow(entry)
-                            if #meta > 0 then -- slot and item level sit dim on a line of their own, so nothing needs cutting
-                                row = { kind = "status", indent = 2, text = table.concat(meta, ", "), color = WC.COLORS.dim, group = entry.key }
+                            row.text = WC.UpgradeMain(entry) -- slot, item and gain, already escaped
+                            -- the path icon, then how to get it, dim on a line of its own
+                            local sub = WC.UpgradeSub(entry)
+                            if sub then
+                                row = { kind = "status", indent = 2, text = sub, color = WC.COLORS.dim, group = entry.key,
+                                    icon = WC.HasUpgradePath(entry) and WC.PATH_ICONS[entry.pathKind] or nil }
                             else
                                 row = nil
                             end

@@ -56,7 +56,7 @@ Schema 1.3 adds optional fields to the lines, so the panel can lay them out like
 | `objectives` | list | `{ text = "...", have = 0, need = 6 }` per objective, optional ones included (an optional objective's text ends `(Optional)`, or it carries `optional = true`). Shown as indented `have/need text` lines. |
 | `points` | number | Unspent talent points, for the `"talent"` line. |
 
-`upgrades` lines add `slot` (string), `ilvl` and `atLevel` (numbers) beside `text` and `item`; the panel shows them dim under the item.
+`upgrades` lines add `slot` (string), `ilvl` and `atLevel` (numbers) beside `text` and `item`; the panel shows `atLevel` dim under the item. Schema 1.7 adds `wear` ("Wear now" or "From level 12"), `gain` ("Big upgrade", "Solid upgrade", "Small upgrade"), `replaces`, `how` (one line), `pathKind` (`quest`, `craft`, `auction`, `dungeon` or `creature`, for the path icon) and optionally `materials = { { name, have, need } }`. With them the panel and the upgrades chip show `<Slot>: <Item> — <gain>` over the path icon and `how`; without them just `<Slot>: <Item>`. `ilvl` is never shown.
 
 While a quest is in the log the panel uses the client's live title, level and objectives instead of the stored ones (a quest turned in drops off, a finished one shows `Ready to turn in`). The panel also collapses each quest and each section; the choice is saved per quest id.
 

@@ -223,11 +223,35 @@ function WC.CardModel(entry)
             m.hints[#m.hints + 1] = string.format(L.CARD_OPEN_TALENTS_KEY, key)
         end
     elseif kind == "upgrade" then
-        local meta = {}
-        if entry.slot then meta[#meta + 1] = entry.slot end
-        if entry.ilvl then meta[#meta + 1] = string.format(L.ILVL, entry.ilvl) end
-        if entry.atLevel then meta[#meta + 1] = string.format(L.AT_LEVEL, entry.atLevel) end
-        if #meta > 0 then rows[#rows + 1] = row(table.concat(meta, ", ")) end
+        -- one upgrade: slot, item and gain; how to get it with its path icon; what it replaces; material counts
+        local function upgrade_rows(u)
+            rows[#rows + 1] = row(WC.UpgradeMain(u), WC.COLORS.white)
+            local sub = WC.UpgradeSub(u, true)
+            if sub then rows[#rows + 1] = row(sub) end
+            if u.replaces then rows[#rows + 1] = row(u.replaces) end
+            for _, mat in ipairs(u.materials or {}) do rows[#rows + 1] = row(string.format(L.CARD_MATERIAL_HAVE, mat.name, mat.have, mat.need)) end
+        end
+        if entry.upgrades then -- the chip's card: every upgrade
+            local planned = false
+            for _, u in ipairs(entry.upgrades) do if WC.HasUpgradePath(u) then planned = true end end
+            if planned then
+                for i = #rows, 1, -1 do rows[i] = nil end -- the item names are replaced by full lines
+                m.title = string.format(#entry.upgrades == 1 and L.CHIP_UPGRADES_GET_ONE or L.CHIP_UPGRADES_GET, #entry.upgrades)
+                for i, u in ipairs(entry.upgrades) do
+                    if i > 1 then rows[#rows + 1] = row(" ") end
+                    upgrade_rows(u)
+                end
+                if entry.quest then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
+            end
+        elseif WC.HasUpgradePath(entry) then
+            upgrade_rows(entry)
+            if entry.pathKind == "quest" and entry.quest and #WC.QuestSteps(entry.quest) > 0 then
+                m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP }
+            end
+        else
+            if entry.slot then rows[#rows + 1] = row(entry.slot) end
+            if entry.atLevel then rows[#rows + 1] = row(string.format(L.AT_LEVEL, entry.atLevel)) end
+        end
         if entry.item then
             m.link = "item:" .. entry.item
             local icon = GetItemIcon and GetItemIcon(entry.item)
