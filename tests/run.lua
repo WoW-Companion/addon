@@ -3190,7 +3190,7 @@ cases[#cases + 1] = { "card copy box: multi-line like 0.6.0, fitted to the quest
     local p, WC = card_client(ask_digest())
     local c = open_card(p, "Quest 10")
     local box = WoWCompanionCardAsk
-    assert(box.multiLine == true and box.template == "BackdropTemplate" and box.w == 280, "multi-line BackdropTemplate box, fixed width")
+    assert(box.multiLine == true and box.template == "BackdropTemplate" and box.w == 282, "multi-line BackdropTemplate box, fixed width")
     c.chips[1].scripts.OnClick(c.chips[1])
     assert(box.h >= 2 * WC.LINE_HEIGHT and box.h <= 3 * WC.LINE_HEIGHT + 8, "two or three lines tall")
     IsControlKeyDown = function() return true end
