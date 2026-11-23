@@ -213,29 +213,148 @@ end
 -- True when none of the client's own tabs is shown, so our tab stands alone on the frame's left edge.
 function WC.MapTabAlone()
     return WC.mapButtonMode == "tab" and WC.mapButtonParent ~= nil and WC.FindClientTab(WC.mapButtonParent) == nil
+        and #WC.ScanTabColumn() == 0
 end
 
--- Anchors the tab directly below the lowest client tab, at that tab's size, so a map addon that moves the client's
--- tabs carries ours along. With every client tab hidden it sits on the frame's left edge at the saved (or default)
--- height, at 44 x 44. Re-run on map show and mode change.
+-- ---------------------------------------------------------------- column fit (geometry only)
+-- The side tabs left of the quest panel may belong to the client or to other addons. They are read only as
+-- rectangles (visible, mouse-enabled frames whose right edge is at the panel's left edge); no name, table or
+-- anchor of theirs is ever kept, and the rectangles are dropped after each placement.
+
+WC.COLUMN_EDGE = 4        -- how far a tab's right edge may sit from the panel's left edge and still be in the column
+WC.COLUMN_MAX_TAB = 80    -- a frame larger than this is never a tab
+WC.COLUMN_SCAN_DEPTH = 3  -- levels below the map frame that are scanned
+WC.COLUMN_SCAN_EVERY = 0.5
+
+-- Pure: the most common value of a list (ties: the smaller), or nil for an empty list.
+function WC.ModalValue(list)
+    local count, best, bestN = {}, nil, 0
+    for _, v in ipairs(list) do
+        count[v] = (count[v] or 0) + 1
+    end
+    for v, n in pairs(count) do
+        if n > bestN or (n == bestN and v < best) then best, bestN = v, n end
+    end
+    return best
+end
+
+-- Pure: where our tab goes among the column's rectangles ({ left, right, top, bottom }, screen units, y up).
+-- Returns { w, h, right, top, gap, n } (our size is the column's modal tab size; our right edge is the column's modal
+-- right edge; our top is the first gap of at least one tab height scanning down from the column's top, with the
+-- column's own spacing), or nil without rectangles.
+function WC.ColumnPlacement(rects)
+    local n = #rects
+    if n == 0 then return nil end
+    local list, ws, hs, rs = {}, {}, {}, {}
+    for i, r in ipairs(rects) do
+        list[i] = r
+        ws[i], hs[i], rs[i] = math.floor(r.right - r.left + 0.5), math.floor(r.top - r.bottom + 0.5), math.floor(r.right + 0.5)
+    end
+    table.sort(list, function(a, b) return a.top > b.top end)
+    local w, h = WC.ModalValue(ws) or WC.MAP_TAB_SIZE, WC.ModalValue(hs) or WC.MAP_TAB_SIZE
+    if w <= 0 then w = WC.MAP_TAB_SIZE end
+    if h <= 0 then h = WC.MAP_TAB_SIZE end
+    local gaps = {}
+    for i = 2, n do
+        local g = math.floor(list[i - 1].bottom - list[i].top + 0.5)
+        if g >= 0 and g < h then gaps[#gaps + 1] = g end
+    end
+    local gap = WC.ModalValue(gaps) or WC.MAP_TAB_GAP
+    local cursor = list[1].top
+    for _, r in ipairs(list) do
+        if cursor - h >= r.top then break end -- the gap above this tab holds ours
+        cursor = math.min(cursor, r.bottom - gap)
+    end
+    return { w = w, h = h, right = WC.ModalValue(rs), top = cursor, gap = gap, n = n }
+end
+
+-- The rectangles of the visible, mouse-enabled frames in the strip left of the quest panel, found by walking the
+-- world map's child tree. Our own tab and panel are skipped by identity. Returns rects, and the panel's left and top.
+function WC.ScanTabColumn()
+    local col, map = QuestMapFrame, WorldMapFrame
+    if not (col and map and col.GetLeft and col.GetTop and map.GetChildren) then return {} end
+    local pl, pt = col:GetLeft(), col:GetTop()
+    if not (tonumber(pl) and tonumber(pt)) then return {} end
+    local rects = {}
+    local function walk(f, depth)
+        for _, c in ipairs({ f:GetChildren() }) do
+            if type(c) == "table" and c ~= WC.mapButton and c ~= WC.mapPanel then
+                local ok, l, b, w, h = false
+                if c.GetRect then ok, l, b, w, h = pcall(c.GetRect, c) end
+                if ok and tonumber(l) and tonumber(w) and tonumber(h) and w > 0 and h > 0 and w <= WC.COLUMN_MAX_TAB and h <= WC.COLUMN_MAX_TAB
+                    and math.abs(l + w - pl) <= WC.COLUMN_EDGE and c.IsVisible and c:IsVisible() and c.IsMouseEnabled and c:IsMouseEnabled() then
+                    rects[#rects + 1] = { left = l, right = l + w, bottom = b, top = b + h }
+                end
+                if depth < WC.COLUMN_SCAN_DEPTH and c.GetChildren then walk(c, depth + 1) end
+            end
+        end
+    end
+    walk(map, 1)
+    return rects, pl, pt
+end
+
+-- A string that changes when the strip does (a tab collapses or expands, or the map resizes).
+local function column_signature(rects, pl, pt)
+    local parts = { math.floor((pl or 0) + 0.5), math.floor((pt or 0) + 0.5) }
+    for _, r in ipairs(rects) do
+        parts[#parts + 1] = string.format("%d,%d,%d,%d", r.left + 0.5, r.right + 0.5, r.top + 0.5, r.bottom + 0.5)
+    end
+    table.sort(parts, function(a, b) return tostring(a) < tostring(b) end)
+    return table.concat(parts, ";")
+end
+
+-- Anchors the tab in the column's first free gap, right-aligned and at the column's tab size. With a Shift-drag
+-- position saved it stays there until Reset. Without any rectangle it falls back to sitting under the lowest of the
+-- client's own tabs, else (alone) at the saved or default height, 44 x 44. Re-run on map show, resize and change.
 function WC.PlaceMapTab()
     local b, parent = WC.mapButton, WC.mapButtonParent
     if not b or WC.mapButtonMode ~= "tab" or not parent then return end
-    local low = WC.FindClientTab(parent)
+    local rects, pl, pt = WC.ScanTabColumn()
+    WC.columnSig = column_signature(rects, pl, pt)
+    local place = WC.ColumnPlacement(rects)
+    local saved = tonumber(WC.Setting("mapTabY")) or 0
+    local fh = parent.GetHeight and parent:GetHeight() or 0
     b:ClearAllPoints()
-    if low then
-        local w, h = low.GetWidth and low:GetWidth() or 0, low.GetHeight and low:GetHeight() or 0
-        if w > 0 and h > 0 then b:SetSize(w, h) end
-        b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP) -- centred under it, so the two share one column
+    if saved ~= 0 and (place or not WC.FindClientTab(parent)) then
+        -- the player's Shift-drag position wins over any auto placement
+        local s = place and place.w or WC.MAP_TAB_SIZE
+        b:SetSize(s, place and place.h or s)
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", place and (place.right - pl) or WC.MAP_TAB_DEFAULT_X, WC.MapTabOffset(saved, fh, place and place.h or s))
+        WC.mapTabPlace = { w = s, h = place and place.h or s, gap = place and place.gap or 0, x = place and (place.right - pl) or WC.MAP_TAB_DEFAULT_X, y = WC.MapTabOffset(saved, fh, s), n = place and place.n or 0, mode = "saved" }
+    elseif place then
+        local x, y = place.right - pl, place.top - pt
+        b:SetSize(place.w, place.h)
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", x, y)
+        WC.mapTabPlace = { w = place.w, h = place.h, gap = place.gap, x = x, y = y, n = place.n, mode = "column" }
     else
-        b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
-        local fh = parent.GetHeight and parent:GetHeight() or 0
-        local y = WC.MapTabOffset(WC.Setting("mapTabY"), fh, WC.MAP_TAB_SIZE)
-        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, y)
+        local low = WC.FindClientTab(parent)
+        if low then
+            local w, h = low.GetWidth and low:GetWidth() or 0, low.GetHeight and low:GetHeight() or 0
+            if w > 0 and h > 0 then b:SetSize(w, h) end
+            b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP) -- no geometry to read: centred under it
+            WC.mapTabPlace = { w = w, h = h, gap = WC.MAP_TAB_GAP, x = 0, y = -WC.MAP_TAB_GAP, n = 0, mode = "client" }
+        else
+            b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
+            local y = WC.MapTabOffset(saved, fh, WC.MAP_TAB_SIZE)
+            b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, y)
+            WC.mapTabPlace = { w = WC.MAP_TAB_SIZE, h = WC.MAP_TAB_SIZE, gap = 0, x = WC.MAP_TAB_DEFAULT_X, y = y, n = 0, mode = "alone" }
+        end
     end
     WC.FitMapTabArt(b)
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     if WC.HookClientTabs then WC.HookClientTabs() end
+end
+
+-- Every 0.5 s while the map is shown: re-place only when the strip changed.
+function WC.WatchTabColumn(elapsed)
+    WC.columnClock = (WC.columnClock or 0) + (tonumber(elapsed) or 0)
+    if WC.columnClock < WC.COLUMN_SCAN_EVERY then return false end
+    WC.columnClock = 0
+    if not WC.mapButton or WC.mapButtonMode ~= "tab" then return false end
+    local rects, pl, pt = WC.ScanTabColumn()
+    if column_signature(rects, pl, pt) == WC.columnSig then return false end
+    WC.PlaceMapTab()
+    return true
 end
 
 -- Moves the lone tab so its middle sits at the cursor's height (screen y, as GetCursorPosition gives it); the
@@ -328,6 +447,7 @@ function WC.CreateMapButton()
             end
         end) end
         if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        if map.HookScript then map:HookScript("OnUpdate", function(_, elapsed) WC.WatchTabColumn(elapsed) end) end
         if map.HookScript then map:HookScript("OnHide", function() WC.ClearSelectedStep() end) end -- the selection ends with the map
         WC.PlaceMapTab()
         if C_Timer and C_Timer.After then C_Timer.After(0, WC.PlaceMapTab) end -- once the client has laid its tabs out
