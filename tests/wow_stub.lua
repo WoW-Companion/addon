@@ -24,6 +24,14 @@ local function new_region(kind)
     function r:GetSize() return self.w or 0, self.h or 0 end
     function r:GetScale() return self.scale or 1 end
     function r:GetName() return self.name end
+    function r:GetParent() return self.parent end
+    function r:SetParent(p)
+        local old = self.parent
+        if old and old.children then for i, c in ipairs(old.children) do if c == self then table.remove(old.children, i) break end end end
+        self.parent = p
+        if p then p.children = p.children or {}; p.children[#p.children + 1] = self end
+    end
+    function r:GetFrameStrata() return self.strata or "MEDIUM" end
     function r:GetObjectType() return self.kind end
     function r:ClearAllPoints() self.points = {} end
     function r:StartMoving() self.moving = true end
