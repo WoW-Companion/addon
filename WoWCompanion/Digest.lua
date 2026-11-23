@@ -22,6 +22,7 @@ WC.ICONS = {
     progress = "Interface\\GossipFrame\\IncompleteQuestIcon",
     turnin = "Interface\\GossipFrame\\ActiveQuestIcon",
     talent = "Interface\\Icons\\Ability_Marksmanship",
+    stats = "Interface\\Icons\\INV_Shirt_White_01",
     open = "Interface\\Buttons\\UI-MinusButton-Up",
     closed = "Interface\\Buttons\\UI-PlusButton-Up",
 }

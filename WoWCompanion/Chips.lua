@@ -8,7 +8,7 @@ local L = WC.L
 
 WC.CHIP_SIZE, WC.CHIP_GAP = 24, 6
 WC.CHIP_PULSE_SECONDS = 5
-WC.CHIP_ORDER = { "talent", "training", "upgrade" }
+WC.CHIP_ORDER = { "talent", "training", "upgrade", "stats" }
 
 -- The class icon from the client's own art, else the talent icon.
 local function class_icon()
@@ -39,6 +39,16 @@ WC.CHIP_DEFS = {
             local out = { line(lvl and string.format(L.CHIP_TRAINING_HEAD, math.floor(lvl)) or L.CHIP_TRAINING_HEAD_NOLEVEL, WC.COLORS.gold) }
             for _, sp in ipairs(e.spells or {}) do out[#out + 1] = line(WC.SpellLabel(sp)) end
             if #out == 1 then out[1] = line(e.title, WC.COLORS.gold) end -- a line with no spell list shows its text
+            return out
+        end,
+    },
+    stats = {
+        icon = function() return WC.ICONS.stats end,
+        tip = function(chip)
+            local e = chip.entry
+            if not e.hasStats then return { line(L.CHIP_STATS_NONE, WC.COLORS.gold) } end
+            local out = { line(e.title, WC.COLORS.gold) }
+            for _, t in ipairs(e.details or {}) do out[#out + 1] = line(t) end
             return out
         end,
     },
@@ -115,6 +125,27 @@ function WC.UpgradeSub(u, inline)
     return (inline and icon) and inline_icon(icon, 12) .. text or text
 end
 
+-- The Stats chip's entry from the digest's `stats` ({ insights = 1-3 strings, profile, asks }). Without one the
+-- chip still shows, saying how to get a stat check. Its card holds the insights and the asks as question chips.
+function WC.StatsEntry(s)
+    local insights = {}
+    if type(s) == "table" and type(s.insights) == "table" then
+        for _, t in ipairs(s.insights) do
+            if type(t) == "string" and #insights < 3 then
+                t = t:gsub("|", ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if t ~= "" then insights[#insights + 1] = t:sub(1, 160) end
+            end
+        end
+    end
+    if #insights == 0 then
+        return WC.MakeEntry("stats", "stats", {}, { title = L.CHIP_STATS_TITLE, details = { L.CHIP_STATS_NONE }, asks = {} })
+    end
+    local profile = type(s.profile) == "string" and s.profile:gsub("|", ""):gsub("^%s+", ""):gsub("%s+$", "") or ""
+    local entry = WC.MakeEntry("stats", "stats", { asks = s.asks, ref = s.ref }, { title = profile ~= "" and profile:sub(1, 60) or L.CHIP_STATS_TITLE })
+    entry.details, entry.hasStats = insights, true
+    return entry
+end
+
 -- The chips for what RenderDigest found: found.talent = { count, entry }, found.training = { entries },
 -- found.upgrade = { entries }. A kind with nothing to do has no chip. d is the digest entry (for the live
 -- talent fallback). Returns an ordered list of { kind, count, icon, entry, items }.
@@ -159,10 +190,11 @@ function WC.BuildChips(found, d)
         entry.asks = #asks > 0 and asks or nil
         list.upgrade = { count = n, entry = entry, items = items }
     end
+    list.stats = { count = 1, noBadge = true, entry = WC.StatsEntry(type(d) == "table" and d.stats or nil) }
     for _, id in ipairs(WC.CHIP_ORDER) do
         local c = list[id]
         if c then
-            chips[#chips + 1] = { kind = id, count = c.count, entry = c.entry, items = c.items or {}, icon = WC.CHIP_DEFS[id].icon() }
+            chips[#chips + 1] = { kind = id, count = c.count, entry = c.entry, items = c.items or {}, noBadge = c.noBadge, icon = WC.CHIP_DEFS[id].icon() }
         end
     end
     return chips
