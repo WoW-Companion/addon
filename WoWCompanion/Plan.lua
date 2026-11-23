@@ -19,6 +19,18 @@ function WC.PlanSchemaOK(v)
     return v == 1 or (type(v) == "string" and (v == "1" or v:match("^1%.%d+$") ~= nil))
 end
 
+-- A list of positive quest ids from a plan field, or an empty list.
+local function id_list(v)
+    local out = {}
+    if type(v) == "table" then
+        for _, x in ipairs(v) do
+            local n = tonumber(x)
+            if n and n > 0 then out[#out + 1] = n end
+        end
+    end
+    return out
+end
+
 local function clamp(v, lo, hi)
     return math.max(lo, math.min(hi, v))
 end
@@ -46,6 +58,10 @@ function WC.ParsePlan(plan, player)
                 -- optional, shown in tooltips only when the plan carries them: quest level, class-quest name, NPC level text
                 level = tonumber(s.level), class = type(s.class) == "string" and s.class ~= "" and plain(s.class) or nil,
                 npcLevel = (type(s.npcLevel) == "string" or type(s.npcLevel) == "number") and plain(tostring(s.npcLevel)) or nil,
+                -- Plan.lua 1.1 chain fields: a follow-up is locked until every quest in unlockedBy is turned in;
+                -- a turn-in lists what it unlocks. A 1.0 plan has none of them and nothing is ever locked.
+                locked = s.locked == true, unlockedBy = id_list(s.unlockedBy), unlocks = id_list(s.unlocks),
+                chain = type(s.chain) == "string" and s.chain ~= "" and plain(s.chain) or nil,
             }
         end
     end
@@ -163,8 +179,12 @@ function WC.PlanInit()
         saved = { generated = generated, done = {} }
         WC.db.plan[charKey()] = saved
     end
-    WC.plan = { steps = steps, generated = generated, done = saved.done }
+    WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {} }
+    for _, st in ipairs(steps) do
+        if st.locked then WC.plan.hasLocked = true end
+    end
     WC.PlanScan()
+    WC.PlanUnlockCheck(true)
 end
 
 -- The first step not yet done, or nil when the route is finished.
@@ -172,8 +192,174 @@ function WC.PlanNext()
     local p = WC.plan
     if not p then return end
     for _, s in ipairs(p.steps) do
-        if not p.done[s.n] then return s end
+        if not p.done[s.n] and not WC.StepLocked(s) then return s end
     end
+end
+
+-- ---------------------------------------------------------------- chains: locked steps, unlocks, "New"
+
+WC.NEW_SECONDS = 10 -- how long a freshly unlocked step carries its "New" tag
+
+local function now()
+    return GetTime and GetTime() or os.time()
+end
+
+-- True when quest id is turned in: the client says so, or the plan's own turn-in step for it is marked done.
+local function quest_turned_in(p, id)
+    if WC.PlanQuestState(id) == "turnedin" then return true end
+    for _, s in ipairs(p.steps) do
+        if s.kind == "turnin" and s.questID == id and p.done[s.n] then return true end
+    end
+    return false
+end
+
+-- True while a follow-up step waits on a turn-in that is not done. Derived from the quest state every time,
+-- so un-marking or re-doing a turn-in locks the step again with no extra bookkeeping.
+function WC.StepLocked(step)
+    local p = WC.plan
+    if not (p and step and step.locked) or #step.unlockedBy == 0 then return false end
+    if (step.questID or 0) > 0 then
+        local st = WC.PlanQuestState(step.questID)
+        if st ~= "none" then return false end -- already in the log or done: it is plainly available
+    end
+    for _, id in ipairs(step.unlockedBy) do
+        if not quest_turned_in(p, id) then return true end
+    end
+    return false
+end
+
+-- The chain a locked step belongs to: its named chain, else the first locked quest it hangs from.
+local function chain_key(step, byQuest)
+    if step.chain then return "c:" .. step.chain end
+    local cur = step
+    for _ = 1, 12 do
+        local parent = byQuest[cur.unlockedBy[1] or 0]
+        if not parent or parent == cur then break end
+        cur = parent
+    end
+    return "q:" .. tostring(cur.questID)
+end
+
+-- The locked follow-ups to show as ghosts: the pick-up of the next `perChain` locked quests of each chain, in plan
+-- order. Returns { { step = pickup, from = the turn-in step that unlocks it or nil }, ... }.
+function WC.GhostSteps(steps, perChain)
+    perChain = math.max(0, tonumber(perChain) or 1)
+    local byQuest, locked = {}, {}
+    for _, s in ipairs(steps or {}) do
+        if s.kind == "pickup" and WC.StepLocked(s) then
+            locked[#locked + 1] = s
+            byQuest[s.questID] = byQuest[s.questID] or s
+        end
+    end
+    local out, seen = {}, {}
+    for _, s in ipairs(locked) do
+        local key = chain_key(s, byQuest)
+        seen[key] = (seen[key] or 0) + 1
+        if seen[key] <= perChain then
+            local from
+            for _, t in ipairs(steps) do
+                if t.kind == "turnin" and not WC.plan.done[t.n] and t.questID == s.unlockedBy[1] then from = t break end
+            end
+            out[#out + 1] = { step = s, from = from }
+        end
+    end
+    return out
+end
+
+-- Notes which locked steps have just opened (every unlocker done) and which locked again. With initial set it only
+-- records the state, so a /reload does not tag everything "New". Returns the newly opened steps.
+function WC.PlanUnlockCheck(initial)
+    local p = WC.plan
+    if not p or not p.hasLocked then return {} end
+    local opened = {}
+    p.open, p.newAt = p.open or {}, p.newAt or {}
+    for _, s in ipairs(p.steps) do
+        if s.locked then
+            if not WC.StepLocked(s) then
+                if not p.open[s.n] then
+                    p.open[s.n] = true
+                    if not initial then
+                        p.newAt[s.n] = now()
+                        opened[#opened + 1] = s
+                    end
+                end
+            else
+                p.open[s.n], p.newAt[s.n] = nil, nil
+            end
+        end
+    end
+    return opened
+end
+
+-- True while a step carries the "New" tag: unlocked in the last NEW_SECONDS and not hovered yet.
+function WC.StepIsNew(step)
+    local p = WC.plan
+    local at = p and step and p.newAt and p.newAt[step.n]
+    return at ~= nil and WC.Setting("showNew") and now() - at < WC.NEW_SECONDS
+end
+
+-- True when any step of the quest is "New" (the digest panel's rows are keyed by quest).
+function WC.QuestIsNew(questID)
+    local p = WC.plan
+    if not p or not questID then return false end
+    for _, s in ipairs(p.steps) do
+        if s.questID == questID and WC.StepIsNew(s) then return true end
+    end
+    return false
+end
+
+-- Hovering a tagged entry dismisses its tag. Returns whether one was cleared.
+function WC.ClearNew(questID)
+    local p = WC.plan
+    local hit = false
+    if p and p.newAt then
+        for _, s in ipairs(p.steps) do
+            if s.questID == questID and p.newAt[s.n] then p.newAt[s.n] = nil hit = true end
+        end
+    end
+    return hit
+end
+
+-- What a turn-in unlocks, for its "then:" line: { title, who, here } for the first still-locked follow-up, or nil.
+function WC.ThenInfo(questID)
+    local p = WC.plan
+    if not p or not p.hasLocked or (questID or 0) <= 0 then return nil end
+    local turnin
+    for _, s in ipairs(p.steps) do
+        if s.kind == "turnin" and s.questID == questID then turnin = s break end
+    end
+    for _, s in ipairs(p.steps) do
+        if s.kind == "pickup" and s.locked and WC.StepLocked(s) then
+            for _, id in ipairs(s.unlockedBy) do
+                if id == questID then
+                    local title = (s.questID or 0) > 0 and WC.QuestTitle(s.questID) or nil
+                    title = title or (s.quest ~= "" and s.quest) or s.label or ""
+                    local who = WC.PlanDetail(s):gsub("^[Ff]rom%s+", "")
+                    local here = turnin ~= nil and turnin.map == s.map and math.abs(turnin.x - s.x) <= 3 and math.abs(turnin.y - s.y) <= 3
+                    return { title = title, who = who ~= "" and who or nil, here = here, step = s, from = turnin }
+                end
+            end
+        end
+    end
+end
+
+-- "then: <Quest> (from <npc>, here)", or nil when nothing waits on this quest (or the lines are switched off).
+function WC.ThenLine(questID)
+    if not WC.Setting("showThen") then return nil end
+    local info = WC.ThenInfo(questID)
+    if not info then return nil end
+    if info.who then
+        return string.format(info.here and L.THEN_LINE_HERE or L.THEN_LINE_FROM, info.title, info.who)
+    end
+    return string.format(L.THEN_LINE, info.title)
+end
+
+-- The step number shown in "Step 12/22": the step's own number once a plan has locked steps (so every view
+-- agrees on it), else the count of done steps plus one.
+function WC.StepNumber(step)
+    local done, total = WC.PlanCounts()
+    if WC.plan and WC.plan.hasLocked and step then return step.n end
+    return math.min(done + 1, total)
 end
 
 function WC.PlanCounts()
@@ -218,6 +404,7 @@ end
 -- Quest events advance the route with no /reload. QUEST_ACCEPTED carries (logIndex, questID) in
 -- classic clients and (questID) alone elsewhere; every event also rescans the log.
 function WC.PlanOnQuestEvent(event, a, b)
+    if WC.ObserveQuestEvent then WC.ObserveQuestEvent(event, a, b) end
     local p = WC.plan
     if not p then return end
     local changed = false
@@ -228,6 +415,22 @@ function WC.PlanOnQuestEvent(event, a, b)
         end
     end
     changed = WC.PlanScan(event == "QUEST_ACCEPTED" and id or nil) or changed
+    -- A turn-in (or a rescan that finds one) may open follow-ups: they turn solid, pulse once and carry "New".
+    local opened = WC.PlanUnlockCheck()
+    if #opened > 0 then
+        changed = true
+        local quests = {}
+        for _, s in ipairs(opened) do
+            if (s.questID or 0) > 0 then quests[s.questID] = true end
+        end
+        if next(quests) and WC.PulseQuests then WC.PulseQuests(quests, 3) end
+        if C_Timer and C_Timer.After then
+            C_Timer.After(WC.NEW_SECONDS + 0.5, function()
+                if WC.db and WC.RefreshPlan then WC.RefreshPlan() end
+                if WC.Refresh and WC.panel and WC.panel:IsShown() then WC.Refresh() end
+            end)
+        end
+    end
     if changed and WC.RefreshPlan then WC.RefreshPlan() end
 end
 
@@ -263,7 +466,7 @@ end
 function WC.PlanText(step, mapID, px, py)
     local done, total = WC.PlanCounts()
     if not step then return string.format(L.PLAN_DONE, total) end
-    local text = string.format(L.PLAN_STEP, math.min(done + 1, total), total, WC.PlanLiveText(step, step.label))
+    local text = string.format(L.PLAN_STEP, WC.StepNumber(step), total, WC.PlanLiveText(step, step.label))
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
         return text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
@@ -276,7 +479,7 @@ function WC.NextStepLine(step, mapID, px, py)
     local done, total = WC.PlanCounts()
     if total == 0 then return "" end
     if not step then return string.format(L.PLAN_DONE, total) end
-    local text = string.format(L.NEXT_STEP_LINE, math.min(done + 1, total), total, WC.PlanLiveText(step, step.label))
+    local text = string.format(L.NEXT_STEP_LINE, WC.StepNumber(step), total, WC.PlanLiveText(step, step.label))
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
         return text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)

@@ -421,6 +421,7 @@ function WC.Refresh()
         row:SetScript("OnEnter", function(self)
             if self.link then show_tooltip(self) end
             if self.group then WC.HoverEnterRow(self) end
+            if self.quest and WC.ClearNew and WC.ClearNew(self.quest) then WC.Refresh() end -- hovering dismisses "New"
         end)
         row:SetScript("OnLeave", function(self)
             if self.link then GameTooltip:Hide() end

@@ -83,6 +83,12 @@ function WC.PlanTipLines(group, opts)
         local q = s.quest or ""
         prevQuest = q ~= "" and q or nil
     end
+    if group.ghost then
+        local s = group.steps[1]
+        local from = (group.from and group.from.quest ~= "" and group.from.quest) or nil
+        if not from and s.unlockedBy and s.unlockedBy[1] then from = WC.QuestTitle(s.unlockedBy[1]) end
+        lines[#lines + 1] = { text = string.format(L.UNLOCKS_TIP, from or "?"), color = GREY, small = true }
+    end
     return lines
 end
 
