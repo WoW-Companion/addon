@@ -1690,6 +1690,48 @@ cases[#cases + 1] = { "the panel header is gold with the character, the advice t
     PLAYER_NAME = nil
 end }
 
+-- Horizontal extent {left, right} of a header control, offsets from the panel's right edge, resolved from its anchors.
+local function header_extent(panel, b)
+    local a = b.anchors
+    local w = b:GetWidth()
+    if a.TOPRIGHT then return { a.TOPRIGHT[4] - w, a.TOPRIGHT[4] } end
+    local pt = a.RIGHT
+    local rel = pt[2]
+    local relPt = pt[3]
+    local e = header_extent(panel, rel)
+    local x = (relPt == "LEFT" and e[1] or e[2]) + pt[4]
+    return { x - w, x }
+end
+
+cases[#cases + 1] = { "the panel header's gear, view button and close button never overlap, and each click does its own job", function()
+    local WC = plan_client("full")
+    local p = WC.panel
+    for _, mode in ipairs({ "compact", "next", "full" }) do
+        WC.SetSetting("view", mode)
+        WC.Refresh()
+        local ctl = { p.gear, p.compactButton, p.close }
+        local ext = {}
+        for i, b in ipairs(ctl) do ext[i] = header_extent(p, b) end
+        for i = 1, #ctl do
+            for j = i + 1, #ctl do
+                assert(ext[i][2] <= ext[j][1] or ext[j][2] <= ext[i][1], mode .. ": header controls " .. i .. " and " .. j .. " overlap")
+            end
+        end
+        assert(p.compactButton:GetWidth() > 4, "view button sized to its label")
+        assert(p.gear:GetFrameLevel() > p:GetFrameLevel())
+    end
+    WC.SetSetting("view", "full")
+    WC.Refresh()
+    local opened = 0
+    local real = WC.OpenOptions
+    WC.OpenOptions = function() opened = opened + 1 end
+    p.gear.scripts.OnClick(p.gear)
+    WC.OpenOptions = real
+    assert(opened == 1 and WC.ViewMode() == "full", "gear opens options without changing the view")
+    p.compactButton.scripts.OnClick(p.compactButton)
+    assert(WC.ViewMode() == WC.NextView("full"), "view button cycles the view")
+end }
+
 cases[#cases + 1] = { "the panel code never mentions another addon's frames or code", function()
     for _, file in ipairs({ "Panel.lua", "Digest.lua" }) do
         local src = assert(io.open("WoWCompanion/" .. file)):read("*a")
@@ -1882,8 +1924,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.13" and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1")
+    assert(TOC_VERSION == "0.6.14" and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
