@@ -9,6 +9,7 @@ local WC = WoWCompanion
 local L = WC.L
 
 local ROW_H, PAD, HEAD_H = 40, 10, 92
+local THEN_H = 12 -- the extra height of a row that carries a "then:" line
 local GOLD, DIM = { 1, 0.82, 0 }, { 0.55, 0.55, 0.55 }
 WC.TAB_MODE = "WoWCompanionPlan"
 
@@ -44,10 +45,17 @@ local KIND_ICON = { pickup = "pickup", turnin = "turnin", objective = "progress"
 function WC.PanelModel(opts)
     local out = { rows = {}, done = {} }
     for _, s in ipairs(opts.steps or {}) do
-        if opts.allZones or not opts.mapID or s.map == opts.mapID then
+        -- a locked follow-up is not an entry of its own: its unlocking turn-in carries a "then:" line instead
+        if not WC.StepLocked(s) and (opts.allZones or not opts.mapID or s.map == opts.mapID) then
             local isDone = opts.done and opts.done[s.n] == true
             local row = { step = s, n = s.n, kind = s.kind, icon = KIND_ICON[s.kind] and WC.ICONS[KIND_ICON[s.kind]] or nil,
                 title = WC.StepTitle(s), sub = WC.StepSubLine(s), isNext = opts.nextStep == s, done = isDone }
+            if s.kind == "turnin" and not isDone then
+                row.thenText = WC.ThenLine(s.questID)
+                local info = row.thenText and WC.ThenInfo(s.questID)
+                row.thenTip = info and string.format(L.UNLOCKS_TIP, (WC.StepTitle(s):gsub("^%[%d+%] ", ""))) or nil
+            end
+            row.isNew = not isDone and WC.StepIsNew(s) or false
             if isDone then
                 if opts.showDone ~= false then out.done[#out.done + 1] = row end
             else
@@ -76,7 +84,7 @@ function WC.PanelHeader()
     local step = WC.PlanNext()
     local h = { title = L.ADDON_NAME, advice = string.format(L.PANEL_ADVICE_TIME, WC.FormatClock(p.generated or 0)) }
     if not step then h.step, h.dist = string.format(L.PLAN_DONE, total), "" return h end
-    h.step = string.format(L.PANEL_STEP, math.min(done + 1, total), total)
+    h.step = string.format(L.PANEL_STEP, WC.StepNumber(step), total)
     local mapID, px, py = WC.PlayerPos()
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
@@ -162,13 +170,32 @@ local function make_row(f, i)
     r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -21)
     r.sub:SetWidth(f.rowWidth - 70)
     r.sub:SetJustifyH("LEFT")
+    r.thenLine = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    r.thenLine:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -33)
+    r.thenLine:SetWidth(f.rowWidth - 70)
+    r.thenLine:SetJustifyH("LEFT")
+    r.newTag = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    r.newTag:SetPoint("TOPRIGHT", r, "TOPRIGHT", -6, -6)
+    r.newTag:SetTextColor(0.25, 0.9, 0.25)
+    r.newTag:SetText(L.NEW_TAG)
     r.check = r:CreateTexture(nil, "OVERLAY")
     r.check:SetSize(14, 14)
     r.check:SetPoint("RIGHT", r, "RIGHT", -4, 0)
     r.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     r.owner = f
-    r:SetScript("OnEnter", function(self) if self.group then WC.HoverEnterRow(self) end end)
-    r:SetScript("OnLeave", function() WC.HoverLeaveRow() end)
+    r:SetScript("OnEnter", function(self)
+        if self.group then WC.HoverEnterRow(self) end
+        if self.newTag:IsShown() and self.quest and WC.ClearNew(self.quest) then self.newTag:Hide() end -- hovering dismisses "New"
+        if self.thenTip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(self.thenTip, 1, 1, 1)
+            GameTooltip:Show()
+        end
+    end)
+    r:SetScript("OnLeave", function(self)
+        WC.HoverLeaveRow()
+        if self.thenTip and GameTooltip then GameTooltip:Hide() end
+    end)
     r:SetScript("OnClick", function(self, button) if self.step then WC.PanelRowClick(self.step, button) end end)
     f.rows[i] = r
     return r
@@ -177,7 +204,13 @@ end
 -- Fills one row frame from a model row and puts it at y.
 local function fill_row(f, i, m, y)
     local r = f.rows[i] or make_row(f, i)
-    r.step, r.top, r.hh = m.step, y, ROW_H
+    local h = ROW_H + (m.thenText and THEN_H or 0)
+    r.step, r.top, r.hh = m.step, y, h
+    r:SetSize(f.rowWidth, h)
+    r.thenTip = m.thenTip
+    r.thenLine:SetText(m.thenText or "")
+    r.thenLine:SetShown(m.thenText ~= nil)
+    r.newTag:SetShown(m.isNew == true)
     r.quest = (m.step.questID or 0) > 0 and m.step.questID or nil
     r.group = r.quest and ("mp" .. r.quest) or nil
     r:ClearAllPoints()
@@ -210,7 +243,7 @@ function WC.RefreshMapPanel()
     local function put(m)
         used = used + 1
         fill_row(f, used, m, y)
-        y = y + ROW_H
+        y = y + ROW_H + (m.thenText and THEN_H or 0)
     end
     if p then
         local model = WC.PanelModel({ steps = p.steps, done = p.done, nextStep = WC.PlanNext(), mapID = shown_map(),

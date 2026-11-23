@@ -1941,10 +1941,10 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.5.1" and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.0" and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
-    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1")
+    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -3384,6 +3384,236 @@ cases[#cases + 1] = { "chips: the row wraps at a narrow width and the next-step 
     assert(p.scrollTop < top + 1 - 0, "no chips: no room kept")
 end }
 
+
+-- Quest chains (Plan.lua 1.1): ghosts, "then:" lines, live activation, "New", the unplanned entry, the observation log.
+local TIME_NOW = 1000
+local function chain_client()
+    local WC = plan_client("chain")
+    GetTime = function() return TIME_NOW end
+    return WC
+end
+local function turn_in(id)
+    QUESTS[id] = "turnedin"
+    Stub.fire(frames, "QUEST_TURNED_IN", id)
+end
+local function ns(list) local t = {} for _, s in ipairs(list) do t[#t + 1] = s.n end return table.concat(t, ",") end
+
+cases[#cases + 1] = { "chains: a 1.1 plan parses the lock fields and numbering stays stable", function()
+    local WC = chain_client()
+    assert(#WC.plan.steps == 9 and WC.plan.hasLocked)
+    local s4 = WC.plan.steps[4]
+    assert(s4.locked and s4.unlockedBy[1] == 30 and s4.chain == "Test Line" and WC.plan.steps[3].unlocks[1] == 31)
+    for i, s in ipairs(WC.plan.steps) do assert(s.n == i) end
+    assert(WC.StepLocked(s4) and WC.StepLocked(WC.plan.steps[6]) and not WC.StepLocked(WC.plan.steps[1]))
+    assert(WC.PlanNext().n == 1)
+    local _, total = WC.PlanCounts()
+    assert(total == 9)
+end }
+
+cases[#cases + 1] = { "chains: only the next locked step per chain is a ghost; a locked step is no panel entry", function()
+    local WC = chain_client()
+    assert(ns((function() local t = {} for _, g in ipairs(WC.GhostSteps(WC.plan.steps, 1)) do t[#t + 1] = g.step end return t end)()) == "4,9")
+    local two = WC.GhostSteps(WC.plan.steps, 2)
+    assert(#two == 3 and two[2].step.n == 6 or two[3].step.n == 6, "two per chain adds the second quest of the line")
+    assert(WC.GhostSteps(WC.plan.steps, 1)[1].from.n == 3, "the dashed route starts at the unlocking turn-in")
+    local model = WC.PanelModel({ steps = WC.plan.steps, done = WC.plan.done, nextStep = WC.PlanNext(), allZones = true })
+    local ids = {}
+    for _, r in ipairs(model.rows) do ids[#ids + 1] = r.n end
+    assert(table.concat(ids, ",") == "1,2,3,7,8", "steps 4, 5, 6 and 9 are locked")
+    assert(#WC.ShownSteps(WC.plan.steps, WC.plan.done, "all") == 5)
+    assert(#WC.PinGroups(WC.ShownSteps(WC.plan.steps, {}, "all"), 7001, {}, nil) == 3 and WC.PinWanted(WC.plan.steps[4], 7001, {}) == false)
+end }
+
+cases[#cases + 1] = { "chains: the unlocking turn-in carries a then: line, switched by its setting", function()
+    local WC = chain_client()
+    local model = WC.PanelModel({ steps = WC.plan.steps, done = {}, allZones = true })
+    local row3
+    for _, r in ipairs(model.rows) do if r.n == 3 then row3 = r end end
+    assert(row3.thenText == "then: Quest 31 (from Elder Test, here)", row3.thenText)
+    assert(row3.thenTip == "Unlocks when you turn in Quest 30", row3.thenTip)
+    assert(WC.ThenLine(40) == "then: Quest 50 (from Guard Test, here)")
+    WC.SetSetting("showThen", false)
+    assert(WC.ThenLine(30) == nil)
+    assert(WC.PanelModel({ steps = WC.plan.steps, done = {}, allZones = true }).rows[3].thenText == nil)
+end }
+
+cases[#cases + 1] = { "chains: a turn-in unlocks the follow-up live: solid, New, header, next ghost", function()
+    local WC = chain_client()
+    QUESTS[30] = "active"; Stub.fire(frames, "QUEST_ACCEPTED", 1, 30)
+    QUESTS[30] = "ready"; Stub.fire(frames, "QUEST_LOG_UPDATE")
+    assert(WC.PlanNext().n == 3 and WC.StepLocked(WC.plan.steps[4]))
+    assert(WC.NextStepLine(WC.PlanNext()):find("^Step 3/9 "))
+    turn_in(30)
+    local s4 = WC.plan.steps[4]
+    assert(not WC.StepLocked(s4) and WC.StepLocked(WC.plan.steps[6]), "31 opened, 32 still waits on it")
+    assert(WC.plan.steps[9].locked and WC.StepLocked(WC.plan.steps[9]), "group prerequisite: 40 is still to turn in")
+    assert(WC.StepIsNew(s4) and WC.StepIsNew(WC.plan.steps[5]) and not WC.StepIsNew(WC.plan.steps[1]))
+    assert(WC.PlanNext().n == 4, "the next step is the new pick-up")
+    assert(WC.NextStepLine(WC.PlanNext(), 7001, 50, 50):find("^Step 4/9 · Pick up Quest 31 from Elder Test"), WC.NextStepLine(WC.PlanNext(), 7001, 50, 50))
+    assert(WC.PanelHeader().step == "Step 4/9")
+    local g = WC.GhostSteps(WC.plan.steps, 1)
+    assert(#g == 2 and g[1].step.n == 6 and g[2].step.n == 9, "the next ghost of the chain appears")
+    local row = WC.PanelModel({ steps = WC.plan.steps, done = WC.plan.done, allZones = true }).rows[1]
+    assert(row.n == 4 and row.isNew)
+    assert(WC.hover and WC.hover.quests and WC.hover.quests[31], "one pulse on the new step's badge")
+end }
+
+cases[#cases + 1] = { "chains: a group prerequisite needs both turn-ins", function()
+    local WC = chain_client()
+    turn_in(30)
+    assert(WC.StepLocked(WC.plan.steps[9]))
+    turn_in(40)
+    assert(not WC.StepLocked(WC.plan.steps[9]) and WC.StepIsNew(WC.plan.steps[9]))
+    assert(WC.ThenLine(40) == nil, "nothing waits any more")
+end }
+
+cases[#cases + 1] = { "chains: New fades after about ten seconds or on hover; reload tags nothing", function()
+    local WC = chain_client()
+    turn_in(30)
+    local s4 = WC.plan.steps[4]
+    TIME_NOW = TIME_NOW + 9
+    assert(WC.StepIsNew(s4))
+    TIME_NOW = TIME_NOW + 2
+    assert(not WC.StepIsNew(s4), "gone after 10 s")
+    turn_in(40)
+    assert(WC.StepIsNew(WC.plan.steps[9]) and WC.ClearNew(50) and not WC.StepIsNew(WC.plan.steps[9]), "hover clears it")
+    WC.SetSetting("showNew", false)
+    turn_in(40)
+    assert(not WC.QuestIsNew(31))
+    local saved = WoWCompanionDB
+    fresh_client(saved)
+    assert(loadfile("tests/fixtures/plan_chain.lua"))()
+    Stub.fire(frames, "PLAYER_LOGIN")
+    assert(not WoWCompanion.StepIsNew(WoWCompanion.plan.steps[4]) and WoWCompanion.plan.open[4])
+end }
+
+cases[#cases + 1] = { "chains: un-marking a turn-in locks the follow-up again and the ghost returns", function()
+    local WC = chain_client()
+    turn_in(30)
+    assert(not WC.StepLocked(WC.plan.steps[4]))
+    QUESTS[30] = nil -- as if the turn-in were un-marked
+    WC.plan.done[3] = nil
+    Stub.fire(frames, "QUEST_REMOVED", 30)
+    assert(WC.StepLocked(WC.plan.steps[4]) and not WC.StepIsNew(WC.plan.steps[4]))
+    assert(WC.GhostSteps(WC.plan.steps, 1)[1].step.n == 4)
+    assert(WC.PlanNext().n ~= 4)
+end }
+
+cases[#cases + 1] = { "chains: a plan without lock fields behaves as before", function()
+    local WC = plan_client("full")
+    assert(not WC.plan.hasLocked and not WC.StepLocked(WC.plan.steps[1]))
+    assert(#WC.GhostSteps(WC.plan.steps, 1) == 0)
+    assert(WC.ShownSteps(WC.plan.steps, {}, "all") == WC.plan.steps)
+    assert(WC.NextStepLine(WC.PlanNext()):find("^Step 1/4 "))
+    QUESTS[10] = "active"; Stub.fire(frames, "QUEST_ACCEPTED", 1, 10)
+    assert(WC.NextStepLine(WC.PlanNext()):find("^Step 2/4 "))
+    assert(WC.ThenLine(10) == nil)
+    local model = WC.PanelModel({ steps = WC.plan.steps, done = WC.plan.done, allZones = true })
+    assert(#model.rows + #model.done == 4)
+end }
+
+cases[#cases + 1] = { "chains: ghost badges are hollow and faint, real pins solid; dashes join the turn-in", function()
+    local WC = chain_client()
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    canvas.CreateLine = function() return CreateFrame("Frame", nil, canvas) end
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    local ghosts, solid = {}, {}
+    for _, f in ipairs(frames) do
+        if f.planGroup and f.shown then
+            if f.planGroup.ghost then ghosts[#ghosts + 1] = f else solid[#solid + 1] = f end
+        end
+    end
+    assert(#ghosts == 2 and ghosts[1].num.text == "4" and ghosts[1].alpha < 1 and not ghosts[1].fill.shown and ghosts[1].lock.shown)
+    assert(#solid >= 2 and solid[1].fill.shown)
+    local tip = WC.PlanTipLines(ghosts[1].planGroup)
+    assert(tip[#tip].text == "Unlocks when you turn in Quest 30", tip[#tip].text)
+    WC.SetSetting("showUpcoming", false)
+    WC.RefreshMapPins()
+    for _, f in ipairs(frames) do assert(not (f.planGroup and f.planGroup.ghost and f.shown)) end
+    WC.SetSetting("showUpcoming", true)
+    WC.SetSetting("ghostsPerChain", 2)
+    WC.RefreshMapPins()
+    local n = 0
+    for _, f in ipairs(frames) do if f.planGroup and f.planGroup.ghost and f.shown then n = n + 1 end end
+    assert(n == 3, "two per chain: steps 4 and 6, and 9")
+    WorldMapFrame = nil
+end }
+
+cases[#cases + 1] = { "chains: an unplanned accept shows an Unplanned entry with live objectives", function()
+    local WC = chain_client()
+    live_digest({ { kind = "pickup", title = "Planned", quest = 30, text = "Planned" } })
+    C_QuestLog.GetTitleForQuestID = function(id) return id == 99 and "Stray Task" or nil end
+    C_QuestLog.GetQuestObjectives = function() return { { text = "Find 2 things", numFulfilled = 1, numRequired = 2, finished = false } } end
+    QUESTS[99] = "active"
+    Stub.fire(frames, "QUEST_ACCEPTED", 5, 99)
+    local text = panel_text()
+    assert(text:find("Stray Task", 1, true), text)
+    assert(WC.UnplannedRows({}, 10)[1].right == "Unplanned")
+    assert(text:find("The overlay will route this after your next save", 1, true) and text:find("1/2 Find 2 things", 1, true))
+    local list = WC.UnplannedQuests()
+    assert(#list == 1 and list[1].id == 99)
+    turn_in(99)
+    assert(#WC.UnplannedQuests() == 0)
+    QUESTS[30] = "active"
+    Stub.fire(frames, "QUEST_ACCEPTED", 6, 30)
+    assert(#WC.UnplannedQuests() == 0, "a planned quest is never unplanned")
+end }
+
+cases[#cases + 1] = { "observed: accept, turn-in and abandon are logged with where and when, the unplanned one marked", function()
+    local WC = chain_client()
+    C_Map = { GetBestMapForUnit = function() return 7001 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.4567, 0.2 end } end }
+    QUESTS[99] = "active"; Stub.fire(frames, "QUEST_ACCEPTED", 5, 99)
+    QUESTS[30] = "active"; Stub.fire(frames, "QUEST_ACCEPTED", 6, 30)
+    turn_in(30)
+    QUESTS[99] = nil; Stub.fire(frames, "QUEST_REMOVED", 99)
+    local ev = WoWCompanionDB.observed.events
+    assert(WoWCompanionDB.observed.version == 1 and #ev == 4)
+    assert(ev[1].ev == "accepted" and ev[1].questID == 99 and ev[1].offPlan == true and ev[1].character == "Thrall")
+    assert(ev[1].map == 7001 and ev[1].x == 45.7 and ev[1].y == 20 and type(ev[1].t) == "number")
+    assert(ev[2].ev == "accepted" and ev[2].offPlan == nil)
+    assert(ev[3].ev == "turnedin" and ev[3].questID == 30)
+    assert(ev[4].ev == "abandoned" and ev[4].questID == 99 and ev[4].map == 7001)
+    QUESTS[30] = "turnedin"
+    Stub.fire(frames, "QUEST_REMOVED", 30) -- the removal that follows a turn-in is not an abandon
+    assert(#WoWCompanionDB.observed.events == 4)
+    C_Map = nil
+end }
+
+cases[#cases + 1] = { "observed: the ring drops the oldest at its cap; the setting turns it off", function()
+    local WC = chain_client()
+    for i = 1, WC.OBSERVED_CAP + 25 do WC.ObservedAdd("accepted", i) end
+    local ev = WoWCompanionDB.observed.events
+    assert(#ev == WC.OBSERVED_CAP and ev[1].questID == 26 and ev[#ev].questID == WC.OBSERVED_CAP + 25)
+    WC.SetSetting("keepObserved", false)
+    assert(WC.ObservedAdd("accepted", 7) == nil and #ev == WC.OBSERVED_CAP)
+    WC.ResetSetting("keepObserved")
+    assert(WC.Setting("keepObserved") == true)
+end }
+
+cases[#cases + 1] = { "chains: the new settings have defaults, reset one by one, and strings", function()
+    local WC = chain_client()
+    local want = { showUpcoming = true, ghostsPerChain = 1, showThen = true, showNew = true, keepObserved = true }
+    for key, v in pairs(want) do
+        assert(WC.Setting(key) == v and WC.IsDefault(key), key)
+        assert(rawget(WC.L, WC.DEF_OF[key].label) ~= nil)
+    end
+    WC.SetSetting("ghostsPerChain", 9)
+    assert(WC.Setting("ghostsPerChain") == 3)
+    WC.SetSetting("showUpcoming", false)
+    WC.ResetSetting("showUpcoming"); WC.ResetSetting("ghostsPerChain")
+    assert(WC.IsDefault("showUpcoming") and WC.IsDefault("ghostsPerChain"))
+end }
+
+cases[#cases + 1] = { "read-only: nothing asks for a /reload", function()
+    for _, f in ipairs({ "Asks", "Button", "Card", "Chips", "Combat", "Core", "Digest", "Hover", "MapPanel", "Observed", "Options", "Panel", "Plan", "PlanTip", "PlanUI", "Settings", "Status", "Tooltips", "Tracker", "WhatsNew" }) do
+        local code = assert(io.open("WoWCompanion/" .. f .. ".lua")):read("*a"):gsub("%-%-[^\n]*", "")
+        assert(not code:find("ReloadUI", 1, true) and not code:find("StaticPopup", 1, true), f)
+        assert(not code:find("ConsoleExec", 1, true) and not code:find("RestartGx", 1, true), f)
+    end
+end }
 
 local failed = 0
 for _, c in ipairs(cases) do

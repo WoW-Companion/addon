@@ -218,6 +218,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         zone = line.zone and plain(line.zone) or nil, class = line.class == true, ask = head.ask,
     })
     head.group = id
+    if quest and WC.QuestIsNew and WC.QuestIsNew(quest) then head.right = head.right or L.NEW_TAG end
     local out = { head }
     if closed then return out end
 
@@ -252,7 +253,25 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         local t = (zone and zone ~= here) and string.format(L.PICK_UP_FROM_IN, npc, zone) or string.format(L.PICK_UP_FROM, npc)
         out[#out + 1] = { kind = "status", indent = 2, text = t, color = WC.COLORS.grey }
     end
+    local thenText = quest and WC.ThenLine and WC.ThenLine(quest) or nil
+    if thenText then out[#out + 1] = { kind = "status", indent = 2, text = plain(thenText), color = WC.COLORS.dim } end
     for i = 2, #out do out[i].group = id end
+    return out
+end
+
+-- The "Unplanned" entries: quests accepted that the plan does not hold yet, live objectives and a hint that the
+-- overlay routes them after the next save. Returns rows (possibly none).
+function WC.UnplannedRows(collapsed, playerLevel)
+    local out = {}
+    for _, q in ipairs(WC.UnplannedQuests and WC.UnplannedQuests() or {}) do
+        local rows = WC.QuestEntryRows({ kind = "progress", title = q.title }, q.id, collapsed, playerLevel)
+        if rows then
+            rows[1].right = L.UNPLANNED_TAG
+            rows[1].id = "u" .. q.id
+            rows[#rows + 1] = { kind = "status", indent = 2, text = L.UNPLANNED_HINT, color = WC.COLORS.dim, group = rows[1].group }
+            for _, r in ipairs(rows) do out[#out + 1] = r end
+        end
+    end
     return out
 end
 
@@ -590,6 +609,9 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         lines[#lines + 1] = row
                     end
                 end
+            end
+            if section.id == "next_quests" and WC.UnplannedRows then
+                for _, r in ipairs(WC.UnplannedRows(collapsed, plevel)) do lines[#lines + 1] = r end
             end
             if #lines > 0 and not hidden then WC.SectionRows(out, section.id, title, lines, collapsed) end
         end

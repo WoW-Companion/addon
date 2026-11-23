@@ -189,7 +189,7 @@ end
 
 -- A step is drawn only on the map the world map is showing, and only while it is still to do.
 function WC.PinWanted(step, mapID, done)
-    return step.map == mapID and not (done and done[step.n])
+    return step.map == mapID and not (done and done[step.n]) and not WC.StepLocked(step)
 end
 
 -- Groups the wanted steps of a map into badges, in plan order; steps within the mergeDistance setting of an
@@ -344,10 +344,16 @@ end
 -- The steps to draw: all of them, or only the first n undone ones in plan order (n = 5, 10 or "all").
 function WC.ShownSteps(steps, done, limit)
     local n = tonumber(limit)
-    if not n then return steps end
+    local anyLocked = false
+    for _, s in ipairs(steps) do
+        if WC.StepLocked(s) then anyLocked = true break end
+    end
+    if not n and not anyLocked then return steps end
     local out = {}
     for _, s in ipairs(steps) do
-        if not (done and done[s.n]) then
+        if not n then
+            if not WC.StepLocked(s) then out[#out + 1] = s end
+        elseif not (done and done[s.n]) and not WC.StepLocked(s) then
             if #out >= n then break end
             out[#out + 1] = s
         end
@@ -389,6 +395,85 @@ function WC.SetPlanShow(arg)
     print(string.format(L.PLAN_SHOW_SET, tostring(WC.db.settings.planShow)))
     if WC.SyncOptions then WC.SyncOptions() end
     WC.RefreshPlan()
+end
+
+-- The ghost badges: the next locked step of each quest chain on this map, drawn as a hollow, faint ring with a dim
+-- number and a tiny lock, so what a turn-in will open is hinted without crowding the route. They reuse the badge
+-- frames after the real ones (index first + k). Returns the drawn ghosts as { step, from, pin }.
+local GHOST_ALPHA, GHOST_RING = 0.55, 0.5
+function WC.DrawGhosts(canvas, mapID, first, w, h, scale, where, spot)
+    local drawn = {}
+    if not WC.Setting("showUpcoming") or not WC.plan or not WC.plan.hasLocked then return drawn end
+    local setting = WC.db.settings.planSize
+    local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
+    local k = 0
+    for _, gh in ipairs(WC.GhostSteps(WC.plan.steps, WC.Setting("ghostsPerChain"))) do
+        local s = gh.step
+        if s.map == mapID then
+            k = k + 1
+            local p = pinFor(first + k, canvas)
+            local size = WC.PinSize(setting, false)
+            local ox, oy = WC.PinOffset(s.x, s.y, w, h, scale)
+            local a = p.anchor
+            a:SetScale(scale)
+            a:ClearAllPoints()
+            a:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+            p:SetScale(scale)
+            p:ClearAllPoints()
+            p:SetSize(size, size)
+            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL - 1) end
+            p:SetPoint("CENTER", a, "CENTER", 0, 0)
+            p.planGroup = { steps = { s }, ghost = true, from = gh.from, total = #WC.plan.steps }
+            p.isTag = false
+            local rc = WC.Setting("ringColor")
+            p.ring:SetVertexColor(rc[1], rc[2], rc[3], GHOST_RING)
+            p.fill:Hide() -- hollow
+            p.num:SetText(tostring(s.n))
+            p.num:SetTextColor(0.6, 0.6, 0.6)
+            p.glow:Hide()
+            p.notchBg:Hide()
+            p.mark:SetText("")
+            if p.pulse then p.pulse:Stop() end
+            if not p.lock and p.CreateTexture then
+                p.lock = p:CreateTexture(nil, "OVERLAY")
+                p.lock:SetTexture("Interface\\PetBattles\\PetBattle-LockIcon")
+                p.lock:SetSize(9, 9)
+                p.lock:SetPoint("CENTER", p, "TOPRIGHT", -3, -3)
+            end
+            if p.lock then p.lock:SetVertexColor(0.75, 0.75, 0.75, 0.9) p.lock:Show() end
+            if p.SetAlpha then p:SetAlpha(GHOST_ALPHA) end
+            a:Show()
+            p:Show()
+            drawn[#drawn + 1] = { step = s, from = gh.from, pin = p, spot = { ox * scale, oy * scale } }
+        end
+    end
+    return drawn
+end
+
+-- The faint dashed route into each ghost, from the turn-in that unlocks it when that is drawn on this map.
+-- Dashes are short line pieces (the client draws solid lines only), appended after the real route lines.
+local DASHES = 7
+function WC.DrawGhostLines(ghosts, canvas, layer, n, lineW, outline, spot, where)
+    if not (ghosts and layer and canvas.CreateLine) then return end
+    for _, g in ipairs(ghosts) do
+        local from = g.from and spot[g.from.n]
+        if from then
+            local to = g.spot
+            for i = 1, DASHES do
+                local f1, f2 = (i - 1) / DASHES + 0.02, (i - 0.45) / DASHES
+                n = n + 1
+                local ln = lines[n] or layer:CreateLine()
+                lines[n] = ln
+                if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
+                ln:SetThickness(math.max(1, lineW - 1))
+                local c = WC.Setting("lineColor")
+                ln:SetColorTexture(c[1], c[2], c[3], 0.3)
+                ln:SetStartPoint("TOPLEFT", canvas, from[1] + (to[1] - from[1]) * f1, from[2] + (to[2] - from[2]) * f1)
+                ln:SetEndPoint("TOPLEFT", canvas, from[1] + (to[1] - from[1]) * f2, from[2] + (to[2] - from[2]) * f2)
+                ln:Show()
+            end
+        end
+    end
 end
 
 -- Redraws the pins and lines for the map the world map is showing.
@@ -441,6 +526,9 @@ function WC.RefreshMapPins()
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
         end
         p.isTag = marker ~= nil
+        p.fill:Show() -- a ghost badge reuses these frames hollow; a real step is solid again
+        if p.SetAlpha then p:SetAlpha(1) end
+        if p.lock then p.lock:Hide() end
         local rc = WC.Setting(g.isNext and "nextRingColor" or "ringColor")
         p.ring:SetVertexColor(rc[1], rc[2], rc[3], marker and WC.Setting("tagRingOpacity") or 1)
         local nc = WC.Setting("numberColor")
@@ -465,6 +553,7 @@ function WC.RefreshMapPins()
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
     end
+    local ghosts = WC.DrawGhosts(canvas, mapID, #groups, w, h, scale, where, spot)
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
     if not lineLayer then
         lineLayer = CreateFrame("Frame", nil, canvas)
@@ -532,6 +621,7 @@ function WC.RefreshMapPins()
             prev = s
         end
     end
+    WC.DrawGhostLines(ghosts, canvas, lineLayer, n, lineW, outline, spot, where)
 end
 
 -- Minimap placement, pure. dist is in yards, bearing in degrees clockwise from north, facing the player's
