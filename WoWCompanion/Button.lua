@@ -309,19 +309,43 @@ function WC.SideTabGap(rects)
     return WC.ModalValue(gaps) or 0
 end
 
+-- No side-tab atlas in this client: a dark square with a gold border, from plain colour textures.
+function WC.ApplyFallbackTabArt(b)
+    if not b.CreateTexture then return false end
+    local back = b.sideBack
+    if back and back.SetColorTexture then back:SetColorTexture(0.08, 0.07, 0.06, 0.95); back:Show() end
+    if not b.sideFallback then
+        b.sideFallback = {}
+        for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1 }, { "TOPLEFT", "BOTTOMLEFT", 1 }, { "TOPRIGHT", "BOTTOMRIGHT", 1 } }) do
+            local t = b:CreateTexture(nil, "BORDER")
+            t:SetColorTexture(0.83, 0.65, 0.2, 1)
+            t:SetPoint(e[1], b, e[1], 0, 0)
+            t:SetPoint(e[2], b, e[2], 0, 0)
+            if e[4] then t:SetHeight(1) else t:SetWidth(1) end
+            b.sideFallback[#b.sideFallback + 1] = t
+        end
+    end
+    for _, t in ipairs(b.sideFallback) do t:Show() end
+    b.sideArt = false
+    return false
+end
+
 -- Dresses our tab in the client's side-tab art: the normal, selected and hover atlases, our icon inside the mask.
 -- Returns true when the client has the atlases (the template's own art is then hidden).
 function WC.ApplySideTabArt(b)
     if not (b.SetAtlas or b.CreateTexture) then return false end
     local A = WC.SIDETAB_ATLAS
     if not b.sideBack then
-        b.sideBack = b:CreateTexture(nil, "BACKGROUND")
+        -- the template's own Background region is the base art, so it stays shown (a tab never lacks a background)
+        b.sideBack = type(b.Background) == "table" and b.Background.SetAtlas and b.Background or b:CreateTexture(nil, "BACKGROUND")
         b.sideSel = b:CreateTexture(nil, "BACKGROUND", nil, 1)
         b.sideBack:SetAllPoints(b)
         b.sideSel:SetAllPoints(b)
     end
     local ok = pcall(b.sideBack.SetAtlas, b.sideBack, A.normal) and pcall(b.sideSel.SetAtlas, b.sideSel, A.selected)
-    if not ok then return false end
+    b.sideBack:Show()
+    if not ok then return WC.ApplyFallbackTabArt(b) end
+    if b.sideFallback then for _, e in ipairs(b.sideFallback) do e:Hide() end end
     if b.SetHighlightTexture then pcall(b.SetHighlightTexture, b, A.hover) end
     local hl = b.GetHighlightTexture and b:GetHighlightTexture()
     if type(hl) == "table" and hl.SetAtlas then pcall(hl.SetAtlas, hl, A.hover) end
@@ -335,7 +359,7 @@ function WC.ApplySideTabArt(b)
             pcall(b.sideMask.SetAtlas, b.sideMask, A.mask)
         end
     end
-    for _, name in ipairs({ "Background", "Border", "SelectedTexture" }) do
+    for _, name in ipairs({ "Border", "SelectedTexture" }) do
         if type(b[name]) == "table" and b[name].Hide then b[name]:Hide() end
     end
     if A.glow then -- the client's glow art, kept hidden: our tab never flashes
@@ -483,6 +507,30 @@ local function column_signature(rects, pl, pt)
     return table.concat(parts, ";")
 end
 
+-- Our tab sits above the quest log, its border and the map canvas: the world map's strata, a level over theirs.
+function WC.RaiseMapTab()
+    local b = WC.mapButton
+    if not b or WC.mapButtonMode ~= "tab" or (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then return end
+    local map, parent = WorldMapFrame, WC.mapButtonParent
+    if b.SetFrameStrata and map and map.GetFrameStrata then pcall(b.SetFrameStrata, b, map:GetFrameStrata()) end
+    local top = 0
+    for _, f in ipairs({ map, parent, map and map.BorderFrame, map and map.ScrollContainer }) do
+        if type(f) == "table" and f.GetFrameLevel then
+            local ok, l = pcall(f.GetFrameLevel, f)
+            if ok and tonumber(l) and l > top then top = l end
+        end
+    end
+    if b.SetFrameLevel then b:SetFrameLevel(top + 10) end
+end
+
+-- The offset (down from the quest log's top) of the quest list's top; 30 when it cannot be read.
+function WC.QuestListTopOffset(parent)
+    local sf = QuestScrollFrame or (type(parent) == "table" and parent.QuestsFrame) or nil
+    local pt, st = WC.GeoNum(parent, "GetTop"), WC.GeoNum(sf, "GetTop")
+    if pt and st and st <= pt and pt - st < 200 then return st - pt end
+    return -30
+end
+
 -- Anchors the tab in the column's first free gap, right-aligned and at the column's tab size. With a Shift-drag
 -- position saved it stays there until Reset. Without any rectangle it falls back to sitting under the lowest of the
 -- client's own tabs, else (alone) at the saved or default height, 44 x 44. Re-run on map show, resize and change.
@@ -527,7 +575,7 @@ local function place_map_tab()
     end
     -- no client tab shown: back on the quest log's own frame, in the free-space placement below
     if b.SetParent and b.GetParent and b:GetParent() ~= parent then b:SetParent(parent) end
-    if b.SetFrameLevel then b:SetFrameLevel(parent.GetFrameLevel and parent:GetFrameLevel() + 1 or 2) end
+    WC.RaiseMapTab()
     local rects, pl, pt = WC.ScanTabColumn()
     WC.columnSig = column_signature(rects, pl, pt)
     local place = WC.ColumnPlacement(rects)
@@ -536,10 +584,10 @@ local function place_map_tab()
     b:ClearAllPoints()
     if saved ~= 0 and (place or not WC.FindClientTab(parent)) then
         -- the player's Shift-drag position wins over any auto placement
-        local s = place and place.w or WC.MAP_TAB_SIZE
-        b:SetSize(s, place and place.h or s)
-        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", place and (place.right - pl) or WC.MAP_TAB_DEFAULT_X, WC.MapTabOffset(saved, fh, place and place.h or s))
-        WC.mapTabPlace = { w = s, h = place and place.h or s, gap = place and place.gap or 0, x = place and (place.right - pl) or WC.MAP_TAB_DEFAULT_X, y = WC.MapTabOffset(saved, fh, s), n = place and place.n or 0, mode = "saved" }
+        local s = place and place.w or WC.SIDETAB_W
+        b:SetSize(s, place and place.h or WC.SIDETAB_H)
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", place and (place.right - pl) or 0, WC.MapTabOffset(saved, fh, place and place.h or WC.SIDETAB_H))
+        WC.mapTabPlace = { w = s, h = place and place.h or s, gap = place and place.gap or 0, x = place and (place.right - pl) or 0, y = WC.MapTabOffset(saved, fh, place and place.h or WC.SIDETAB_H), n = place and place.n or 0, mode = "saved" }
     elseif place then
         local x, y = place.right - pl, place.top - pt
         b:SetSize(place.w, place.h)
@@ -553,13 +601,15 @@ local function place_map_tab()
             b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP) -- no geometry to read: centred under it
             WC.mapTabPlace = { w = w, h = h, gap = WC.MAP_TAB_GAP, x = 0, y = -WC.MAP_TAB_GAP, n = 0, mode = "client" }
         else
-            b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
-            local y = WC.MapTabOffset(saved, fh, WC.MAP_TAB_SIZE)
-            b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, y)
-            WC.mapTabPlace = { w = WC.MAP_TAB_SIZE, h = WC.MAP_TAB_SIZE, gap = 0, x = WC.MAP_TAB_DEFAULT_X, y = y, n = 0, mode = "alone" }
+            -- the client alone: flush against the quest log's left edge, top level with the quest list's top
+            b:SetSize(WC.SIDETAB_W, WC.SIDETAB_H)
+            local y = WC.QuestListTopOffset(parent)
+            b:SetPoint("TOPRIGHT", parent, "TOPLEFT", 0, y)
+            WC.mapTabPlace = { w = WC.SIDETAB_W, h = WC.SIDETAB_H, gap = 0, x = 0, y = y, n = 0, mode = "alone" }
         end
     end
     WC.FitMapTabArt(b)
+    if b.sideBack and b.sideBack.Show then b.sideBack:Show() end
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     if WC.HookClientTabs then WC.HookClientTabs() end
 end
@@ -686,7 +736,7 @@ function WC.CreateMapButton()
     else
         b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
     end
-    if b.SetFrameStrata then b:SetFrameStrata("HIGH") end
+    if b.SetFrameStrata then b:SetFrameStrata((map.GetFrameStrata and map:GetFrameStrata()) or "HIGH") end
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     -- the template's own icon region when it has one, else ours
     local own = b.Icon
@@ -716,13 +766,13 @@ function WC.CreateMapButton()
     WC.mapButton = b
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
-        if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RefreshMapTab() end) end
+        if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.RefreshMapTab(); WC.RecordMapGeometry() end) end
         -- riding the client's tabs, they decide (same parent, so a hidden log hides them and us together); the
         -- fallback placement follows the log
         if column.HookScript then column:HookScript("OnHide", function() if not (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then b:Hide() end end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnShow", function()
-            WC.PlaceMapTabSoon(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
+            WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
             if C_Timer and C_Timer.After then -- again once the client has laid the map out
                 C_Timer.After(0.5, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
             end
