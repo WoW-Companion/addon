@@ -1945,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.17" and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1")
+    assert(TOC_VERSION == "0.6.18" and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2275,8 +2275,35 @@ cases[#cases + 1] = { "world map tab: built from the client's side-tab template 
     local WC = WoWCompanion
     local b = WC.mapButton
     assert(b and WC.mapButtonMode == "tab" and b.parent == QuestMapFrame and b.template == "QuestLogTabButtonTemplate")
-    assert(b.w == 44 and b.h == 44 and b.icon.texture == WC.ICON and b:IsShown())
+    assert(b.w == 40 and b.h == 42 and b.icon.texture == WC.ICON and b:IsShown())
     assert(not WC.CreateMapButton() and WC.mapButton == b, "created once")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map tab: visible background with the atlas or the fallback, above the quest log, top of the left edge or below a column, probe, hides with the log", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    WorldMapFrame:SetFrameStrata("HIGH"); WorldMapFrame:SetFrameLevel(10)
+    QuestMapFrame = fake_column({})
+    QuestMapFrame:SetFrameLevel(12)
+    QuestMapFrame.shown = true
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(b.sideBack:IsShown() and b.sideBack.atlas == "common-sidetab-c60", "background shown, with the atlas")
+    assert(b:GetFrameLevel() > QuestMapFrame:GetFrameLevel() and b:GetFrameLevel() > WorldMapFrame:GetFrameLevel() and b:GetFrameStrata() == "HIGH", "above the quest log")
+    local p = b.points[1]
+    assert(WC.mapTabPlace.mode == "alone" and p[1] == "TOPRIGHT" and p[2] == QuestMapFrame and p[3] == "TOPLEFT" and p[4] == 0 and p[5] == -30, "top of the left edge")
+    local g = WoWCompanionDB.observed.mapGeometry
+    assert(g.art.bgShown == true and g.art.path == "alone" and g.art.level > g.art.questLevel and g.t ~= nil)
+    WoWCompanionDB.observed.mapGeometry.t = -1
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(WoWCompanionDB.observed.mapGeometry.t ~= -1, "the probe refreshes on every map open")
+    QuestMapFrame:Hide()
+    assert(not b:IsShown(), "hides with the quest log")
+    -- no atlas in this client: a plain dark square with a gold border
+    b.sideBack.SetAtlas = function() error("no atlas") end
+    assert(WC.ApplySideTabArt(b) == false and b.sideBack:IsShown() and b.sideBack.colorTexture and #b.sideFallback == 4 and b.sideFallback[1]:IsShown(), "fallback background")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
@@ -2347,6 +2374,18 @@ local function tab_rects(tops, right, size)
     return out
 end
 
+cases[#cases + 1] = { "map tab: with a tab column on the quest log's left edge it takes the slot below it", function()
+    local map, col = geo_map({ { 956, 756, 44, 44 }, { 956, 709, 44, 44 } })
+    WorldMapFrame, QuestMapFrame = map, col
+    col.shown = true
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(WC.mapTabPlace.mode == "column" and WC.mapButton.points[1][5] == WC.mapTabPlace.y, "column path")
+    assert(WC.mapTabPlace.y == -94, "first free slot below the column")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
 cases[#cases + 1] = { "map tab column: placement from rectangles (empty, full, gap, collapsed), modal size, right edge", function()
     fresh_client(nil)
     local WC = WoWCompanion
@@ -2416,7 +2455,7 @@ cases[#cases + 1] = { "map tab column: placed flush right in the free slot, foll
     -- every tab gone: ours falls back to its own spot
     tabs[1].shown, tabs[2].shown = false, false
     WC.WatchTabColumn(0.6)
-    assert(WC.MapTabAlone() and b.w == 44)
+    assert(WC.MapTabAlone() and b.w == 40)
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
@@ -2671,7 +2710,7 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     for k in pairs(g) do seen[k] = true end
     assert(type(g.tabArt) == "table" and #g.tabArt >= 1 and g.tabOffset == 0 and g.questList == nil and g.questScroll == nil)
     assert(seen.column, "our tab's computed placement is recorded"); seen.column = nil
-    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "panel", "tabs", "inset", "sideTabs" }) do assert(seen[k], k); seen[k] = nil end
+    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "art", "panel", "tabs", "inset", "sideTabs" }) do assert(seen[k], k); seen[k] = nil end
     assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
@@ -2718,7 +2757,7 @@ cases[#cases + 1] = { "world map tab: art stays inside its frame; hidden client 
     for k in pairs(art) do b[k] = b:CreateTexture() end
     b.Icon = b:CreateTexture()
     WC.PlaceMapTab()
-    assert(b.w == 44 and b.h == 44 and WC.MapTabAlone())
+    assert(b.w == 40 and b.h == 42 and WC.MapTabAlone())
     for _, a in ipairs(WC.MapTabArt(b)) do
         local r = a.region
         if r.allPointsTo then assert(r.allPointsTo == b, a.field)
@@ -2727,7 +2766,7 @@ cases[#cases + 1] = { "world map tab: art stays inside its frame; hidden client 
     assert(b.Icon.w < 44 and b.Icon.w > 0 and b.Background.allPointsTo == b)
     -- the default: the middle of the lower half; the offset moves, clamps and saves
     local function y() return b.points[1][5] end
-    assert(b.points[1][1] == "TOPRIGHT" and b.points[1][3] == "TOPLEFT" and y() == -450)
+    assert(b.points[1][1] == "TOPRIGHT" and b.points[1][3] == "TOPLEFT" and y() == -30)
     assert(WC.MapTabOffset(-100, 600, 44) == -100 and WC.MapTabOffset(-900, 600, 44) == -556 and WC.MapTabOffset(5, 600, 44) == 0)
     assert(WC.MapTabOffset(0, 0, 44) == WC.MAP_TAB_DEFAULT_Y)
     GetCursorPosition = function() return 0, 800 - 300 end
@@ -2750,7 +2789,7 @@ cases[#cases + 1] = { "world map tab: art stays inside its frame; hidden client 
     WC.PlaceMapTab()
     assert(y() == -1, "the saved offset survives a re-place")
     WC.ResetMapTabPosition()
-    assert(WC.Setting("mapTabY") == 0 and y() == -450)
+    assert(WC.Setting("mapTabY") == 0 and y() == -30)
     -- a client tab shown again: stacked below it, no drag
     QuestMapFrame.QuestsTab.shown = true
     WC.PlaceMapTab()

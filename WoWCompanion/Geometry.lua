@@ -49,6 +49,17 @@ function WC.MapGeometry()
     local tp = WC.mapTabPlace
     if type(tp) == "table" then g.column = { n = tp.n, w = r1(tp.w), h = r1(tp.h), gap = r1(tp.gap), x = r1(tp.x), y = r1(tp.y), mode = tp.mode } end
     g.tabOffset = WC.db and WC.db.settings and tonumber(WC.db.settings.mapTabY) or 0
+    local b, q = WC.mapButton, QuestMapFrame
+    local bg = b and b.sideBack
+    g.art = {
+        bgShown = type(bg) == "table" and bg.IsShown and bg:IsShown() and true or false,
+        bgAtlas = type(bg) == "table" and bg.GetAtlas and bg:GetAtlas() or nil,
+        fallback = b and b.sideFallback and true or false,
+        level = b and b.GetFrameLevel and b:GetFrameLevel() or nil,
+        questLevel = type(q) == "table" and q.GetFrameLevel and q:GetFrameLevel() or nil,
+        strata = b and b.GetFrameStrata and b:GetFrameStrata() or nil,
+        path = type(tp) == "table" and tp.mode or nil,
+    }
     g.panel = frame_info(WC.mapPanel, "WoWCompanionMapPanel")
     local col = QuestMapFrame
     if type(col) == "table" then
@@ -75,7 +86,7 @@ end
 function WC.RecordMapGeometry()
     if not WC.db or WC.mapButtonMode ~= "tab" then return end
     local ok, g = pcall(WC.MapGeometry)
-    if not ok then return end
+    if not ok then g = { version = 1, t = time and time() or 0, error = tostring(g):sub(1, 200) } end
     if type(WC.db.observed) ~= "table" then WC.db.observed = { version = WC.OBSERVED_VERSION or 1, events = {} } end
     WC.db.observed.mapGeometry = g
 end
