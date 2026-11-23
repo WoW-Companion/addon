@@ -7,7 +7,7 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local CARD_W, PAD = 300, 10
+local CARD_W, PAD, SCROLL_W, MARGIN = 320, 10, 18, 24
 local MAX_ASK_LEN = 500
 local GREY, GOLD, GREEN = { 0.72, 0.72, 0.72 }, { 1, 0.82, 0 }, { 0.25, 0.9, 0.25 }
 local ART = "Interface\\Icons\\"
@@ -159,6 +159,24 @@ local function drop_repeats(rows, ...)
     for i = 1, math.max(#rows, #out) do rows[i] = out[i] end
 end
 
+-- One upgrade as a list row: line 1 is the slot and the gain, line 2 what to look for; the detail rows and the
+-- question chips show only when the row is expanded. Each fact is said once.
+local GAIN_COLOR = { big = { 0.25, 0.9, 0.25 }, solid = { 0.6, 0.9, 0.45 }, small = GREY }
+function WC.UpgradeListRow(u)
+    local p = WC.UpgradeParts(u)
+    local look = string.format(L.CARD_LOOK_FOR, p.look)
+    if p.wear then look = p.wear .. " \194\183 " .. look end
+    local gain_key = p.gain and p.gain:lower():match("^(%a+)")
+    local r = {
+        slot = p.slot or L.CARD_KIND_upgrade, gain = p.gain, gainColor = GAIN_COLOR[gain_key] or GREY, look = look,
+        icon = WC.PATH_ICONS[u.pathKind], asks = u.asks or {}, entry = u, detail = {},
+    }
+    r.detail[1] = row(string.format(L.CARD_YOU_WEAR, p.worn), WC.COLORS.white)
+    if WC.HasUpgradePath(u) then r.detail[2] = row(u.how, GREY) end
+    for _, mat in ipairs(u.materials or {}) do r.detail[#r.detail + 1] = row(string.format(L.CARD_MATERIAL_HAVE, mat.name, mat.have, mat.need)) end
+    return r
+end
+
 -- The card for an entry as data: { title, icon, subtitle, rows = { {text, color} }, link, actions, hints, asks, ref, answer }.
 --  quest/pickup: details, live state and objectives; Open in quest log (in the log), Show on map (a plan step).
 --  training: each spell not yet known with its rank and "new"/"upgrade"; a Spellbook key hint.
@@ -209,10 +227,10 @@ function WC.CardModel(entry)
     elseif kind == "upgrade" then
         -- one upgrade as two lines that compare it with what you wear, then how to get it with its path icon
         local function upgrade_rows(u)
-            rows[#rows + 1] = row(string.format(L.CARD_YOU_WEAR, WC.UpgradeWorn(u)), WC.COLORS.white)
-            local look = WC.UpgradeName(u)
-            if u.slot and u.slot ~= "" and look:lower():sub(1, #u.slot + 1) == u.slot:lower() .. ":" then look = look:sub(#u.slot + 2):gsub("^%s+", "") end
-            if u.gain and u.gain ~= "" then look = look .. " \226\128\148 " .. u.gain end
+            local parts = WC.UpgradeParts(u)
+            rows[#rows + 1] = row(string.format(L.CARD_YOU_WEAR, parts.worn), WC.COLORS.white)
+            local look = parts.look
+            if parts.gain then look = look .. " \226\128\148 " .. parts.gain end
             rows[#rows + 1] = row(string.format(L.CARD_LOOK_FOR, look), WC.COLORS.white)
             local how = WC.UpgradeSub(u, true)
             if how then rows[#rows + 1] = row(how) end
@@ -224,10 +242,8 @@ function WC.CardModel(entry)
             if planned then -- an older digest keeps the plain item names
                 for i = #rows, 1, -1 do rows[i] = nil end
                 m.title = string.format(#entry.upgrades == 1 and L.CHIP_UPGRADES_GET_ONE or L.CHIP_UPGRADES_GET, #entry.upgrades)
-                for i, u in ipairs(entry.upgrades) do
-                    if i > 1 then rows[#rows + 1] = row(" ") end
-                    upgrade_rows(u)
-                end
+                m.list = {} -- one compact row per slot; a click expands it (see fill_card)
+                for i, u in ipairs(entry.upgrades) do m.list[i] = WC.UpgradeListRow(u) end
                 if entry.quest then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
             end
         elseif WC.HasUpgradePath(entry) then
@@ -256,10 +272,10 @@ function WC.CardModel(entry)
     end
     drop_repeats(rows, m.title, entry.title)
     -- a card with nothing more shows the entry's own text (its reason came in above); a note's text is its title
-    if #rows == 0 and kind ~= "note" and (kind ~= "talent" or #m.hints == 0) and m.title ~= "" then rows[#rows + 1] = row(m.title, WC.COLORS.white) end
+    if #rows == 0 and not m.list and kind ~= "note" and (kind ~= "talent" or #m.hints == 0) and m.title ~= "" then rows[#rows + 1] = row(m.title, WC.COLORS.white) end
     m.icon = m.icon or KIND_ICON.note
     -- an upgrade set and the stats card ask only what the digest gave: never a question built from a summary
-    m.asks = entry.asks or ((entry.upgrades or kind == "stats") and {} or WC.FallbackAsks(entry, m.title))
+    m.asks = (m.list and {}) or entry.asks or ((entry.upgrades or kind == "stats") and {} or WC.FallbackAsks(entry, m.title))
     m.ref = entry.ref
     return m
 end
@@ -372,8 +388,18 @@ local function create_card()
     c.close:SetSize(20, 20)
     c.close:SetPoint("TOPRIGHT", c, "TOPRIGHT", 0, 0)
     c.close:SetScript("OnClick", function() c:Hide() end)
-    c.lines, c.hints, c.actions, c.chips = {}, {}, {}, {}
-    c.link = CreateFrame("Button", "WoWCompanionCardLink", c)
+    c.lines, c.hints, c.actions, c.chips, c.rowBtns, c.detail = {}, {}, {}, {}, {}, {}
+    -- everything under the header lives in a scroll frame, so a long card scrolls instead of running off the screen
+    c.scroll = CreateFrame("ScrollFrame", "WoWCompanionCardScroll", c, "UIPanelScrollFrameTemplate")
+    c.content = CreateFrame("Frame", nil, c.scroll)
+    c.content:SetSize(CARD_W - PAD * 2 - SCROLL_W, 1)
+    c.scroll:SetScrollChild(c.content)
+    c.scroll:EnableMouseWheel(true)
+    c.scroll:SetScript("OnMouseWheel", function(self, delta)
+        local range = c.scrollRange or 0
+        self:SetVerticalScroll(math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * 36)))
+    end)
+    c.link = CreateFrame("Button", "WoWCompanionCardLink", c.content)
     c.link.label = c.link:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     c.link.label:SetPoint("TOPLEFT", c.link, "TOPLEFT", 0, 0)
     c.link:SetScript("OnEnter", function(self)
@@ -383,18 +409,18 @@ local function create_card()
         GameTooltip:Show()
     end)
     c.link:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    c.askLabel = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    c.askLabel = c.content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.askLabel:SetText(L.CARD_ASK)
     c.askLabel:SetTextColor(GREY[1], GREY[2], GREY[3])
     c.askLabel:SetJustifyH("LEFT")
-    c.ownLine = c:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    c.ownLine = c.content:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     c.ownLine:SetText(L.CARD_OWN_DIM)
     c.ownLine:SetJustifyH("LEFT")
     -- the clicked question, selected for Ctrl+C
-    c.box = CreateFrame("EditBox", "WoWCompanionCardAsk", c, "BackdropTemplate")
+    c.box = CreateFrame("EditBox", "WoWCompanionCardAsk", c.content, "BackdropTemplate")
     c.box:SetAutoFocus(false)
     c.box:SetMaxLetters(MAX_ASK_LEN)
-    c.box:SetSize(CARD_W - PAD * 2, 22)
+    c.box:SetSize(CARD_W - PAD * 2 - SCROLL_W, 22)
     if c.box.SetFontObject then c.box:SetFontObject("GameFontHighlightSmall") end
     if c.box.SetTextInsets then c.box:SetTextInsets(4, 4, 2, 2) end
     bordered(c.box)
@@ -411,14 +437,14 @@ local function create_card()
         c.copying = nil -- the player is editing the question: stop selecting it all
     end)
     c.box:Hide()
-    c.copyHint = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    c.copyHint = c.content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.copyHint:SetText(L.CARD_COPY_HINT)
     c.copyHint:SetJustifyH("LEFT")
     c.copyHint:Hide()
-    c.status = c:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    c.status = c.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     c.status:SetJustifyH("LEFT")
     c.status:SetTextColor(GREEN[1], GREEN[2], GREEN[3])
-    c:SetScript("OnHide", function() c.entry = nil c.copying = nil c.selected, c.selectedIndex = nil, nil end)
+    c:SetScript("OnHide", function() c.entry = nil c.expanded = nil c.copying = nil c.selected, c.selectedIndex = nil, nil end)
     c:Hide()
     if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "WoWCompanionCard") end -- Esc closes it
     return c
@@ -461,7 +487,7 @@ end
 local function get_chip(c, i)
     local b = c.chips[i]
     if b then return b end
-    b = CreateFrame("Button", "WoWCompanionCardChip" .. i, c)
+    b = CreateFrame("Button", "WoWCompanionCardChip" .. i, c.content)
     b.bg = b:CreateTexture(nil, "BACKGROUND")
     b.bg:SetAllPoints()
     b.bg:SetColorTexture(0.12, 0.14, 0.2, 0.9)
@@ -475,6 +501,41 @@ local function get_chip(c, i)
     return b
 end
 
+-- The most height the card may have: from its top edge down to the bottom of the screen, less a margin.
+function WC.CardMaxHeight(c)
+    local top = c.GetTop and c:GetTop()
+    if not top then
+        local h = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
+        top = (h > 0 and h or 768) / ((c.GetScale and c:GetScale()) or 1)
+    end
+    return math.max(160, top - MARGIN)
+end
+
+-- The pooled list row at index i: a button with the path icon, the slot, the gain and the look-for line.
+local function get_row(c, i)
+    local b = c.rowBtns[i]
+    if b then return b end
+    b = CreateFrame("Button", "WoWCompanionCardRow" .. i, c.content)
+    b.bg = b:CreateTexture(nil, "BACKGROUND")
+    b.bg:SetAllPoints()
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(14, 14)
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+    b.slot = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.slot:SetJustifyH("LEFT")
+    b.gain = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    b.gain:SetJustifyH("RIGHT")
+    b.look = b:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    b.look:SetJustifyH("LEFT")
+    b:SetScript("OnClick", function(self) WC.CardToggleRow(self.index) end)
+    b:SetScript("OnEnter", function(self) self.hot = true self.bg:SetColorTexture(0.2, 0.24, 0.36, 0.95) end)
+    b:SetScript("OnLeave", function(self) self.hot = nil self.bg:SetColorTexture(unpack(self.open and { 0.16, 0.19, 0.3, 0.95 } or { 0.12, 0.14, 0.2, 0.9 })) end)
+    c.rowBtns[i] = b
+    return b
+end
+
+local GAIN_W = 96
+
 -- Draws the card for entry. keepText is a live redraw: the question being copied and the status line stay.
 function fill_card(entry, keepText)
     local c = card
@@ -487,21 +548,134 @@ function fill_card(entry, keepText)
     local ty = text_height(c.title, WC.LINE_HEIGHT)
     c.subtitle:ClearAllPoints()
     c.subtitle:SetPoint("TOPLEFT", c, "TOPLEFT", PAD + 40, -(PAD + ty + 2))
-    local y = math.max(PAD + 36, PAD + ty + 2 + WC.LINE_HEIGHT) + 8
-    local width = CARD_W - PAD * 2
+    local top = math.max(PAD + 36, PAD + ty + 2 + WC.LINE_HEIGHT) + 8
+    local body = c.content
+    local width = CARD_W - PAD * 2 - SCROLL_W
+    local y = 0
+    if not keepText then
+        c.copying, c.selected, c.selectedIndex = nil, nil, nil
+        c.status:SetText("")
+        c.box:SetText("")
+    end
     for i, r in ipairs(m.rows) do
-        local fs = pooled_text(c.lines, i, c)
+        local fs = pooled_text(c.lines, i, body)
         WC.StyleText(fs)
         fs:SetText(r.text)
         fs:SetTextColor(r.color[1], r.color[2], r.color[3])
         fs:SetWidth(width)
         fs:ClearAllPoints()
-        fs:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+        fs:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
         fs:Show()
         y = y + text_height(fs, WC.LINE_HEIGHT) + 2
     end
     for i = #m.rows + 1, #c.lines do c.lines[i]:Hide() end
     c.shownRows = m.rows
+
+    -- the question chips for a list of asks, from y; the copy box sits directly under the chip that was clicked
+    local asksDone = false
+    local function asks_block(asks)
+        asksDone = true
+        if #asks > 0 then
+            c.askLabel:ClearAllPoints()
+            c.askLabel:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+            c.askLabel:Show()
+            y = y + WC.LINE_HEIGHT + 2
+        else
+            c.askLabel:Hide()
+        end
+        c.asksShown = asks
+        if c.selected and c.selected ~= asks[c.selectedIndex] then c.selected, c.selectedIndex = nil, nil end
+        local boxShown = false
+        for i, q in ipairs(asks) do
+            local b = get_chip(c, i)
+            b.index = i
+            b.label:SetWidth(width - 10)
+            b.label:SetText(q)
+            WC.StyleText(b.label)
+            local h = text_height(b.label, WC.LINE_HEIGHT) + 8
+            b:SetSize(width, h)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+            b:Show()
+            y = y + h + 3
+            if c.selected and c.selectedIndex == i then
+                if c.box:GetText() ~= c.selected then c.box:SetText(c.selected) end -- never reset a box being copied from
+                c.box:ClearAllPoints()
+                c.box:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+                c.box:Show()
+                y = y + 25
+                c.copyHint:ClearAllPoints()
+                c.copyHint:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+                c.copyHint:Show()
+                y = y + WC.LINE_HEIGHT + 2
+                c.status:SetWidth(width)
+                c.status:ClearAllPoints()
+                c.status:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+                WC.StyleText(c.status)
+                c.status:Show()
+                y = y + WC.LINE_HEIGHT * 2 + 4 -- room for the confirmation, which appears a frame after the key
+                boxShown = true
+            end
+        end
+        for i = #asks + 1, #c.chips do c.chips[i]:Hide() end
+        if not boxShown then
+            c.box:Hide()
+            c.copyHint:Hide()
+            c.status:Hide()
+        end
+    end
+
+    -- the upgrade list: one compact row per slot; the open one shows what you wear, how to get it and its questions
+    local list = m.list or {}
+    local nDetail = 0
+    for i, r in ipairs(list) do
+        local b = get_row(c, i)
+        b.index = i
+        local open = c.expanded == i
+        b.open = open
+        b.bg:SetColorTexture(unpack(open and { 0.16, 0.19, 0.3, 0.95 } or { 0.12, 0.14, 0.2, 0.9 }))
+        if r.icon then b.icon:SetTexture(r.icon) b.icon:Show() else b.icon:Hide() end
+        b.slot:SetWidth(width - 24 - GAIN_W)
+        b.slot:SetText(r.slot)
+        b.gain:SetWidth(GAIN_W)
+        b.gain:SetText(r.gain or "")
+        b.gain:SetTextColor(r.gainColor[1], r.gainColor[2], r.gainColor[3])
+        b.look:SetWidth(width - 24)
+        b.look:SetText(r.look)
+        WC.StyleText(b.slot) WC.StyleText(b.gain) WC.StyleText(b.look)
+        b.slot:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+        b.slot:ClearAllPoints() b.slot:SetPoint("TOPLEFT", b, "TOPLEFT", 22, -3)
+        b.gain:ClearAllPoints() b.gain:SetPoint("TOPRIGHT", b, "TOPRIGHT", -4, -3)
+        local head = WC.LINE_HEIGHT
+        b.look:ClearAllPoints() b.look:SetPoint("TOPLEFT", b, "TOPLEFT", 22, -(3 + head + 1))
+        local h = 3 + head + 1 + text_height(b.look, WC.LINE_HEIGHT) + 4
+        b:SetSize(width, h)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+        b:Show()
+        y = y + h + 3
+        if open then
+            for _, d in ipairs(r.detail) do
+                nDetail = nDetail + 1
+                local fs = pooled_text(c.detail, nDetail, body)
+                WC.StyleText(fs)
+                fs:SetText(d.text)
+                fs:SetTextColor(d.color[1], d.color[2], d.color[3])
+                fs:SetWidth(width - 12)
+                fs:ClearAllPoints()
+                fs:SetPoint("TOPLEFT", body, "TOPLEFT", 12, -y)
+                fs:Show()
+                y = y + text_height(fs, WC.LINE_HEIGHT) + 2
+            end
+            y = y + 2
+            asks_block(r.asks)
+            y = y + 4
+        end
+    end
+    for i = #list + 1, #c.rowBtns do c.rowBtns[i]:Hide() end
+    for i = nDetail + 1, #c.detail do c.detail[i]:Hide() end
+    c.listShown = list
+
     if m.link then
         local name = GetItemInfo and select(2, GetItemInfo(m.link)) -- the client's own colored link, when it knows the item
         c.link.itemLink = m.link
@@ -509,7 +683,7 @@ function fill_card(entry, keepText)
         c.link.label:SetText(shown)
         c.link:SetSize(width, WC.LINE_HEIGHT)
         c.link:ClearAllPoints()
-        c.link:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+        c.link:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
         c.link:Show()
         y = y + WC.LINE_HEIGHT + 4
     else
@@ -517,13 +691,13 @@ function fill_card(entry, keepText)
         c.link:Hide()
     end
     for i, h in ipairs(m.hints) do
-        local fs = pooled_text(c.hints, i, c)
+        local fs = pooled_text(c.hints, i, body)
         WC.StyleText(fs)
         fs:SetText(h)
         fs:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
         fs:SetWidth(width)
         fs:ClearAllPoints()
-        fs:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
+        fs:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
         fs:Show()
         y = y + WC.LINE_HEIGHT + 2
     end
@@ -532,7 +706,7 @@ function fill_card(entry, keepText)
     for i, a in ipairs(m.actions) do
         local b = c.actions[i]
         if not b then
-            b = make_button("WoWCompanionCardAction" .. i, c, a.label, 140)
+            b = make_button("WoWCompanionCardAction" .. i, body, a.label, 140)
             c.actions[i] = b
         end
         b:SetText(a.label)
@@ -547,71 +721,40 @@ function fill_card(entry, keepText)
             end
         end)
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", c, "TOPLEFT", PAD + ((i - 1) % 2) * 146, -(y + math.floor((i - 1) / 2) * 26))
+        b:SetPoint("TOPLEFT", body, "TOPLEFT", ((i - 1) % 2) * 146, -(y + math.floor((i - 1) / 2) * 26))
         b:Show()
     end
     for i = #m.actions + 1, #c.actions do c.actions[i]:Hide() end
     if #m.actions > 0 then y = y + math.ceil(#m.actions / 2) * 26 + 4 end
-    if #m.asks > 0 then
-        c.askLabel:ClearAllPoints()
-        c.askLabel:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        c.askLabel:Show()
-        y = y + WC.LINE_HEIGHT + 2
-    else
-        c.askLabel:Hide()
-    end
-    if not keepText then
-        c.copying, c.selected, c.selectedIndex = nil, nil, nil
-        c.status:SetText("")
-        c.box:SetText("")
-    end
-    c.asksShown = m.asks
-    if c.selected and c.selected ~= m.asks[c.selectedIndex] then c.selected, c.selectedIndex = nil, nil end
-    local boxShown = false
-    for i, q in ipairs(m.asks) do
-        local b = get_chip(c, i)
-        b.index = i
-        b.label:SetWidth(width - 10)
-        b.label:SetText(q)
-        WC.StyleText(b.label)
-        local h = text_height(b.label, WC.LINE_HEIGHT) + 8
-        b:SetSize(width, h)
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-        b:Show()
-        y = y + h + 3
-        if c.selected and c.selectedIndex == i then
-            -- the copy box sits directly under the chip that was clicked
-            if c.box:GetText() ~= c.selected then c.box:SetText(c.selected) end -- never reset a box being copied from
-            c.box:ClearAllPoints()
-            c.box:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-            c.box:Show()
-            y = y + 25
-            c.copyHint:ClearAllPoints()
-            c.copyHint:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-            c.copyHint:Show()
-            y = y + WC.LINE_HEIGHT + 2
-            c.status:SetWidth(width)
-            c.status:ClearAllPoints()
-            c.status:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -y)
-            WC.StyleText(c.status)
-            c.status:Show()
-            y = y + WC.LINE_HEIGHT * 2 + 4 -- room for the confirmation, which appears a frame after the key
-            boxShown = true
-        end
-    end
-    for i = #m.asks + 1, #c.chips do c.chips[i]:Hide() end
-    if not boxShown then
-        c.box:Hide()
-        c.copyHint:Hide()
-        c.status:Hide()
-    end
+    if not asksDone then asks_block(m.asks) end
     c.ownLine:SetWidth(width)
     c.ownLine:ClearAllPoints()
-    c.ownLine:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -(y + 2))
+    c.ownLine:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -(y + 2))
     WC.StyleText(c.ownLine)
     y = y + WC.LINE_HEIGHT + 6
-    c:SetHeight(y + PAD)
+
+    -- the card is as tall as its content, up to the bottom of the screen; past that the content scrolls
+    local total = top + y + PAD
+    local h = math.min(total, WC.CardMaxHeight(c))
+    c:SetHeight(h)
+    c.scroll:ClearAllPoints()
+    c.scroll:SetPoint("TOPLEFT", c, "TOPLEFT", PAD, -top)
+    c.scroll:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -(PAD + SCROLL_W), PAD)
+    body:SetSize(width, y)
+    c.contentHeight, c.viewHeight = y, h - top - PAD
+    c.scrollRange = math.max(0, y - c.viewHeight)
+    c.scroll:UpdateScrollChildRect()
+    if (c.scroll:GetVerticalScroll() or 0) > c.scrollRange then c.scroll:SetVerticalScroll(c.scrollRange) end
+    local bar = c.scroll.ScrollBar or (_G and _G.WoWCompanionCardScrollScrollBar)
+    if bar then bar:SetShown(c.scrollRange > 0) end -- the slim bar shows only when there is more to see
+end
+
+-- A click on the i-th list row: it opens in place and any open one closes; a second click closes it.
+function WC.CardToggleRow(i)
+    local c = card
+    if not (c and c.entry and c.listShown and c.listShown[i]) then return end
+    c.expanded = (c.expanded ~= i) and i or nil
+    fill_card(c.entry, false)
 end
 
 -- Opens the card for an entry; clicking the same entry again closes it.
@@ -623,7 +766,9 @@ function WC.OpenCard(entry)
         return
     end
     WC.PlaceCard()
+    card.expanded = nil
     fill_card(entry, false)
+    if card.scroll.SetVerticalScroll then card.scroll:SetVerticalScroll(0) end
     card:Show()
 end
 

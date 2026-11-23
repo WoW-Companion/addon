@@ -107,6 +107,7 @@ local function new_region(kind)
     function r:SetFontObject() end
     function r:SetNormalFontObject() end
     function r:SetTextInsets() end
+    function r:EnableMouseWheel(v) self.wheel = v end
     function r:SetVerticalScroll(v) self.vscroll = v end
     function r:GetVerticalScroll() return self.vscroll or 0 end
     function r:GetCenter() return 0, 0 end

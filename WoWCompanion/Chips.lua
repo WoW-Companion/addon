@@ -98,13 +98,38 @@ function WC.UpgradeName(u)
     return t
 end
 
+-- The facts of one upgrade, each once: { slot, look, gain, worn, wear }. An older digest put the slot in front of
+-- the text and the gain and "instead of your ..." on its tail: those are lifted out of `look` so no row says them twice.
+function WC.UpgradeParts(u)
+    local look = WC.UpgradeName(u)
+    local slot = type(u.slot) == "string" and u.slot ~= "" and u.slot or nil
+    local gain = type(u.gain) == "string" and u.gain ~= "" and u.gain or nil
+    local replaces = type(u.replaces) == "string" and u.replaces ~= "" and u.replaces or nil
+    if slot and look:lower():sub(1, #slot + 1) == slot:lower() .. ":" then look = look:sub(#slot + 2):gsub("^%s+", "") end
+    local DASH = "\226\128\148"
+    local function trim_dash(t) return (t:gsub("%s*" .. DASH .. "%s*$", ""):gsub("%s*[,;]%s*$", ""):gsub("%s+$", "")) end
+    local at = look:lower():find("instead of your ", 1, true)
+    if at then
+        replaces = replaces or look:sub(at)
+        look = trim_dash(look:sub(1, at - 1))
+    end
+    if gain then
+        local g = look:lower():find(gain:lower(), 1, true)
+        if g then look = trim_dash(look:sub(1, g - 1)) .. look:sub(g + #gain) end
+    end
+    look = look:gsub("^%s+", ""):gsub("%s+$", "")
+    local wear = type(u.wear) == "string" and u.wear ~= "" and not u.wear:lower():find("^wear now") and u.wear or nil
+    if not wear and u.wear == nil and u.atLevel then wear = string.format(L.FROM_LEVEL, math.floor(u.atLevel)) end
+    if wear then wear = wear:sub(1, 1):upper() .. wear:sub(2) end
+    return { slot = slot, look = look, gain = gain, worn = WC.UpgradeWorn({ replaces = replaces }), wear = wear }
+end
+
 -- "<Slot>: <Item> - <gain>"; an older digest has no gain, and a line with no slot is the item alone.
 function WC.UpgradeMain(u)
-    local out = WC.UpgradeName(u)
-    -- an older digest's line can already lead with the slot ("back: Traveler's Shawl"): never say it twice
-    local slot = u.slot
-    if slot and slot ~= "" and out:lower():sub(1, #slot + 1) ~= slot:lower() .. ":" then out = slot .. ": " .. out end
-    if u.gain and u.gain ~= "" then out = out .. " \226\128\148 " .. u.gain end
+    local p = WC.UpgradeParts(u)
+    local out = p.look
+    if p.slot then out = p.slot .. ": " .. out end
+    if p.gain then out = out .. " \226\128\148 " .. p.gain end
     return out
 end
 
