@@ -231,7 +231,7 @@ function WC.CollectClientTabs(root)
         end
     end
     scan(root, 1)
-    for _, e in ipairs({ table.unpack(out) }) do -- the parent of any one found (the client may keep them elsewhere)
+    for _, e in ipairs((function() local c = {}; for k, v in ipairs(out) do c[k] = v end; return c end)()) do -- the parent of any one found (the client may keep them elsewhere)
         local par = e.f.GetParent and e.f:GetParent() or nil
         if par ~= root then scan(par, 2) end
     end
@@ -717,6 +717,9 @@ function WC.CreateMapButton()
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
         if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RefreshMapTab() end) end
+        -- riding the client's tabs, they decide (same parent, so a hidden log hides them and us together); the
+        -- fallback placement follows the log
+        if column.HookScript then column:HookScript("OnHide", function() if not (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then b:Hide() end end) end
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnShow", function()
             WC.PlaceMapTabSoon(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
