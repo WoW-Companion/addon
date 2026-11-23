@@ -73,7 +73,7 @@ local function new_region(kind)
     function r:SetScrollChild(c) self.child = c end
     function r:UpdateScrollChildRect() end
     function r:CreateFontString() return new_region("FontString") end
-    function r:CreateTexture() return new_region("Texture") end
+    function r:CreateTexture(_, layer) local t = new_region("Texture"); t.layer = layer; return t end
     function r:SetAllPoints(rel) self.allPointsTo = rel; self.points = { { "TOPLEFT", rel, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", rel, "BOTTOMRIGHT", 0, 0 } } end
     function r:SetAtlas(a) self.atlas = a end
     function r:GetAtlas() return self.atlas end

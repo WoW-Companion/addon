@@ -990,6 +990,27 @@ cases[#cases + 1] = { "plan: corner tags are 0.75 of a badge with the full font;
     assert(n >= 4, "fill is read from the settings, by BadgeParts, which all three badge kinds use")
     local _, parts = f:gsub("WC%.BadgeParts%(", "")
     assert(parts == 3, "definition + map pin + minimap pin")
+    -- Every tinted part sits on a white base (tinting multiplies), never the near-black minimap art.
+    assert(WC.DISC and not WC.DISC:find("UI%-Minimap%-Background"), "badge base is not the dark minimap disc")
+    local p = CreateFrame("Frame", nil, UIParent)
+    WC.BadgeParts(p, 3, 8, "GameFontNormal", 2)
+    for _, part in ipairs({ "glow", "ring", "fill", "notchBg" }) do assert(p[part].texture == WC.DISC, part) end
+    assert(p.ring.layer == "BORDER" and p.fill.layer == "ARTWORK" and p.glow.layer == "BACKGROUND", "ring is a visible edge around the fill")
+    -- Options control key == renderer key, and each setting tints exactly its own region.
+    for _, k in ipairs({ "badgeFill", "badgeOpacity", "ringColor", "nextRingColor", "numberColor", "glowColor", "glowOpacity", "pulseSpeed" }) do
+        assert(WC.Setting(k) ~= nil, k)
+        assert(f:find('"' .. k .. '"', 1, true), k .. " is read by the renderer")
+    end
+    WC.SetSetting("badgeFill", { 0, 1, 0 }); WC.SetSetting("badgeOpacity", 0.35)
+    WC.SetSetting("ringColor", { 1, 1, 0 }); WC.SetSetting("nextRingColor", { 1, 0.95, 0.6 })
+    local q = CreateFrame("Frame", nil, UIParent)
+    WC.BadgeParts(q, 3, 8, "GameFontNormal", 2)
+    local v = q.fill.vertex
+    assert(v[1] == 0 and v[2] == 1 and v[3] == 0 and v[4] == 0.35, "fill = chosen colour at chosen opacity")
+    WC.SetSetting("badgeFill", { 1, 0, 0 })
+    WC.ApplyBadgeFill(q)
+    assert(q.fill.vertex[1] == 1 and q.fill.vertex[2] == 0 and q.fill.vertex[4] == 0.35, "fill restyles live")
+    assert(q.ring.vertex == nil and q.glow.vertex == nil, "fill setting does not touch ring or glow")
 end }
 
 -- The quest plan: parsing, completion from quest events, distance maths, controls.
@@ -1924,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.15" and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1")
+    assert(TOC_VERSION == "0.6.16" and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end

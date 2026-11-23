@@ -24,7 +24,9 @@ local OUTLINE_PAD = 2 -- the outline is 1 px wider each side; the line's width, 
 local ARROW_GAP = 2 -- the gap outside the badge ring; the arrowhead size (8 px) is the arrowSize setting
 local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width get chevrons
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
-local DISC = "Interface\\Minimap\\UI-Minimap-Background"
+-- A white, soft-edged circle: SetVertexColor multiplies, so every tinted badge part needs a white base.
+-- (The old minimap-background art is near black, which tinted every badge black and hid the ring.)
+local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 WC.DISC = DISC
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
 -- Minimap radius in yards by zoom level (outdoors); only used to decide when the pin sits on the edge.
