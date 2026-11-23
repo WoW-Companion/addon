@@ -752,7 +752,7 @@ local compact_cases = {
         local p = digest_client("full")
         local full_lines, full_h = select(2, p.plain:gsub("\n", "")), p.h
         click(WoWCompanionCompactButton)
-        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Full")
+        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Next step")
         assert(select(2, p.plain:gsub("\n", "")) < full_lines and p.h < full_h and p.h >= 150)
         assert(p.plain:find("Turn in", 1, true) and not p.plain:find("Pick up the next", 1, true))
         assert(select(2, p.plain:gsub("\n", "")) + 1 == 8 and full_lines + 1 == 9, "4 headers + 1 line each: 8 rows vs 9")
@@ -770,7 +770,7 @@ local compact_cases = {
         assert(#p.plain > before and WoWCompanion.view.expanded[h.sectionId] and not WoWCompanionDB.collapsed)
         local saved = WoWCompanionDB
         fresh_client(saved)
-        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionOptionView_compact.checked == true)
+        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Next step" and WoWCompanionOptionView_compact.checked == true)
         click(WoWCompanionOptionView_full)
         assert(settings().view == "full" and WoWCompanionPanel.h == 320)
     end },
@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.7" and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1")
+    assert(TOC_VERSION == "0.6.8" and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2764,11 +2764,31 @@ cases[#cases + 1] = { "panel views: the row lists of Full, Compact and Next step
     WC.SetSetting("view", "next")
     assert(WoWCompanionCompactButton:GetText() == "Full" and p.plain == "")
     click(WoWCompanionCompactButton)
-    assert(WC.db.settings.view == "full" and p.plain ~= "")
+    assert(WC.db.settings.view == "full" and p.plain ~= "" and WoWCompanionCompactButton:GetText() == "Compact")
     click(WoWCompanionCompactButton)
-    assert(WC.db.settings.view == "compact")
+    assert(WC.db.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Next step")
+    click(WoWCompanionCompactButton)
+    assert(WC.db.settings.view == "next" and WoWCompanionCompactButton:GetText() == "Full")
     WC.SetSetting("view", "bogus")
     assert(WC.db.settings.view == "full")
+end }
+
+cases[#cases + 1] = { "view button: cycles Full, Compact, Next step only; the label names the next view; the tooltip marks the current one", function()
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    local seen = {}
+    for i = 1, 3 do
+        seen[#seen + 1] = WC.db.settings.view .. ">" .. WoWCompanionCompactButton:GetText()
+        click(WoWCompanionCompactButton)
+    end
+    assert(table.concat(seen, ",") == "full>Compact,compact>Next step,next>Full", table.concat(seen, ","))
+    assert(WC.db.settings.view == "full" and WoWCompanionOptionView_full.checked == true)
+    WC.SetSetting("view", "next")
+    assert(WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionCompactButton:IsShown())
+    local tip = WC.ViewTipLines("compact")
+    assert(#tip == 5 and tip[1][1] == "Panel view" and tip[5][1] == "Click to switch")
+    assert(tip[2][1] == "   Full" and not tip[2][2] and tip[3][1] == "> Compact" and tip[3][2] and tip[4][1] == "   Next step only" and not tip[4][2])
+    WC.SetSetting("view", "full")
 end }
 
 cases[#cases + 1] = { "migration: arrowhead size default 8, clamp 2..24, old default moves once, a chosen value stays", function()
@@ -3440,10 +3460,35 @@ end }
 cases[#cases + 1] = { "upgrades: the panel shows the same two lines under each item", function()
     UnitLevel = function() return 10 end
     local p, WC = card_client(upgrade_digest(), { [10] = "active" })
-    assert(row_with(p, "Cloak: Traveler's Shawl \226\128\148 Big upgrade"))
-    local sub = row_with(p, "Finish Lost Shawl and choose it")
+    assert(row_with(p, "Cloak \226\128\148 Big upgrade"))
+    local sub = row_with(p, "Look for: Traveler's Shawl")
     assert(sub.icon:IsShown() and sub.icon.texture == WC.PATH_ICONS.quest)
-    assert(row_with(p, "Usually on the Auction House \194\183 from level 12").icon.texture == WC.PATH_ICONS.auction)
+    assert(row_with(p, "From level 12 \194\183 Look for: Tough Bracers").icon.texture == WC.PATH_ICONS.auction)
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: the panel rows have no how text, no cut words, and a click opens the card on that row", function()
+    UnitLevel = function() return 10 end
+    local d = upgrade_digest()
+    d.sections[2].lines[1].how = string.rep("word ", 30)
+    local p, WC = card_client(d, { [10] = "active" })
+    assert(row_with(p, "Cloak \226\128\148 Big upgrade") and row_with(p, "Look for: Traveler's Shawl"))
+    assert(not p.plain:find("Finish Lost Shawl", 1, true) and not p.plain:find("Auction House", 1, true) and not p.plain:find("word word", 1, true))
+    local sub = row_with(p, "Look for: Traveler's Shawl")
+    assert(sub.icon:IsShown() and sub.icon.texture == WC.PATH_ICONS.quest)
+    for _, r in ipairs(p.rows) do
+        local t = r:IsShown() and r.label and r.label.text or ""
+        assert(not t:find("%.%.%.$") and not t:find("\226\128\166$"), t)
+    end
+    UIParent.h = 330
+    local main = row_with(p, "Wrists \226\128\148 Small upgrade")
+    main.scripts.OnClick(main, "LeftButton")
+    local c = WC.card
+    assert(c:IsShown() and c.entry.key == "upgrades" and c.expanded == 3, tostring(c.expanded))
+    assert(c.rowBtns[3].open and c.scroll:GetVerticalScroll() == math.min(c.scrollRange, c.rowBtns[3].top))
+    main.scripts.OnClick(main, "LeftButton")
+    assert(not c:IsShown())
+    UIParent.h = nil
     UnitLevel = nil
 end }
 

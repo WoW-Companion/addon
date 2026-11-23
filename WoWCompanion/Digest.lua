@@ -658,11 +658,12 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                             row.color = quality_color(id)
                             lines[#lines + 1] = row
                             row.text = WC.UpgradeMain(entry) -- slot, item and gain, already escaped
-                            -- the path icon, then how to get it, dim on a line of its own
-                            local sub = WC.UpgradeSub(entry)
-                            if sub then
-                                row = { kind = "status", indent = 2, text = sub, color = WC.COLORS.dim, group = entry.key,
-                                    icon = WC.HasUpgradePath(entry) and WC.PATH_ICONS[entry.pathKind] or nil }
+                            if WC.HasUpgradePath(entry) then
+                                -- the card's tidy row: "<Slot> - <gain>", then the path icon and "Look for: ..." (no how text)
+                                local r = WC.UpgradeListRow(entry)
+                                row.text = r.gain and (r.slot .. " \226\128\148 " .. r.gain) or r.slot
+                                row = { kind = "status", indent = 2, text = r.look, color = WC.COLORS.dim, group = entry.key,
+                                    icon = r.icon }
                             else
                                 row = nil
                             end

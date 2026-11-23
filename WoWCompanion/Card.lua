@@ -105,6 +105,7 @@ function WC.ClickAction(entry, button, shift, combat)
 end
 
 function WC.EntryClick(entry, button)
+    if entry.kind == "upgrade" and not entry.upgrades and WC.OpenUpgradeRow(entry) then return end
     local act = WC.ClickAction(entry, button, IsShiftKeyDown and IsShiftKeyDown(), InCombatLockdown and InCombatLockdown())
     if act == "link" then
         if WC.LinkQuest(entry.quest) then return end
@@ -653,6 +654,7 @@ function fill_card(entry, keepText)
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
         b:Show()
+        b.top = y
         y = y + h + 3
         if open then
             for _, d in ipairs(r.detail) do
@@ -770,6 +772,29 @@ function WC.OpenCard(entry)
     fill_card(entry, false)
     if card.scroll.SetVerticalScroll then card.scroll:SetVerticalScroll(0) end
     card:Show()
+end
+
+-- A click on an upgrade row of the panel: the upgrades card opens on that row, expanded and scrolled into view.
+-- False when the card has no such row (an older digest, or the Upgrades chip is switched off).
+function WC.OpenUpgradeRow(entry)
+    local chip = WC.panel and WC.panel.chipEntries and WC.panel.chipEntries.upgrades
+    if not (chip and chip.upgrades and WC.HasUpgradePath(entry)) then return false end
+    local idx
+    for i, u in ipairs(chip.upgrades) do if u.key == entry.key then idx = i break end end
+    if not idx then return false end
+    card = card or create_card()
+    WC.card = card
+    if card:IsShown() and card.entry and card.entry.key == chip.key and card.expanded == idx then
+        card:Hide()
+        return true
+    end
+    WC.PlaceCard()
+    card.expanded = idx
+    fill_card(chip, false)
+    local b = card.rowBtns and card.rowBtns[idx]
+    if card.scroll.SetVerticalScroll then card.scroll:SetVerticalScroll(math.min(card.scrollRange or 0, b and b.top or 0)) end
+    card:Show()
+    return true
 end
 
 function WC.CloseCard()

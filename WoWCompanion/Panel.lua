@@ -228,13 +228,21 @@ function WC.CreatePanel()
 
     -- The compact toggle: a small text button beside the close button.
     local c = CreateFrame("Button", "WoWCompanionCompactButton", f)
-    c:SetSize(56, 16)
+    c:SetSize(72, 16)
     c:SetPoint("TOPRIGHT", f, "TOPRIGHT", -24, -6)
     c.label = c:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     c.label:SetPoint("RIGHT", c, "RIGHT", 0, 0)
     c.label:SetJustifyH("RIGHT")
     shadow(c.label)
-    c:SetScript("OnClick", function() WC.SetCompact(WC.ViewMode() == "full") end)
+    c:SetScript("OnClick", function() WC.SetSetting("view", WC.NextView(WC.ViewMode())) end)
+    c:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        for _, l in ipairs(WC.ViewTipLines(WC.ViewMode())) do
+            if l[2] then GameTooltip:AddLine(l[1], 1, 0.82, 0) else GameTooltip:AddLine(l[1], 1, 1, 1) end
+        end
+        GameTooltip:Show()
+    end)
+    c:SetScript("OnLeave", function() GameTooltip:Hide() end)
     c.SetText = function(self, t) self.label:SetText(t) end
     c.GetText = function(self) return self.label:GetText() end
     c:SetText(L.COMPACT)
@@ -399,7 +407,7 @@ function WC.Refresh()
     WC.LayoutPanelHeader()
     rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
     local compact = mode ~= "full"
-    f.compactButton:SetText(compact and L.FULL or L.COMPACT)
+    f.compactButton:SetText(WC.ViewButtonLabel(mode))
 
     local y = 0
     local entries = {} -- group key -> its entry, so every row of an entry opens the same card
