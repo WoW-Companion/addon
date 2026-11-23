@@ -518,7 +518,7 @@ local function place_map_tab()
         b:SetPoint("TOP" .. h, last, "BOTTOM" .. h, 0, -gap)
         b:Show()
         WC.columnSig = WC.SideTabSig(side)
-        WC.mapTabPlace = { w = w, h = h2, gap = gap, x = 0, y = -gap, n = #side, mode = "sidetab", path = "client-tabs" }
+        WC.mapTabPlace = { w = w, h = h2, gap = gap, x = 0, y = -gap, n = #side, mode = "sidetab" }
         WC.FitMapTabArt(b)
         if WC.PlaceMapPanel then WC.PlaceMapPanel() end
         if WC.HookClientTabs then WC.HookClientTabs() end

@@ -4533,7 +4533,6 @@ cases[#cases + 1] = { "ride: client tabs found by displayMode under a container;
     local p = b.points[1]
     assert(p[1] == "TOPLEFT" and p[2] == last and p[3] == "BOTTOMLEFT", "alignment copied from the tab's own anchor")
     assert(WC.mapTabPlace.mode == "sidetab" and b:IsShown())
-    assert(WC.mapTabPlace.path == nil or WC.mapTabPlace.path == "client-tabs")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
