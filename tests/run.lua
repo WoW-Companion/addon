@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.11" and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1")
+    assert(TOC_VERSION == "0.6.12" and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2392,6 +2392,95 @@ cases[#cases + 1] = { "map panel: no border or backdrop art of our own, the titl
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
+-- A fake client side tab: a check button whose background texture is the client's side-tab atlas.
+local function fake_sidetab(col, top, name)
+    local t = CreateFrame("CheckButton", name, col)
+    t.w, t.h = 40, 42
+    t.shown = true
+    t.Background = t:CreateTexture()
+    t.Background.atlas = "common-sidetab-c60"
+    function t:GetTop() return top end
+    function t:GetBottom() return top - 42 end
+    function t:GetLeft() return 960 end
+    return t
+end
+
+cases[#cases + 1] = { "side tabs: the client's own tabs are found by their atlas, ours stacks flat below with their size and spacing", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    local a, c = fake_sidetab(QuestMapFrame, 800, "QuestLogTab1"), fake_sidetab(QuestMapFrame, 756, "QuestLogTab2") -- 2 apart
+    local plain = CreateFrame("Button", nil, QuestMapFrame); plain.w, plain.h = 40, 42; plain.shown = true
+    local hidden = fake_sidetab(QuestMapFrame, 700); hidden.shown = false
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local found = WC.FindClientSideTabs(QuestMapFrame)
+    assert(#found == 2 and found[1] == a and found[2] == c, "client sidetab art only: not ours, not plain buttons, not hidden ones")
+    local b = WC.mapButton
+    local p = b.points[1]
+    assert(p[1] == "TOPRIGHT" and p[2] == c and p[3] == "BOTTOMRIGHT" and p[4] == 0 and p[5] == -2, "flat on the same edge, below the last, same spacing")
+    assert(b.w == 40 and b.h == 42 and WC.mapTabPlace.mode == "sidetab" and WC.mapTabPlace.n == 2 and not WC.MapTabAlone())
+    assert(WC.SideTabGap({}) == 0 and WC.SideTabGap({ { top = 10, bottom = 5 } }) == 0)
+    WoWCompanionDB.observed = nil
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local st = WoWCompanionDB.observed.mapGeometry.sideTabs
+    assert(st.n == 2 and st.tabs[1].w == 40 and st.tabs[2].name == "QuestLogTab2")
+    -- none found: the free-space placement stays
+    for _, f in ipairs({ a, c }) do f.Background.atlas = nil end
+    WC.PlaceMapTab()
+    assert(WC.mapTabPlace.mode ~= "sidetab")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "side tabs: the client's atlases, our icon inside the mask, selected art while the plan is open", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    assert(b.sideBack.atlas == "common-sidetab-c60" and b.sideSel.atlas == "common-sidetab-selected-c60")
+    assert(b.sideBack.allPointsTo == b and b:GetHighlightTexture().atlas == "common-sidetab-hover-c60")
+    assert(b.sideMask.atlas == "common-sidetab-mask-c60" and b.icon.masks[1] == b.sideMask, "icon inside the mask")
+    assert(b.w == 40 and b.h == 42 and not b.sideSel:IsShown() or b.sideSel.shown == false)
+    b.scripts.OnClick(b, "LeftButton")
+    assert(WC.panelState.selected and b.sideSel.shown == true, "selected art while open")
+    b.scripts.OnClick(b, "LeftButton")
+    assert(not WC.panelState.selected and b.sideSel.shown == false and not WC.mapPanel:IsShown(), "click toggles the panel off")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "side tabs: opening the plan shows a collapsed quest log; our tab follows the log's visibility", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    QuestMapFrame.shown = true
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    QuestMapFrame:Hide()
+    assert(not b:IsShown(), "hides with the log")
+    QuestMapFrame:Show()
+    assert(b:IsShown(), "shows with the log")
+    QuestMapFrame:Hide()
+    WC.SelectMapPanel(true)
+    assert(QuestMapFrame:IsShown() and WC.panelState.selected, "the collapsed log opens first")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "side tabs: the panel has no border texture of its own, only its fill", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    QuestMapFrame.ContentsAnchor = CreateFrame("Frame", nil, QuestMapFrame)
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WC.SelectMapPanel(true)
+    local f = WC.mapPanel
+    assert(f.backdrop == nil and f.border == nil and f.bg.colorTexture ~= nil)
+    for _, file in ipairs({ "MapPanel" }) do
+        local src = assert(io.open("WoWCompanion/" .. file .. ".lua")):read("*a")
+        assert(not src:find("SetBackdrop", 1, true) and not src:find("Border", 1, true), file)
+    end
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
 cases[#cases + 1] = { "map tab column: the code never names, reads or anchors to another addon's frames", function()
     local banned = { "ElvUI", "Questie", "Leatrix", "Mapster", "Gatherer", "HandyNotes", "TomTom", "WorldQuestTracker", "Chinchilla", "Carbonite", "Mapzilla", "Capping", "Bartender", "Titan", "SexyMap", "AtlasLoot", "Cartographer", "MapSter", "Lib%u" }
     for _, file in ipairs({ "Button", "MapPanel", "Geometry" }) do
@@ -2412,8 +2501,9 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     PRINTED = {}
     b.scripts.OnClick(b, "LeftButton")
     local f = WC.mapPanel
-    assert(f.inset == inset and f.anchors.BOTTOMLEFT[2] == inset, "sides and bottom on the inset, not the outer frame")
-    assert(f.top == QuestMapFrame and f.anchors.TOPLEFT[2] == QuestMapFrame and f.anchors.TOPLEFT[5] == -WC.PANEL_TOP_FALLBACK, "no quest list: the fixed inset below the frame's top")
+    assert(f.inset == inset and f.anchors.TOPLEFT[2] == inset and f.anchors.BOTTOMRIGHT[2] == inset, "exactly over the content anchor")
+    assert(f.anchors.TOPLEFT[4] == 0 and f.anchors.TOPLEFT[5] == 0 and f.anchors.BOTTOMRIGHT[4] == 0 and f.anchors.BOTTOMRIGHT[5] == 0 and f.parent == QuestMapFrame)
+    assert(f.level > QuestMapFrame:GetFrameLevel(), "above the log's frames")
     -- no ContentsAnchor: the frame the client's own quest list is anchored to
     local list_parent = CreateFrame("Frame", nil, QuestMapFrame)
     QuestScrollFrame = CreateFrame("ScrollFrame", nil, QuestMapFrame)
@@ -2422,6 +2512,8 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     assert(WC.MapInset() == list_parent)
     QuestScrollFrame:SetPoint("TOPLEFT", QuestMapFrame, "TOPLEFT", 0, 0)
     assert(WC.MapInset() == QuestMapFrame)
+    WC.PlaceMapPanel()
+    assert(f.top == QuestMapFrame and f.anchors.TOPLEFT[2] == QuestMapFrame and f.anchors.TOPLEFT[5] == -WC.PANEL_TOP_FALLBACK, "no content anchor: the earlier fixed inset")
     QuestScrollFrame = nil
     QuestMapFrame.ContentsAnchor = inset
     WC.PlaceMapPanel()
@@ -2440,7 +2532,7 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     for k in pairs(g) do seen[k] = true end
     assert(type(g.tabArt) == "table" and #g.tabArt >= 1 and g.tabOffset == 0 and g.questList == nil and g.questScroll == nil)
     assert(seen.column, "our tab's computed placement is recorded"); seen.column = nil
-    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "panel", "tabs", "inset" }) do assert(seen[k], k); seen[k] = nil end
+    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "panel", "tabs", "inset", "sideTabs" }) do assert(seen[k], k); seen[k] = nil end
     assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
@@ -2649,7 +2741,7 @@ end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true }
+        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do

@@ -56,6 +56,13 @@ function WC.MapGeometry()
             local t = frame_info(col[field], field)
             if t then g.tabs[#g.tabs + 1] = t end
         end
+        g.sideTabs = { n = 0, tabs = {} }
+        if WC.FindClientSideTabs then
+            for _, t in ipairs(WC.FindClientSideTabs(col)) do
+                g.sideTabs.n = g.sideTabs.n + 1
+                g.sideTabs.tabs[#g.sideTabs.tabs + 1] = frame_info(t, "sidetab")
+            end
+        end
         g.inset = frame_info(WC.MapInset and WC.MapInset() or nil, "inset")
         local q = col.QuestsFrame
         g.questList = frame_info(q, "QuestsFrame")

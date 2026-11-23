@@ -320,6 +320,7 @@ local L = {
     VIEW_BUTTON_compact = "Compact",
     VIEW_BUTTON_next = "Next step",
     VIEW_CLICK = "Click to switch",
+    WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_11_1 = "The map tab now lines up with the other tabs and moves with them; the plan panel uses the map's own frame.",
     WHATS_NEW_0_6_10_1 = "The map tab is tidier; if another map addon moved things, Shift-drag our tab to where you like it. The plan panel no longer tucks under the frame's top.",
     MAP_TAB_POSITION = "Map tab position",
