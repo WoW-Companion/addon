@@ -321,6 +321,31 @@ function WC.SetCompact(v)
     WC.SetSetting("view", v and "compact" or "full")
 end
 
+WC.VIEW_ORDER = { "full", "compact", "next" }
+
+-- The view after mode in the header button's cycle: Full, Compact, Next step only, Full.
+function WC.NextView(mode)
+    for i, v in ipairs(WC.VIEW_ORDER) do
+        if v == mode then return WC.VIEW_ORDER[i % #WC.VIEW_ORDER + 1] end
+    end
+    return "full"
+end
+
+-- The button's label names the view a click switches to.
+function WC.ViewButtonLabel(mode)
+    return L["VIEW_BUTTON_" .. WC.NextView(mode)]
+end
+
+-- The button's tooltip lines: the three views with the current one marked, then "Click to switch".
+function WC.ViewTipLines(mode)
+    local out = { { L.VIEW_LABEL, true } }
+    for _, v in ipairs(WC.VIEW_ORDER) do
+        out[#out + 1] = { (v == mode and "> " or "   ") .. L["VIEW_" .. v], v == mode }
+    end
+    out[#out + 1] = { L.VIEW_CLICK, false }
+    return out
+end
+
 -- The page registered in the client's AddOns settings: a short note and a button that opens the options window.
 function WC.CreateSettings()
     local mode = (Settings and Settings.RegisterCanvasLayoutCategory and "settings")
