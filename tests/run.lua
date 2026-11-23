@@ -752,7 +752,7 @@ local compact_cases = {
         local p = digest_client("full")
         local full_lines, full_h = select(2, p.plain:gsub("\n", "")), p.h
         click(WoWCompanionCompactButton)
-        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Next step")
+        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Compact")
         assert(select(2, p.plain:gsub("\n", "")) < full_lines and p.h < full_h and p.h >= 150)
         assert(p.plain:find("Turn in", 1, true) and not p.plain:find("Pick up the next", 1, true))
         assert(select(2, p.plain:gsub("\n", "")) + 1 == 8 and full_lines + 1 == 9, "4 headers + 1 line each: 8 rows vs 9")
@@ -770,7 +770,7 @@ local compact_cases = {
         assert(#p.plain > before and WoWCompanion.view.expanded[h.sectionId] and not WoWCompanionDB.collapsed)
         local saved = WoWCompanionDB
         fresh_client(saved)
-        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Next step" and WoWCompanionOptionView_compact.checked == true)
+        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Compact" and WoWCompanionOptionView_compact.checked == true)
         click(WoWCompanionOptionView_full)
         assert(settings().view == "full" and WoWCompanionPanel.h == 320)
     end },
@@ -1707,7 +1707,7 @@ cases[#cases + 1] = { "the panel header is gold with the character, the advice t
     assert(p.title:GetText() == "WoW Companion: Genaenyu", p.title:GetText())
     assert(p.header:GetText():find("advice from ", 1, true) and not p.header:GetText():find("Genaenyu", 1, true))
     assert(p.step:GetText():match("^Step 1/4 · Pick up .+ · another zone$"), p.step:GetText())
-    assert(p.close and p.compactButton:GetText() == "Compact" and p.backdrop)
+    assert(p.close and p.compactButton:GetText() == "Full" and p.backdrop)
     PLAYER_NAME = nil
 end }
 
@@ -1945,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.16" and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1")
+    assert(TOC_VERSION == "0.6.17" and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -3222,18 +3222,18 @@ cases[#cases + 1] = { "panel views: the row lists of Full, Compact and Next step
     local p = digest_client("v13")
     WC = WoWCompanion
     WC.SetSetting("view", "next")
-    assert(WoWCompanionCompactButton:GetText() == "Full" and p.plain == "")
+    assert(WoWCompanionCompactButton:GetText() == "Next step" and p.plain == "")
     click(WoWCompanionCompactButton)
-    assert(WC.db.settings.view == "full" and p.plain ~= "" and WoWCompanionCompactButton:GetText() == "Compact")
+    assert(WC.db.settings.view == "full" and p.plain ~= "" and WoWCompanionCompactButton:GetText() == "Full")
     click(WoWCompanionCompactButton)
-    assert(WC.db.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Next step")
+    assert(WC.db.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Compact")
     click(WoWCompanionCompactButton)
-    assert(WC.db.settings.view == "next" and WoWCompanionCompactButton:GetText() == "Full")
+    assert(WC.db.settings.view == "next" and WoWCompanionCompactButton:GetText() == "Next step")
     WC.SetSetting("view", "bogus")
     assert(WC.db.settings.view == "full")
 end }
 
-cases[#cases + 1] = { "view button: cycles Full, Compact, Next step only; the label names the next view; the tooltip marks the current one", function()
+cases[#cases + 1] = { "view button: cycles Full, Compact, Next step only; the label names the current view; the tooltip marks the current one", function()
     local p = digest_client("v13")
     local WC = WoWCompanion
     local seen = {}
@@ -3241,12 +3241,17 @@ cases[#cases + 1] = { "view button: cycles Full, Compact, Next step only; the la
         seen[#seen + 1] = WC.db.settings.view .. ">" .. WoWCompanionCompactButton:GetText()
         click(WoWCompanionCompactButton)
     end
-    assert(table.concat(seen, ",") == "full>Compact,compact>Next step,next>Full", table.concat(seen, ","))
+    assert(table.concat(seen, ",") == "full>Full,compact>Compact,next>Next step", table.concat(seen, ","))
     assert(WC.db.settings.view == "full" and WoWCompanionOptionView_full.checked == true)
     WC.SetSetting("view", "next")
-    assert(WoWCompanionCompactButton:GetText() == "Full" and WoWCompanionCompactButton:IsShown())
+    assert(WoWCompanionCompactButton:GetText() == "Next step" and WoWCompanionCompactButton:IsShown())
+    for _, m in ipairs({ "full", "compact", "next" }) do
+        assert(WC.ViewButtonLabel(m) == ({ full = "Full", compact = "Compact", next = "Next step" })[m])
+    end
+    assert(WC.ViewTipLines("full")[1][1] == "Panel view: Full" and WC.ViewTipLines("full")[5][1] == "Click for Compact")
+    assert(WC.ViewTipLines("next")[1][1] == "Panel view: Next step" and WC.ViewTipLines("next")[5][1] == "Click for Full")
     local tip = WC.ViewTipLines("compact")
-    assert(#tip == 5 and tip[1][1] == "Panel view" and tip[5][1] == "Click to switch")
+    assert(#tip == 5 and tip[1][1] == "Panel view: Compact" and tip[5][1] == "Click for Next step")
     assert(tip[2][1] == "   Full" and not tip[2][2] and tip[3][1] == "> Compact" and tip[3][2] and tip[4][1] == "   Next step only" and not tip[4][2])
     WC.SetSetting("view", "full")
 end }

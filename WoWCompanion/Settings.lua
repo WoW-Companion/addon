@@ -332,18 +332,22 @@ function WC.NextView(mode)
     return "full"
 end
 
--- The button's label names the view a click switches to.
+-- The button's label names the view you are in now.
 function WC.ViewButtonLabel(mode)
-    return L["VIEW_BUTTON_" .. WC.NextView(mode)]
+    for _, v in ipairs(WC.VIEW_ORDER) do
+        if v == mode then return L["VIEW_BUTTON_" .. v] end
+    end
+    return L.VIEW_BUTTON_full
 end
 
--- The button's tooltip lines: the three views with the current one marked, then "Click to switch".
+-- The button's tooltip lines: the three views with the current one marked, then "Click for <next view>".
 function WC.ViewTipLines(mode)
-    local out = { { L.VIEW_LABEL, true } }
+    local cur = WC.ViewButtonLabel(mode)
+    local out = { { string.format(L.VIEW_TIP_TITLE, cur), true } }
     for _, v in ipairs(WC.VIEW_ORDER) do
         out[#out + 1] = { (v == mode and "> " or "   ") .. L["VIEW_" .. v], v == mode }
     end
-    out[#out + 1] = { L.VIEW_CLICK, false }
+    out[#out + 1] = { string.format(L.VIEW_CLICK, L["VIEW_BUTTON_" .. WC.NextView(mode)]), false }
     return out
 end
 
