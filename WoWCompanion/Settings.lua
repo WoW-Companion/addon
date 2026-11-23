@@ -57,6 +57,7 @@ local D = {
     { key = "planLines", type = "bool", default = true, page = "map", box = "route", label = "SHOW_PLAN_LINES", name = "PlanLines" },
     { key = "mapButton", type = "bool", default = true, page = "map", box = "map", label = "SHOW_MAP_BUTTON", name = "MapButton" },
     { key = "panelOpenOnTab", type = "bool", default = false, page = "map", box = "map", label = "PANEL_OPEN_ON_TAB", name = "PanelOpenOnTab" },
+    { key = "mapTabY", position = true, type = "number", default = 0, page = "map", box = "map", hidden = true }, -- the lone map tab's offset below the frame's top; 0 = the default spot
     { key = "panelZone", type = "choice", default = "shown", choices = { "shown", "all" }, page = "map", box = "map", label = "PANEL_ZONE_LABEL", name = "PanelZone", choiceKey = "PANEL_ZONE_", widget = "dropdown" },
     { key = "panelShowDone", type = "bool", default = true, page = "map", box = "map", label = "PANEL_SHOW_DONE", name = "PanelShowDone" },
     { key = "showUpcoming", type = "bool", default = true, page = "map", box = "route", label = "SHOW_UPCOMING", name = "ShowUpcoming" },

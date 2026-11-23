@@ -280,6 +280,13 @@ local function build_page(f, page, body)
             make_button("WoWCompanionOptionsResetButton", box, L.RESET_BUTTON, 190, "TOPLEFT", PAD, y - 2, function() WC.ResetMinimapButton() end)
             y = y - 30
         end
+        if page == "map" and id == "map" then
+            local lab = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            lab:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, y - 8)
+            lab:SetText(L.MAP_TAB_POSITION)
+            make_button("WoWCompanionOptionsResetMapTab", box, L.RESET_ONE, 80, "TOPLEFT", PAD + 190, y - 4, function() WC.ResetMapTabPosition() end)
+            y = y - 30
+        end
         local h = -y + 8
         box:SetSize(BOX_W, h)
         top = top - h - 10

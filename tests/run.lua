@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.9" and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1")
+    assert(TOC_VERSION == "0.6.10" and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2268,7 +2268,8 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     PRINTED = {}
     b.scripts.OnClick(b, "LeftButton")
     local f = WC.mapPanel
-    assert(f.allPointsTo == inset and f.inset == inset and f.points[1][2] == inset, "not the outer frame")
+    assert(f.inset == inset and f.anchors.BOTTOMLEFT[2] == inset, "sides and bottom on the inset, not the outer frame")
+    assert(f.top == QuestMapFrame and f.anchors.TOPLEFT[2] == QuestMapFrame and f.anchors.TOPLEFT[5] == -WC.PANEL_TOP_FALLBACK, "no quest list: the fixed inset below the frame's top")
     -- no ContentsAnchor: the frame the client's own quest list is anchored to
     local list_parent = CreateFrame("Frame", nil, QuestMapFrame)
     QuestScrollFrame = CreateFrame("ScrollFrame", nil, QuestMapFrame)
@@ -2280,7 +2281,7 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     QuestScrollFrame = nil
     QuestMapFrame.ContentsAnchor = inset
     WC.PlaceMapPanel()
-    assert(f.allPointsTo == inset)
+    assert(f.inset == inset)
     -- the map opens: geometry is recorded, quietly
     WoWCompanionDB.observed = nil
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
@@ -2288,14 +2289,97 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     assert(g.version == 1 and type(g.t) == "number" and #PRINTED == 0)
     assert(g.tab.name == "WoWCompanionMapTab" and g.tab.w == 44 and g.tab.h == 44 and g.tab.scale == 1)
     assert(g.tab.points[1].point == "TOP" and g.tab.points[1].relPoint == "BOTTOM" and g.tab.points[1].rel == "(unnamed)" and g.tab.points[1].y == -WC.MAP_TAB_GAP)
-    assert(g.panel.name == "WoWCompanionMapPanel" and g.panel.points[1].rel == "QuestMapContentsInset")
+    assert(g.panel.name == "WoWCompanionMapPanel" and #g.panel.points >= 1)
     assert(#g.tabs == 2 and g.tabs[1].field == "QuestsTab" and g.tabs[2].field == "EventsTab" and g.tabs[2].w == 44)
     assert(g.inset.name == "QuestMapContentsInset" and g.inset.field == "inset")
     local seen = {}
     for k in pairs(g) do seen[k] = true end
-    for _, k in ipairs({ "version", "t", "tab", "panel", "tabs", "inset" }) do assert(seen[k], k); seen[k] = nil end
+    assert(type(g.tabArt) == "table" and #g.tabArt >= 1 and g.tabOffset == 0 and g.questList == nil and g.questScroll == nil)
+    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "panel", "tabs", "inset" }) do assert(seen[k], k); seen[k] = nil end
     assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map panel: the top anchors to the client's quest list when shown; the probe records it", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    local list = CreateFrame("Frame", "QuestsFrameStub", QuestMapFrame)
+    list.shown = true
+    QuestMapFrame.QuestsFrame = list
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WC.mapButton.scripts.OnClick(WC.mapButton, "LeftButton")
+    local f = WC.mapPanel
+    local tl = f.anchors.TOPLEFT
+    assert(f.top == list and tl[2] == list and tl[5] == 0, "top on the quest list's top")
+    list.shown = false
+    local sc = CreateFrame("ScrollFrame", nil, list)
+    sc.shown = true
+    list.ScrollFrame = sc
+    assert(WC.QuestListFrame() == sc, "the scroll frame when the list itself is hidden")
+    sc.shown = false
+    WC.PlaceMapPanel()
+    assert(f.top == QuestMapFrame, "neither shown: the fallback")
+    list.shown, sc.shown = true, true
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local g = WoWCompanionDB.observed.mapGeometry
+    assert(g.questList.field == "QuestsFrame" and g.questScroll.field == "ScrollFrame")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "world map tab: art stays inside its frame; hidden client tabs place it at the saved, clamped offset; drag saves; reset restores", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({ { top = 800, left = 990 } })
+    QuestMapFrame.QuestsTab.shown = false -- a map addon hid the client's tabs
+    QuestMapFrame.h, QuestMapFrame.geo = 600, nil
+    function QuestMapFrame:GetTop() return 800 end
+    QuestMapFrame.GetHeight = function(self) return self.h end
+    local art = { Background = true, SelectedTexture = true, Border = true }
+    local made = CreateFrame
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    for k in pairs(art) do b[k] = b:CreateTexture() end
+    b.Icon = b:CreateTexture()
+    WC.PlaceMapTab()
+    assert(b.w == 44 and b.h == 44 and WC.MapTabAlone())
+    for _, a in ipairs(WC.MapTabArt(b)) do
+        local r = a.region
+        if r.allPointsTo then assert(r.allPointsTo == b, a.field)
+        else assert(r.w <= b.w and r.h <= b.h and r.points[1][2] == b and r.points[1][4] == 0, a.field) end
+    end
+    assert(b.Icon.w < 44 and b.Icon.w > 0 and b.Background.allPointsTo == b)
+    -- the default: the middle of the lower half; the offset moves, clamps and saves
+    local function y() return b.points[1][5] end
+    assert(b.points[1][1] == "TOPRIGHT" and b.points[1][3] == "TOPLEFT" and y() == -450)
+    assert(WC.MapTabOffset(-100, 600, 44) == -100 and WC.MapTabOffset(-900, 600, 44) == -556 and WC.MapTabOffset(5, 600, 44) == 0)
+    assert(WC.MapTabOffset(0, 0, 44) == WC.MAP_TAB_DEFAULT_Y)
+    GetCursorPosition = function() return 0, 800 - 300 end
+    IsShiftKeyDown = function() return false end
+    b.scripts.OnDragStart(b)
+    assert(b.scripts.OnUpdate == nil, "no shift, no drag")
+    IsShiftKeyDown = function() return true end
+    b.scripts.OnDragStart(b)
+    assert(b.scripts.OnUpdate)
+    b.scripts.OnUpdate(b)
+    assert(WC.Setting("mapTabY") == -278 and y() == -278, "tab middle at the cursor: 300 below the top")
+    GetCursorPosition = function() return 0, -5000 end
+    b.scripts.OnUpdate(b)
+    assert(WC.Setting("mapTabY") == -556 and y() == -556, "clamped to the frame's bottom")
+    GetCursorPosition = function() return 0, 9000 end
+    b.scripts.OnUpdate(b)
+    assert(WC.Setting("mapTabY") == -1, "clamped to the top; never the 0 that means default")
+    b.scripts.OnDragStop(b)
+    assert(b.scripts.OnUpdate == nil)
+    WC.PlaceMapTab()
+    assert(y() == -1, "the saved offset survives a re-place")
+    WC.ResetMapTabPosition()
+    assert(WC.Setting("mapTabY") == 0 and y() == -450)
+    -- a client tab shown again: stacked below it, no drag
+    QuestMapFrame.QuestsTab.shown = true
+    WC.PlaceMapTab()
+    assert(b.points[1][1] == "TOP" and not WC.MapTabAlone() and WC.SetMapTabFromCursor(100) == nil)
+    WorldMapFrame, QuestMapFrame, GetCursorPosition, IsShiftKeyDown = nil, nil, nil, nil
 end }
 
 cases[#cases + 1] = { "world map tab: left-click selects the plan panel, right-click opens options, setting hides it", function()
@@ -2420,7 +2504,7 @@ end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, GetChildren = true, HookScript = true }
+        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do

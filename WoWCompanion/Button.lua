@@ -121,6 +121,7 @@ local function shift_down() return IsShiftKeyDown and IsShiftKeyDown() or false 
 local function show_map_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_LEFT, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT }) do GameTooltip:AddLine(line) end
+    if WC.MapTabAlone() then GameTooltip:AddLine(WC.L.TIP_MAP_DRAG) end
     GameTooltip:Show()
 end
 
@@ -167,8 +168,56 @@ function WC.FindClientTab(parent)
     return WC.LowestTab(cands)
 end
 
+-- The tab's art regions (the template's own textures): the ones that must stay inside its frame.
+WC.MAP_TAB_ART_FIELDS = { "Background", "Border", "SelectedTexture", "Icon" }
+WC.MAP_TAB_ICON_FRACTION = 0.6
+
+function WC.MapTabArt(b)
+    local out = {}
+    for _, name in ipairs(WC.MAP_TAB_ART_FIELDS) do
+        if type(b[name]) == "table" then out[#out + 1] = { field = name, region = b[name] } end
+    end
+    if b.icon and b.icon ~= b.Icon then out[#out + 1] = { field = "icon", region = b.icon } end
+    if b.GetHighlightTexture then
+        local h = b:GetHighlightTexture()
+        if type(h) == "table" then out[#out + 1] = { field = "Highlight", region = h } end
+    end
+    return out
+end
+
+-- Keeps every texture of the tab inside its frame: the frame-sized art fills the frame exactly, the icon is a
+-- fraction of it, centred. Only the client's own textures; nothing is drawn outside the bounds.
+function WC.FitMapTabArt(b)
+    local w, h = b:GetSize()
+    for _, a in ipairs(WC.MapTabArt(b)) do
+        local r = a.region
+        r:ClearAllPoints()
+        if a.field == "Icon" or a.field == "icon" then
+            r:SetSize(math.floor(w * WC.MAP_TAB_ICON_FRACTION), math.floor(h * WC.MAP_TAB_ICON_FRACTION))
+            r:SetPoint("CENTER", b, "CENTER", 0, 0)
+        else
+            r:SetAllPoints(b)
+        end
+    end
+end
+
+-- Pure: the tab's vertical offset (negative, down from the frame's top) for a saved value (0 = none), the frame's
+-- height and the tab's height. The default is the middle of the frame's lower half; the result stays inside the frame.
+function WC.MapTabOffset(saved, frameH, tabH)
+    if not (type(frameH) == "number" and frameH > 0) then return WC.MAP_TAB_DEFAULT_Y end
+    local y = tonumber(saved)
+    if not y or y == 0 then y = -frameH * 0.75 end
+    return math.min(0, math.max(-(frameH - (tabH or 0)), y))
+end
+
+-- True when none of the client's own tabs is shown, so our tab stands alone on the frame's left edge.
+function WC.MapTabAlone()
+    return WC.mapButtonMode == "tab" and WC.mapButtonParent ~= nil and WC.FindClientTab(WC.mapButtonParent) == nil
+end
+
 -- Anchors the tab directly below the lowest client tab, at that tab's size, so a map addon that moves the client's
--- tabs carries ours along. With no client tab found it keeps the old fixed spot. Re-run on map show and mode change.
+-- tabs carries ours along. With every client tab hidden it sits on the frame's left edge at the saved (or default)
+-- height, at 44 x 44. Re-run on map show and mode change.
 function WC.PlaceMapTab()
     local b, parent = WC.mapButton, WC.mapButtonParent
     if not b or WC.mapButtonMode ~= "tab" or not parent then return end
@@ -180,10 +229,35 @@ function WC.PlaceMapTab()
         b:SetPoint("TOP", low, "BOTTOM", 0, -WC.MAP_TAB_GAP) -- centred under it, so the two share one column
     else
         b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
-        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y)
+        local fh = parent.GetHeight and parent:GetHeight() or 0
+        local y = WC.MapTabOffset(WC.Setting("mapTabY"), fh, WC.MAP_TAB_SIZE)
+        b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, y)
     end
+    WC.FitMapTabArt(b)
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     if WC.HookClientTabs then WC.HookClientTabs() end
+end
+
+-- Moves the lone tab so its middle sits at the cursor's height (screen y, as GetCursorPosition gives it); the
+-- offset is clamped to the frame and saved. Returns the saved offset, or nil when the tab is not alone.
+function WC.SetMapTabFromCursor(cursorY)
+    local parent = WC.mapButtonParent
+    if not (WC.MapTabAlone() and parent and parent.GetTop and tonumber(cursorY)) then return nil end
+    local top = parent:GetTop()
+    local scale = parent.GetEffectiveScale and parent:GetEffectiveScale() or 1
+    if not tonumber(top) or not scale or scale <= 0 then return nil end
+    local fh = parent.GetHeight and parent:GetHeight() or 0
+    local y = cursorY / scale - top + WC.MAP_TAB_SIZE / 2 -- the tab's top edge
+    y = math.floor(WC.MapTabOffset(y == 0 and -0.01 or y, fh, WC.MAP_TAB_SIZE) + 0.5)
+    if y == 0 then y = -1 end -- 0 means "default", so a tab flush with the top saves as 1 below it
+    WC.SetSetting("mapTabY", y)
+    WC.PlaceMapTab()
+    return y
+end
+
+function WC.ResetMapTabPosition()
+    WC.SetSetting("mapTabY", WC.DEF_OF["mapTabY"].default)
+    if WC.PlaceMapTab then WC.PlaceMapTab() end
 end
 
 -- One square side tab in the world map's tab column, built from the client's own side-tab template. A client without
@@ -230,6 +304,17 @@ function WC.CreateMapButton()
     b.icon:SetTexture(WC.ICON)
     if WC.mapButtonMode == "edge" and b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square") end
     b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button, shift_down()) end)
+    if WC.mapButtonMode == "tab" then
+        b:RegisterForDrag("LeftButton")
+        b:SetScript("OnDragStart", function(self)
+            if not (shift_down() and WC.MapTabAlone()) then return end
+            self:SetScript("OnUpdate", function()
+                local _, cy = GetCursorPosition()
+                WC.SetMapTabFromCursor(cy)
+            end)
+        end)
+        b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+    end
     b:SetScript("OnEnter", show_map_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     WC.mapButton = b

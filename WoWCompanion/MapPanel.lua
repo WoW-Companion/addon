@@ -408,14 +408,43 @@ function WC.MapInset()
     return col
 end
 
--- Fits the panel to the inset, so its title, step line and toggle sit inside the border at every map size.
+-- The client's own quest list frame, whichever of QuestMapFrame.QuestsFrame or its scroll frame exists and is shown.
+function WC.QuestListFrame()
+    local col = QuestMapFrame
+    if type(col) ~= "table" then return nil end
+    local q = col.QuestsFrame
+    if type(q) ~= "table" then return nil end
+    local cands = { q, q.ScrollFrame }
+    for _, c in ipairs(cands) do
+        if type(c) == "table" and c.IsShown and c:IsShown() and c.GetObjectType then return c end
+    end
+    return nil
+end
+
+WC.PANEL_TOP_FALLBACK = 32 -- pixels below the quest-map frame's top when the client's quest list cannot be found
+
+-- Fits the panel to the inset at the sides and bottom; its top starts at the top of the client's quest list (below
+-- the client's own header), else a fixed inset below the quest-map frame's top. So its title, step line and toggle
+-- sit inside the border at every map size.
 function WC.PlaceMapPanel()
     local f = WC.mapPanel
     if not f then return end
     local inset = WC.MapInset()
     if not inset then return end
+    local list = WC.QuestListFrame()
     f:ClearAllPoints()
-    f:SetAllPoints(inset)
+    f:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 0, 0)
+    f:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
+    if list then
+        f:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
+        f:SetPoint("TOPRIGHT", inset, "TOPRIGHT", 0, 0)
+        f.top = list
+    else
+        local col = QuestMapFrame
+        f:SetPoint("TOPLEFT", col, "TOPLEFT", 9, -WC.PANEL_TOP_FALLBACK)
+        f:SetPoint("TOPRIGHT", col, "TOPRIGHT", -9, -WC.PANEL_TOP_FALLBACK)
+        f.top = col
+    end
     f.inset = inset
 end
 
