@@ -752,7 +752,7 @@ local compact_cases = {
         local p = digest_client("full")
         local full_lines, full_h = select(2, p.plain:gsub("\n", "")), p.h
         click(WoWCompanionCompactButton)
-        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Next step")
+        assert(WoWCompanionDB.settings.view == "compact" and WoWCompanionCompactButton:GetText() == "Compact")
         assert(select(2, p.plain:gsub("\n", "")) < full_lines and p.h < full_h and p.h >= 150)
         assert(p.plain:find("Turn in", 1, true) and not p.plain:find("Pick up the next", 1, true))
         assert(select(2, p.plain:gsub("\n", "")) + 1 == 8 and full_lines + 1 == 9, "4 headers + 1 line each: 8 rows vs 9")
@@ -770,7 +770,7 @@ local compact_cases = {
         assert(#p.plain > before and WoWCompanion.view.expanded[h.sectionId] and not WoWCompanionDB.collapsed)
         local saved = WoWCompanionDB
         fresh_client(saved)
-        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Next step" and WoWCompanionOptionView_compact.checked == true)
+        assert(settings().view == "compact" and WoWCompanionCompactButton:GetText() == "Compact" and WoWCompanionOptionView_compact.checked == true)
         click(WoWCompanionOptionView_full)
         assert(settings().view == "full" and WoWCompanionPanel.h == 320)
     end },
@@ -1707,7 +1707,7 @@ cases[#cases + 1] = { "the panel header is gold with the character, the advice t
     assert(p.title:GetText() == "WoW Companion: Genaenyu", p.title:GetText())
     assert(p.header:GetText():find("advice from ", 1, true) and not p.header:GetText():find("Genaenyu", 1, true))
     assert(p.step:GetText():match("^Step 1/4 · Pick up .+ · another zone$"), p.step:GetText())
-    assert(p.close and p.compactButton:GetText() == "Compact" and p.backdrop)
+    assert(p.close and p.compactButton:GetText() == "Full" and p.backdrop)
     PLAYER_NAME = nil
 end }
 
