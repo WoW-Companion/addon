@@ -1941,10 +1941,10 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.0" and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.1" and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1")
     has("WHATS_NEW_0_4_7_1")
-    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2")
+    has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
     for _, k in ipairs({ "WHATS_NEW_0_4_4_1", "WHATS_NEW_0_4_4_2", "WHATS_NEW_0_4_4_3", "WHATS_NEW_0_4_3_1", "WHATS_NEW_0_4_3_2", "WHATS_NEW_0_4_2_1", "WHATS_NEW_0_4_2_2", "TIP_CLICK_SHIFT", "RESET_ONE", "CONFIRM_YES", "CONFIRM_NO", "CONFIRM_RESET_VISUALS", "CONFIRM_RESET_ALL", "HELP_RESET_VISUALS", "HELP_RESET_ALL" }) do has(k) end
 end }
@@ -2250,8 +2250,10 @@ local function fake_column(tabs)
     col.left, col.top = 1000, 800
     function col:GetLeft() return self.left end
     function col:GetTop() return self.top end
-    for _, g in ipairs(tabs or {}) do
+    local fields = { "QuestsTab", "EventsTab", "MapLegendTab" }
+    for i, g in ipairs(tabs or {}) do
         local t = CreateFrame("Button", nil, col)
+        col[fields[i]] = t
         t.w, t.h = 44, 44
         t.geo = g
         function t:GetTop() return self.geo.top end
@@ -2273,42 +2275,39 @@ cases[#cases + 1] = { "world map tab: built from the client's side-tab template 
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
-cases[#cases + 1] = { "world map tab: slot choice with zero, one and several occupied tabs", function()
+cases[#cases + 1] = { "world map tab: the lowest of the client's tabs is the anchor", function()
     fresh_client(nil)
     local WC = WoWCompanion
-    assert(WC.PickTabSlot({}, 44, 3) == nil)
-    assert(WC.PickTabSlot({ { top = 800, bottom = 756 } }, 44, 3) == 753)
-    assert(WC.PickTabSlot({ { top = 800, bottom = 756 }, { top = 753, bottom = 709 }, { top = 706, bottom = 662 } }, 44, 3) == 659)
-    -- order does not matter, and a gap big enough is taken
-    assert(WC.PickTabSlot({ { top = 706, bottom = 662 }, { top = 800, bottom = 756 }, { top = 753, bottom = 709 } }, 44, 3) == 659)
-    assert(WC.PickTabSlot({ { top = 800, bottom = 756 }, { top = 600, bottom = 556 } }, 44, 3) == 753)
+    assert(WC.LowestTab({}) == nil)
+    local a, b, c = {}, {}, {}
+    assert(WC.LowestTab({ { frame = a, bottom = 756 } }) == a)
+    assert(WC.LowestTab({ { frame = a, bottom = 756 }, { frame = c, bottom = 662 }, { frame = b, bottom = 709 } }) == c)
 end }
 
-cases[#cases + 1] = { "world map tab: placed below the client's tabs, and again on resize", function()
+cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at its size, and again when tabs change", function()
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
     QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
+    QuestMapFrame.EventsTab.w, QuestMapFrame.EventsTab.h = 40, 42
     fresh_client(nil)
     local WC = WoWCompanion
-    local x, y
-    local function point()
-        local p = WC.mapButton.points[1]
-        return p[1], p[2], p[3], p[4], p[5]
-    end
-    local pt, rel, _, px, py = point()
-    assert(pt == "TOPLEFT" and rel == QuestMapFrame and px == -10 and py == 706 - 800, tostring(px) .. "," .. tostring(py))
-    -- a third client tab appears and the map resizes: the slot moves down
+    local function point() local p = WC.mapButton.points[1] return p[1], p[2], p[3], p[4], p[5] end
+    local pt, rel, relPt, px, py = point()
+    assert(pt == "TOPLEFT" and rel == QuestMapFrame.EventsTab and relPt == "BOTTOMLEFT" and px == 0 and py == -WC.MAP_TAB_GAP)
+    assert(WC.mapButton.w == 40 and WC.mapButton.h == 42, "the same size as its sibling")
+    -- a third client tab appears lower (a map addon moved things): the display-mode hook and map show re-anchor
     local t = CreateFrame("Button", nil, QuestMapFrame)
     t.w, t.h, t.geo = 44, 44, { top = 706, left = 990 }
     function t:GetTop() return self.geo.top end
     function t:GetBottom() return self.geo.top - self.h end
     function t:GetLeft() return self.geo.left end
+    QuestMapFrame.MapLegendTab = t
     QuestMapFrame.scripts.OnSizeChanged(QuestMapFrame)
-    local _, _, _, _, py2 = point()
-    assert(py2 == 659 - 800)
-    -- our own tab is never counted as an occupant
-    QuestMapFrame.scripts.OnSizeChanged(QuestMapFrame)
-    assert(select(5, point()) == py2)
-    -- no tabs in the column: a fixed default spot
+    assert(select(2, point()) == t)
+    -- the lowest tab hidden: the next one up
+    t.shown = false
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(select(2, point()) == QuestMapFrame.EventsTab)
+    -- our own tab is never its own anchor, and no tab at all keeps the old fixed spot
     QuestMapFrame = fake_column({})
     WC.mapButton, WC.mapButtonParent = nil, nil
     WC.CreateMapButton()
@@ -2483,7 +2482,16 @@ cases[#cases + 1] = { "side panel rows: each kind, the next step highlighted, fi
     assert(#rows == 20)
     if os.getenv("WOWC_PRINT_ROWS") then io.write(table.concat(rows, "\n"), "\n") end
     -- the footer: stops and the summed legs on one map
-    assert(WC.PanelFooter({ { map = 1, x = 0, y = 0 }, { map = 1, x = 3, y = 4 }, { map = 2, x = 50, y = 50 } }) == "3 stops · about 5 map units")
+    local legs = { { map = 1, x = 0, y = 0 }, { map = 1, x = 3, y = 4 }, { map = 2, x = 50, y = 50 } }
+    local before_map = C_Map
+    C_Map = nil
+    assert(WC.PanelFooter(legs) == "3 stops", "no yards without the client's map size")
+    C_Map = before_map
+    local saved_map = C_Map
+    C_Map = { GetMapWorldSize = function() return 1000, 1000 end }
+    assert(WC.PanelFooter(legs) == "3 stops · about 50 yd", WC.PanelFooter(legs))
+    C_Map = saved_map
+    for _, t in ipairs({ WC.PanelFooter(legs), WC.PanelFooter({}) }) do assert(not t:find("map units", 1, true)) end
     side_panel_done()
 end }
 
@@ -2530,6 +2538,60 @@ cases[#cases + 1] = { "side panel zone filter: the map shown by default, All zon
     assert(WC.PanelAllZones() == false)
     WC.SetSetting("panelZone", "shown")
     assert(WC.PanelAllZones() == false)
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel rows: height grows with a wrapped sub-line, rows never overlap", function()
+    local WC = side_panel_client()
+    assert(WC.RowHeight(13, 11, 0) < WC.RowHeight(13, 22, 0) and WC.RowHeight(13, 11, 0) < WC.RowHeight(13, 11, 11))
+    assert(WC.RowHeight(13, 0, 0) >= 34 and WC.RowHeight(13, 22, 11) == 6 + 13 + 6 + 2 + 22 + 2 + 11)
+    WC.ToggleMapPanel()
+    WC.SetSetting("panelZone", "all")
+    local f = WC.mapPanel
+    WC.RefreshMapPanel()
+    -- row 8 wraps to two lines, row 3 carries a then: line
+    f.rows[8].sub.GetStringHeight = function() return 22 end
+    WC.RefreshMapPanel()
+    local y = 0
+    for i = 1, 20 do
+        local r = f.rows[i]
+        assert(r.top == y, "row " .. i .. " starts where the last ended")
+        y = y + r.hh
+    end
+    assert(f.rows[8].hh > f.rows[7].hh and f.child.h >= y, "the last row scrolls fully into view")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "side panel: a clicked step stays selected, switches, toggles off and clears with the map; current stays distinct", function()
+    local WC, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    WC.SetSetting("panelZone", "all")
+    WC.RefreshMapPanel()
+    local f = WC.mapPanel
+    local r1, r4 = f.rows[1], f.rows[4]
+    assert(r1.nextBg.shown and not r1.selBg.shown and WC.panelState.selectedStep == nil)
+    r4.scripts.OnClick(r4, "LeftButton")
+    assert(WC.panelState.selectedStep == 4 and r4.selBg.shown and r4.selBar.shown and r4.badge.selRing.shown)
+    assert(not r1.selBg.shown and not f.rows[2].selBg.shown and not f.rows[3].selBg.shown, "only the clicked step")
+    assert(r1.nextBg.shown and not r4.nextBg.shown, "current and selected are separate looks")
+    assert(r4.selBg.colorTexture[1] ~= r1.nextBg.colorTexture[1], "the two fills differ")
+    -- hover still works on top
+    r4.scripts.OnEnter(r4)
+    assert(r4.hl.shown and r4.selBg.shown)
+    r4.scripts.OnLeave(r4)
+    -- another row switches, a redraw keeps it, the same row again clears
+    r1.scripts.OnClick(r1, "LeftButton")
+    assert(WC.panelState.selectedStep == 1 and r1.selBg.shown and not r4.selBg.shown)
+    WC.RefreshMapPanel()
+    assert(f.rows[1].selBg.shown)
+    r1.scripts.OnClick(r1, "LeftButton")
+    assert(WC.panelState.selectedStep == nil and not r1.selBg.shown)
+    -- a right click does not select; the map closing clears it
+    r4.scripts.OnClick(r4, "RightButton")
+    assert(WC.panelState.selectedStep == nil)
+    r4.scripts.OnClick(r4, "LeftButton")
+    WorldMapFrame.scripts.OnHide(WorldMapFrame)
+    assert(WC.panelState.selectedStep == nil and not r4.selBg.shown)
     side_panel_done()
 end }
 

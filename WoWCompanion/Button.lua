@@ -130,49 +130,44 @@ WC.MAP_TAB_TEMPLATE = "QuestLogTabButtonTemplate"
 WC.MAP_TAB_SIZE, WC.MAP_TAB_GAP = 44, 3
 WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y = -2, -100
 
--- Pure: the top edge for a new tab of `size` in a column whose occupied tabs are rects { top =, bottom = }
--- (screen units, y up). Starts at the column's highest top and steps below each tab it would overlap, so the
--- first free slot wins. Nil when nothing occupies the column.
-function WC.PickTabSlot(rects, size, gap)
-    if #rects == 0 then return nil end
-    local top = -math.huge
-    for _, r in ipairs(rects) do if r.top > top then top = r.top end end
-    local moved = true
-    while moved do
-        moved = false
-        for _, r in ipairs(rects) do
-            if top > r.bottom and top - size < r.top then top = r.bottom - gap; moved = true end
-        end
+-- The client's own side tabs (each a field of the quest-map frame), in the order they stack.
+WC.CLIENT_TAB_FIELDS = { "QuestsTab", "EventsTab", "MapLegendTab" }
+
+-- Pure: the lowest shown tab of a list of { frame =, bottom = } candidates (screen units, y up), or nil.
+function WC.LowestTab(cands)
+    local low
+    for _, c in ipairs(cands) do
+        if not low or c.bottom < low.bottom then low = c end
     end
-    return top
+    return low and low.frame or nil
 end
 
--- The rects of the other shown, tab-sized regions in `parent` (found by geometry only).
-local function column_rects(parent, mine)
-    local rects = {}
-    if not parent.GetChildren then return rects end
-    for _, c in ipairs({ parent:GetChildren() }) do
-        if c ~= mine and c.IsShown and c:IsShown() and c.GetTop and c.GetBottom then
-            local w, h = c:GetWidth() or 0, c:GetHeight() or 0
-            local t, bt = c:GetTop(), c:GetBottom()
-            if t and bt and w > 0 and w <= 80 and h > 0 and h <= 80 then
-                rects[#rects + 1] = { top = t, bottom = bt, left = c:GetLeft() }
-            end
+-- The lowest shown tab among the client's own (named by WC.CLIENT_TAB_FIELDS). Never another addon's frame.
+function WC.FindClientTab(parent)
+    local cands = {}
+    for _, name in ipairs(WC.CLIENT_TAB_FIELDS) do
+        local t = parent[name]
+        if type(t) == "table" and t ~= WC.mapButton and t.IsShown and t:IsShown() and t.GetBottom then
+            local bt = t:GetBottom()
+            if bt then cands[#cands + 1] = { frame = t, bottom = bt } end
         end
     end
-    return rects
+    return WC.LowestTab(cands)
 end
 
--- Puts the tab in the first free slot of the column; re-run on map show and resize.
+-- Anchors the tab directly below the lowest client tab, at that tab's size, so a map addon that moves the client's
+-- tabs carries ours along. With no client tab found it keeps the old fixed spot. Re-run on map show and mode change.
 function WC.PlaceMapTab()
     local b, parent = WC.mapButton, WC.mapButtonParent
     if not b or WC.mapButtonMode ~= "tab" or not parent then return end
-    local rects = column_rects(parent, b)
-    local top = WC.PickTabSlot(rects, WC.MAP_TAB_SIZE, WC.MAP_TAB_GAP)
+    local low = WC.FindClientTab(parent)
     b:ClearAllPoints()
-    if top and parent.GetTop and parent:GetTop() and rects[1].left and parent.GetLeft and parent:GetLeft() then
-        b:SetPoint("TOPLEFT", parent, "TOPLEFT", rects[1].left - parent:GetLeft(), top - parent:GetTop())
+    if low then
+        local w, h = low.GetWidth and low:GetWidth() or 0, low.GetHeight and low:GetHeight() or 0
+        if w > 0 and h > 0 then b:SetSize(w, h) end
+        b:SetPoint("TOPLEFT", low, "BOTTOMLEFT", 0, -WC.MAP_TAB_GAP)
     else
+        b:SetSize(WC.MAP_TAB_SIZE, WC.MAP_TAB_SIZE)
         b:SetPoint("TOPRIGHT", parent, "TOPLEFT", WC.MAP_TAB_DEFAULT_X, WC.MAP_TAB_DEFAULT_Y)
     end
     if WC.HookClientTabs then WC.HookClientTabs() end
@@ -213,9 +208,12 @@ function WC.CreateMapButton()
     if b.SetFrameStrata then b:SetFrameStrata("HIGH") end
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     -- the template's own icon region when it has one, else ours
-    b.icon = b.Icon or b:CreateTexture(nil, "ARTWORK")
-    if b.icon.SetSize then b.icon:SetSize(26, 26) end
-    b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    local own = b.Icon
+    b.icon = own or b:CreateTexture(nil, "ARTWORK")
+    if not own then -- the template's icon keeps its own size and place, so the frame matches its siblings
+        if b.icon.SetSize then b.icon:SetSize(26, 26) end
+        b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    end
     b.icon:SetTexture(WC.ICON)
     if WC.mapButtonMode == "edge" and b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square") end
     b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button, shift_down()) end)
@@ -227,7 +225,9 @@ function WC.CreateMapButton()
         if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
         if map.HookScript then map:HookScript("OnShow", function() WC.PlaceMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab() end) end
         if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        if map.HookScript then map:HookScript("OnHide", function() WC.ClearSelectedStep() end) end -- the selection ends with the map
         WC.PlaceMapTab()
+        if C_Timer and C_Timer.After then C_Timer.After(0, WC.PlaceMapTab) end -- once the client has laid its tabs out
         WC.InitMapPanel()
     end
     WC.RefreshMapTab()

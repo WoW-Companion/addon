@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.6.1"] = { "WHATS_NEW_0_6_1_1" },
     ["0.6.0"] = { "WHATS_NEW_0_6_0_1", "WHATS_NEW_0_6_0_2" },
     ["0.5.1"] = { "WHATS_NEW_0_5_1_1", "WHATS_NEW_0_5_0_1" }, -- carries 0.5.0's line too: the 0.5.0 zip lacked the map panel
     ["0.5.0"] = { "WHATS_NEW_0_5_0_1" },

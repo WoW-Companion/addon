@@ -8,14 +8,16 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local ROW_H, PAD, HEAD_H = 40, 10, 92
-local THEN_H = 12 -- the extra height of a row that carries a "then:" line
+local PAD, TOP_INSET, SCROLL_W = 10, 24, 26
+local ROW_MIN, ROW_PAD_T, ROW_PAD_B, ROW_GAP = 34, 6, 6, 2
+local LINE_TITLE, LINE_SUB = 13, 11 -- a line's height when the client cannot measure the text
+local SEL = { 0.45, 0.7, 1 } -- the selected step's accent (the current step stays gold)
 local GOLD, DIM = { 1, 0.82, 0 }, { 0.55, 0.55, 0.55 }
 WC.TAB_MODE = "WoWCompanionPlan"
 
 -- Session state: whether our tab is selected, the last tab the player used (nil until one is), the zone filter the
 -- player flipped (nil = follow the setting) and whether the Completed group is open.
-WC.panelState = { selected = false, lastTab = nil, allZones = nil, zoneSeen = nil, doneOpen = false }
+WC.panelState = { selected = false, lastTab = nil, allZones = nil, zoneSeen = nil, doneOpen = false, selectedStep = nil }
 
 -- ---------------------------------------------------------------- pure model
 
@@ -66,14 +68,37 @@ function WC.PanelModel(opts)
     return out
 end
 
--- "20 stops · about 137 map units": the steps and the summed straight legs between consecutive steps on one map.
-function WC.PanelFooter(steps)
-    local units, prev = 0, nil
+-- The summed straight legs of the steps in yards, or nil when any leg's map has no real size from the client (the
+-- header's "125 yd W" uses the same WC.PlanDistance and WC.MapYards).
+function WC.PlanYards(steps)
+    local total, prev = 0, nil
     for _, s in ipairs(steps or {}) do
-        if prev and prev.map == s.map then units = units + math.sqrt((s.x - prev.x) ^ 2 + (s.y - prev.y) ^ 2) end
+        if prev and prev.map == s.map then
+            local w, h
+            if C_Map and C_Map.GetMapWorldSize then w, h = C_Map.GetMapWorldSize(s.map) end
+            if not (type(w) == "number" and type(h) == "number" and w > 0 and h > 0) then return nil end
+            local mw, mh = WC.MapYards(s.map)
+            total = total + (WC.PlanDistance(prev.x, prev.y, s.x, s.y, mw, mh))
+        end
         prev = s
     end
-    return string.format(L.PANEL_FOOTER, #(steps or {}), math.floor(units + 0.5))
+    return total
+end
+
+-- "23 stops", plus " · about 148 yd" only when the distance is known in yards.
+function WC.PanelFooter(steps)
+    local n = #(steps or {})
+    local yd = WC.PlanYards(steps)
+    if yd and yd > 0 then return string.format(L.PANEL_FOOTER_YD, n, math.floor(yd + 0.5)) end
+    return string.format(L.PANEL_FOOTER, n)
+end
+
+-- A row's height from its measured lines (title, sub-line, "then:" line); a 0 line takes no room.
+function WC.RowHeight(titleH, subH, thenH)
+    local h = ROW_PAD_T + math.max(titleH or 0, 0) + ROW_PAD_B
+    if (subH or 0) > 0 then h = h + ROW_GAP + subH end
+    if (thenH or 0) > 0 then h = h + ROW_GAP + thenH end
+    return math.max(ROW_MIN, h)
 end
 
 -- The header's strings: step counter, distance and direction to the next step, and the advice time.
@@ -126,13 +151,49 @@ function WC.CenterOnStep(step)
     if (step.questID or 0) > 0 then WC.PulseQuests({ [step.questID] = true }, 3) end
 end
 
--- A click on a row: left centres the map on the step, right opens the detail card of its quest.
+-- The selected step (its row and map badge stay highlighted until another is clicked, the same one again, or the map
+-- closes). Only the one step is selected, never the badge group it shares a spot with.
+function WC.SelectStep(step)
+    local st = WC.panelState
+    local n = step and step.n or nil
+    if n == nil or st.selectedStep == n then st.selectedStep = nil else st.selectedStep = n end
+    WC.ApplySelection()
+    return st.selectedStep
+end
+
+function WC.ClearSelectedStep()
+    if WC.panelState.selectedStep ~= nil then
+        WC.panelState.selectedStep = nil
+        WC.ApplySelection()
+    end
+end
+
+-- Paints the selected look on the panel's rows and map badges, without a redraw.
+function WC.ApplySelection()
+    local f = WC.mapPanel
+    if f then
+        for _, r in ipairs(f.rows) do
+            if r.selBg then WC.ApplyRowSelection(r) end
+        end
+    end
+    if WC.ApplyMapSelection then WC.ApplyMapSelection() end
+end
+
+function WC.ApplyRowSelection(r)
+    local on = r.step ~= nil and r:IsShown() and r.step.n == WC.panelState.selectedStep
+    r.selBg:SetShown(on)
+    r.selBar:SetShown(on)
+    r.badge.selRing:SetShown(on)
+end
+
+-- A click on a row: left selects the step and centres the map on it, right opens the detail card of its quest.
 function WC.PanelRowClick(step, button)
     if button == "RightButton" then
         if (step.questID or 0) <= 0 then return "none" end
         WC.OpenCard(WC.MakeEntry("quest", "mp" .. step.questID, {}, { quest = step.questID, title = step.quest, level = step.level }))
         return "card"
     end
+    WC.SelectStep(step)
     WC.CenterOnStep(step)
     return "center"
 end
@@ -144,7 +205,7 @@ local function mp() return WC.mapPanel end
 -- One row frame, built once and reused.
 local function make_row(f, i)
     local r = CreateFrame("Button", nil, f.child)
-    r:SetSize(f.rowWidth, ROW_H)
+    r:SetSize(f.rowWidth, ROW_MIN)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r.hl = r:CreateTexture(nil, "BACKGROUND")
     r.hl:SetAllPoints()
@@ -152,35 +213,51 @@ local function make_row(f, i)
     r.nextBg = r:CreateTexture(nil, "BACKGROUND")
     r.nextBg:SetAllPoints()
     r.nextBg:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.12)
+    r.selBg = r:CreateTexture(nil, "BACKGROUND")
+    r.selBg:SetAllPoints()
+    r.selBg:SetColorTexture(SEL[1], SEL[2], SEL[3], 0.2)
+    r.selBg:Hide()
+    r.selBar = r:CreateTexture(nil, "ARTWORK")
+    r.selBar:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
+    r.selBar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
+    r.selBar:SetWidth(3)
+    r.selBar:SetColorTexture(SEL[1], SEL[2], SEL[3], 1)
+    r.selBar:Hide()
     r.badge = CreateFrame("Frame", nil, r)
     r.badge:SetSize(24, 24)
     r.badge:SetPoint("LEFT", r, "LEFT", 2, 0)
     WC.BadgeParts(r.badge, 2, 9, "GameFontNormalSmall", 3)
     r.badge.glow:SetSize(30, 30)
+    r.badge.selRing = r.badge:CreateTexture(nil, "BACKGROUND")
+    r.badge.selRing:SetTexture(WC.DISC or "Interface\\COMMON\\Indicator-Gray")
+    r.badge.selRing:SetPoint("TOPLEFT", r.badge, "TOPLEFT", -3, 3)
+    r.badge.selRing:SetPoint("BOTTOMRIGHT", r.badge, "BOTTOMRIGHT", 3, -3)
+    r.badge.selRing:SetVertexColor(SEL[1], SEL[2], SEL[3], 1)
+    r.badge.selRing:Hide()
     r.badge.notchBg:Hide()
     r.badge.mark:Hide()
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(14, 14)
     r.icon:SetPoint("LEFT", r.badge, "RIGHT", 4, 0)
     r.label = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -5)
-    r.label:SetWidth(f.rowWidth - 70)
+    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -ROW_PAD_T)
     r.label:SetJustifyH("LEFT")
     r.sub = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -21)
-    r.sub:SetWidth(f.rowWidth - 70)
+    r.sub:SetPoint("TOPLEFT", r.label, "BOTTOMLEFT", 0, -ROW_GAP)
     r.sub:SetJustifyH("LEFT")
     r.thenLine = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    r.thenLine:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -33)
-    r.thenLine:SetWidth(f.rowWidth - 70)
+    r.thenLine:SetPoint("TOPLEFT", r.sub, "BOTTOMLEFT", 0, -ROW_GAP)
     r.thenLine:SetJustifyH("LEFT")
+    for _, fs in ipairs({ r.label, r.sub, r.thenLine }) do
+        if fs.SetWordWrap then fs:SetWordWrap(true) end
+    end
     r.newTag = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    r.newTag:SetPoint("TOPRIGHT", r, "TOPRIGHT", -6, -6)
+    r.newTag:SetPoint("TOPRIGHT", r, "TOPRIGHT", -8, -ROW_PAD_T)
     r.newTag:SetTextColor(0.25, 0.9, 0.25)
     r.newTag:SetText(L.NEW_TAG)
     r.check = r:CreateTexture(nil, "OVERLAY")
     r.check:SetSize(14, 14)
-    r.check:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+    r.check:SetPoint("RIGHT", r, "RIGHT", -8, 0)
     r.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     r.owner = f
     r:SetScript("OnEnter", function(self)
@@ -204,9 +281,7 @@ end
 -- Fills one row frame from a model row and puts it at y.
 local function fill_row(f, i, m, y)
     local r = f.rows[i] or make_row(f, i)
-    local h = ROW_H + (m.thenText and THEN_H or 0)
-    r.step, r.top, r.hh = m.step, y, h
-    r:SetSize(f.rowWidth, h)
+    r.step, r.top = m.step, y
     r.thenTip = m.thenTip
     r.thenLine:SetText(m.thenText or "")
     r.thenLine:SetShown(m.thenText ~= nil)
@@ -218,8 +293,21 @@ local function fill_row(f, i, m, y)
     r.badge.num:SetText(tostring(m.n))
     r.badge.num:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
     if m.icon then r.icon:SetTexture(m.icon) r.icon:Show() else r.icon:Hide() end
+    local tw = math.max(60, f.rowWidth - 48 - 26) -- text clears the badge on the left and the check / New tag on the right
+    for _, fs in ipairs({ r.label, r.sub, r.thenLine }) do fs:SetWidth(tw) end
     r.label:SetText(m.title)
-    r.sub:SetText(m.sub)
+    r.sub:SetText(m.sub or "")
+    local function line_h(fs, shown, fallback)
+        if not shown then return 0 end
+        local mh = fs.GetStringHeight and fs:GetStringHeight()
+        return (type(mh) == "number" and mh > 0) and mh or fallback
+    end
+    local h = WC.RowHeight(line_h(r.label, true, LINE_TITLE), line_h(r.sub, (m.sub or "") ~= "", LINE_SUB),
+        line_h(r.thenLine, m.thenText ~= nil, LINE_SUB))
+    r.hh = h
+    r:SetSize(f.rowWidth, h)
+    r.thenLine:ClearAllPoints()
+    r.thenLine:SetPoint("TOPLEFT", (m.sub or "") ~= "" and r.sub or r.label, "BOTTOMLEFT", 0, -ROW_GAP)
     r.nextBg:SetShown(m.isNext)
     r.check:SetShown(m.done)
     r.baseColor = m.done and DIM or (m.isNext and { 1, 0.95, 0.6 } or GOLD)
@@ -227,6 +315,7 @@ local function fill_row(f, i, m, y)
     r.sub:SetTextColor(m.done and DIM[1] or 0.85, m.done and DIM[2] or 0.85, m.done and DIM[3] or 0.85)
     r:Show()
     WC.ApplyRowHover(r)
+    WC.ApplyRowSelection(r)
     return r
 end
 
@@ -238,12 +327,17 @@ function WC.RefreshMapPanel()
     local p = WC.plan
     local all = WC.PanelAllZones()
     f.zoneBtn:SetText(all and L.PANEL_ALL_ZONES or L.PANEL_THIS_MAP)
+    local fs = f.zoneBtn.GetFontString and f.zoneBtn:GetFontString()
+    local tw = fs and fs.GetStringWidth and fs:GetStringWidth()
+    f.zoneBtn:SetSize((type(tw) == "number" and tw > 0) and (tw + 24) or 90, 22) -- sized to its text, like the client's small buttons
+    local sw = f.scroll.GetWidth and f.scroll:GetWidth() or 0
+    if sw and sw > 0 then f.rowWidth = math.floor(sw) end
+    f.child:SetWidth(f.rowWidth)
     local used = 0
     local y = 0
     local function put(m)
         used = used + 1
-        fill_row(f, used, m, y)
-        y = y + ROW_H + (m.thenText and THEN_H or 0)
+        y = y + fill_row(f, used, m, y).hh
     end
     if p then
         local model = WC.PanelModel({ steps = p.steps, done = p.done, nextStep = WC.PlanNext(), mapID = shown_map(),
@@ -267,8 +361,8 @@ function WC.RefreshMapPanel()
         f.footer:SetText("")
     end
     for i = used + 1, #f.rows do f.rows[i]:Hide() end
-    f.child:SetHeight(math.max(y, 1))
-    f.scrollRange = math.max(0, y - (f.scroll:GetHeight() or 0))
+    f.child:SetHeight(math.max(y + 8, 1))
+    f.scrollRange = math.max(0, y + 8 - (f.scroll:GetHeight() or 0))
     if WC.HoverCheck then WC.HoverCheck() end
 end
 
@@ -307,14 +401,14 @@ local function create_frame()
     f.bg:SetAllPoints()
     f.bg:SetColorTexture(0.06, 0.05, 0.04, 1)
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -14)
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -TOP_INSET)
     f.stepText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.stepText:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -36)
+    f.stepText:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -5)
     f.advice = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.advice:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -54)
+    f.advice:SetPoint("TOPLEFT", f.stepText, "BOTTOMLEFT", 0, -4)
     f.eye = CreateFrame("Button", "WoWCompanionMapPanelEye", f)
     f.eye:SetSize(22, 22)
-    f.eye:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD - 4, -12)
+    f.eye:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD - SCROLL_W, -TOP_INSET + 2)
     f.eye.tex = f.eye:CreateTexture(nil, "ARTWORK")
     f.eye.tex:SetAllPoints()
     f.eye.tex:SetTexture("Interface\\Icons\\INV_Misc_Eye_01")
@@ -326,12 +420,12 @@ local function create_frame()
     end)
     f.eye:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.zoneBtn = CreateFrame("Button", "WoWCompanionMapPanelZone", f, "UIPanelButtonTemplate")
-    f.zoneBtn:SetSize(130, 20)
-    f.zoneBtn:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -68)
+    f.zoneBtn:SetSize(90, 22)
+    f.zoneBtn:SetPoint("TOPLEFT", f.advice, "BOTTOMLEFT", 0, -6)
     f.zoneBtn:SetScript("OnClick", function() WC.ToggleMapPanelZones() end)
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionMapPanelScroll", f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEAD_H)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD - 18, 30)
+    f.scroll:SetPoint("TOPLEFT", f.zoneBtn, "BOTTOMLEFT", -4, -6)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD - SCROLL_W, 40)
     f.child = CreateFrame("Frame", nil, f.scroll)
     f.child:SetSize(f.rowWidth, 1)
     f.scroll:SetScrollChild(f.child)
@@ -344,7 +438,7 @@ local function create_frame()
     f.doneHead:SetNormalFontObject("GameFontNormal")
     f.doneHead:SetScript("OnClick", function() WC.panelState.doneOpen = not WC.panelState.doneOpen; WC.RefreshMapPanel() end)
     f.footer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.footer:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD + 4, 10)
+    f.footer:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD + 4, 18)
     f:Hide()
     WC.mapPanel = f
     return f
@@ -419,6 +513,7 @@ function WC.HookClientTabs()
     if not col then return end
     if not hooked.mode and hooksecurefunc and type(col.SetDisplayMode) == "function" then
         hooked.mode = pcall(hooksecurefunc, col, "SetDisplayMode", function(_, mode)
+            WC.PlaceMapTab()
             if mode ~= WC.TAB_MODE then client_changed() end
         end)
     end
