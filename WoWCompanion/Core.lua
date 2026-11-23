@@ -65,8 +65,11 @@ SlashCmdList["WOWC"] = function(msg)
         else
             WC.ResetPanel()
         end
+    elseif cmd == "copytest" then
+        WC.CopyTest()
     else
         for _, line in ipairs(WC.HELP) do print(line) end
+        if (msg:match("^%s*%S+%s+(%S+)") or ""):lower() == "debug" then print(L.HELP_COPYTEST) end
     end
 end
 

@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.8" and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1")
+    assert(TOC_VERSION == "0.6.9" and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -3204,6 +3204,38 @@ cases[#cases + 1] = { "card copy: the key handler changes nothing; the confirmat
     assert(not box.focused and not c.copying)
     C_Timer, IsControlKeyDown, IsMetaKeyDown = nil, nil, nil
     WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "card copy box: multi-line like 0.6.0, fitted to the question; the key handler leaves text, selection and focus", function()
+    local p, WC = card_client(ask_digest())
+    local c = open_card(p, "Quest 10")
+    local box = WoWCompanionCardAsk
+    assert(box.multiLine == true and box.template == "BackdropTemplate" and box.w == 282, "multi-line BackdropTemplate box, fixed width")
+    c.chips[1].scripts.OnClick(c.chips[1])
+    assert(box.h >= 2 * WC.LINE_HEIGHT and box.h <= 3 * WC.LINE_HEIGHT + 8, "two or three lines tall")
+    IsControlKeyDown = function() return true end
+    local hl, fc, txt = box.highlightCalls, box.focusCalls, box:GetText()
+    box.scripts.OnKeyDown(box, "C")
+    assert(box:GetText() == txt and box.focused and box.highlighted and box.highlightCalls == hl and box.focusCalls == fc)
+    IsControlKeyDown = nil
+    WoWCompanionCard = nil
+end }
+
+cases[#cases + 1] = { "/wowc copytest builds box A like the copy box and the bare InputBoxTemplate box B; help debug lists it", function()
+    local p, WC = card_client(ask_digest())
+    PRINTED = {}
+    SlashCmdList.WOWC("help")
+    assert(not table.concat(PRINTED, "\n"):find("copytest", 1, true), "hidden from plain help")
+    PRINTED = {}
+    SlashCmdList.WOWC("help debug")
+    assert(table.concat(PRINTED, "\n"):find("/wowc copytest", 1, true))
+    PRINTED = {}
+    SlashCmdList.WOWC("copytest")
+    local a, b = WoWCompanionCopyTestA, WoWCompanionCopyTestB
+    assert(a and b and a.multiLine == true and a.template == "BackdropTemplate" and b.template == "InputBoxTemplate")
+    assert(a:GetText() == "WoWC copy test A" and b:GetText() == "WoWC copy test B" and WoWCompanionCopyTest:IsShown())
+    assert(#PRINTED == 0, "local UI only")
+    WoWCompanionCopyTest, WoWCompanionCopyTestA, WoWCompanionCopyTestB = nil, nil, nil
 end }
 
 cases[#cases + 1] = { "card: the Ask label hides without questions; the dim line stays", function()
