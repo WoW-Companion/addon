@@ -320,6 +320,7 @@ local L = {
     VIEW_BUTTON_compact = "Compact",
     VIEW_BUTTON_next = "Next step",
     VIEW_CLICK = "Click to switch",
+    WHATS_NEW_0_6_9_1 = "Copying a question works again: click it, press Ctrl+C, and paste into the overlay.",
     WHATS_NEW_0_6_8_1 = "The view button at the top now cycles Full, Compact and Next step only.",
     HIDE_TRACKER_COMBAT = "Hide in combat",
     HIDE_PANEL_COMBAT = "Hide in combat",
@@ -387,6 +388,11 @@ local L = {
     HELP_RESET_VISUALS = "  /wowc reset visuals - restore every colour, opacity and size to its default",
     HELP_RESET_ALL = "  /wowc reset all - restore every setting to its default (saved positions stay)",
     HELP_STATUS = "  /wowc status - show versions, digest age, queued questions and the digest slot",
+    HELP_COPYTEST = "  /wowc copytest - open two test boxes to check that Ctrl+C reaches the clipboard",
+    COPYTEST_TITLE = "Copy test",
+    COPYTEST_LABEL = "Click, Ctrl+A, Ctrl+C, then paste into the overlay",
+    COPYTEST_A = "WoWC copy test A",
+    COPYTEST_B = "WoWC copy test B",
     HELP_HELP = "  /wowc help - show this list",
 
     -- Status
