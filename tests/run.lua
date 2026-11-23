@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.10" and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1")
+    assert(TOC_VERSION == "0.6.11" and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2256,6 +2256,150 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
+-- A map frame holding a quest panel (left edge 1000, top 800) and tab-like children whose rectangles are given as
+-- { left, bottom, w, h } (the owner of those frames is irrelevant: only geometry is read).
+local function geo_map(rects)
+    local map = CreateFrame("Frame", nil, UIParent)
+    local col = CreateFrame("Frame", nil, map)
+    col.w, col.h = 300, 600
+    function col:GetLeft() return 1000 end
+    function col:GetTop() return 800 end
+    local tabs = {}
+    for i, r in ipairs(rects) do
+        local t = CreateFrame("Button", nil, col)
+        t.rect, t.mouse = r, true
+        function t:GetRect() return self.rect[1], self.rect[2], self.rect[3], self.rect[4] end
+        function t:IsMouseEnabled() return self.mouse end
+        tabs[i] = t
+    end
+    return map, col, tabs
+end
+
+local function tab_rects(tops, right, size)
+    local out = {}
+    for i, top in ipairs(tops) do out[i] = { right - size, top - size, size, size } end
+    return out
+end
+
+cases[#cases + 1] = { "map tab column: placement from rectangles (empty, full, gap, collapsed), modal size, right edge", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local function rects(list) local o = {} for i, r in ipairs(list) do o[i] = { left = r[1], bottom = r[2], right = r[1] + r[3], top = r[2] + r[4] } end return o end
+    assert(WC.ColumnPlacement({}) == nil, "an empty column: the drag position applies")
+    local full = WC.ColumnPlacement(rects(tab_rects({ 800, 753, 706 }, 1000, 44)))
+    assert(full.w == 44 and full.h == 44 and full.right == 1000 and full.top == 706 - 44 - 3 and full.gap == 3 and full.n == 3)
+    local gap = WC.ColumnPlacement(rects(tab_rects({ 800, 650 }, 1000, 44)))
+    assert(gap.top == 753, "the first gap of a tab's height, with the column's spacing")
+    local tight = WC.ColumnPlacement(rects(tab_rects({ 800, 745 }, 1000, 44)))
+    assert(tight.top == 745 - 44 - 11, "a gap too small is skipped")
+    local collapsed = WC.ColumnPlacement(rects(tab_rects({ 800 }, 1000, 44)))
+    assert(collapsed.top == 753)
+    local odd = WC.ColumnPlacement(rects({ { 956, 756, 44, 44 }, { 956, 709, 44, 44 }, { 960, 662, 40, 40 } }))
+    assert(odd.w == 44 and odd.h == 44 and odd.right == 1000, "modal size, not the smallest or last")
+    assert(WC.ColumnPlacement(rects({ { 940, 700, 60, 60 }, { 940, 630, 60, 60 } })).w == 60, "the column's own size")
+    for _, set in ipairs({ { 800, 753, 706 }, { 800, 650 }, { 800, 745, 600 }, { 800 } }) do
+        local rs = rects(tab_rects(set, 1000, 44))
+        local p = WC.ColumnPlacement(rs)
+        for _, r in ipairs(rs) do assert(p.top <= r.bottom or p.top - p.h >= r.top, "no overlap") end
+    end
+end }
+
+cases[#cases + 1] = { "map tab column: placed flush right in the free slot, follows collapse and expand, never overlaps", function()
+    local map, col, tabs = geo_map(tab_rects({ 800, 753 }, 1000, 44))
+    WorldMapFrame, QuestMapFrame = map, col
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    local function pt() local p = b.points[1] return p[1], p[3], p[4], p[5] end
+    local function overlaps()
+        for _, t in ipairs(tabs) do
+            if t.shown then
+                local l, bt, w, h = t:GetRect()
+                local top = 800 + b.points[1][5]
+                local right = 1000 + b.points[1][4]
+                if right > l and right - b.w < l + w and top > bt and top - b.h < bt + h then return true end
+            end
+        end
+        return false
+    end
+    assert(b.w == 44 and b.h == 44)
+    local point, relPt, x, y = pt()
+    assert(point == "TOPRIGHT" and relPt == "TOPLEFT" and x == 0 and y == -94 and not WC.MapTabAlone(), "right edge on the panel's, below the stack")
+    assert(not overlaps())
+    -- a tab collapses: ours follows it up; expands: ours moves back down
+    tabs[2].shown = false
+    assert(WC.WatchTabColumn(0.2) == false, "throttled under half a second")
+    assert(WC.WatchTabColumn(0.4) == true)
+    assert(select(4, pt()) == -47 and not overlaps())
+    assert(WC.WatchTabColumn(0.6) == false, "unchanged strip: no re-place")
+    tabs[2].shown = true
+    assert(WC.WatchTabColumn(0.6) == true and select(4, pt()) == -94 and not overlaps())
+    -- a tab that is not mouse-enabled, or whose edge is far from the panel, is not in the column
+    tabs[2].mouse = false
+    WC.WatchTabColumn(0.6)
+    assert(select(4, pt()) == -47)
+    tabs[2].mouse = true
+    tabs[2].rect = { 900, 700, 44, 44 }
+    WC.WatchTabColumn(0.6)
+    assert(select(4, pt()) == -47)
+    -- the map resizes: re-placed on size change
+    tabs[2].rect = { 956, 709 - 20, 44, 44 }
+    map.scripts.OnSizeChanged(map)
+    assert(select(4, pt()) == -134 and not overlaps(), "re-placed under the moved tab, with the column's new spacing")
+    -- every tab gone: ours falls back to its own spot
+    tabs[1].shown, tabs[2].shown = false, false
+    WC.WatchTabColumn(0.6)
+    assert(WC.MapTabAlone() and b.w == 44)
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map tab column: a Shift-drag position overrides the column until reset; the probe records numbers only", function()
+    local map, col, tabs = geo_map(tab_rects({ 800, 753 }, 1000, 44))
+    col.h = 600
+    function col:GetHeight() return 600 end
+    WorldMapFrame, QuestMapFrame = map, col
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local b = WC.mapButton
+    WC.SetSetting("mapTabY", -300)
+    WC.PlaceMapTab()
+    assert(b.points[1][5] == -300 and b.points[1][4] == 0 and b.w == 44, "saved position, still the column's size and edge")
+    WC.ResetMapTabPosition()
+    assert(b.points[1][5] == -94)
+    WoWCompanionDB.observed = nil
+    WC.RecordMapGeometry()
+    local c = WoWCompanionDB.observed.mapGeometry.column
+    assert(c.n == 2 and c.w == 44 and c.h == 44 and c.gap == 3 and c.x == 0 and c.y == -94 and c.mode == "column")
+    for k, v in pairs(c) do assert(type(v) == "number" or k == "mode", k) end
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map panel: no border or backdrop art of our own, the title sits inside the client's frame, scroll inside", function()
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    QuestMapFrame = fake_column({})
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WC.mapButton.scripts.OnClick(WC.mapButton, "LeftButton")
+    local f = WC.mapPanel
+    assert(f.backdrop == nil and f.borderColor == nil and f.border == nil and f.titleFrame == nil)
+    local tl = f.title.points[1]
+    assert(tl[1] == "TOPLEFT" and tl[2] == f and tl[4] >= 0 and tl[5] <= 0, "the header line starts inside the panel")
+    assert(f.scroll.anchors.BOTTOMRIGHT[2] == f and f.scroll.anchors.BOTTOMRIGHT[4] < 0, "the scroll bar stays inside")
+    for _, file in ipairs({ "MapPanel", "Button" }) do
+        local src = assert(io.open("WoWCompanion/" .. file .. ".lua")):read("*a")
+        assert(not src:find("SetBackdrop", 1, true), file)
+    end
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "map tab column: the code never names, reads or anchors to another addon's frames", function()
+    local banned = { "ElvUI", "Questie", "Leatrix", "Mapster", "Gatherer", "HandyNotes", "TomTom", "WorldQuestTracker", "Chinchilla", "Carbonite", "Mapzilla", "Capping", "Bartender", "Titan", "SexyMap", "AtlasLoot", "Cartographer", "MapSter", "Lib%u" }
+    for _, file in ipairs({ "Button", "MapPanel", "Geometry" }) do
+        local src = assert(io.open("WoWCompanion/" .. file .. ".lua")):read("*a")
+        for _, n in ipairs(banned) do assert(not src:find(n), file .. " names " .. n) end
+    end
+end }
+
 cases[#cases + 1] = { "map panel: anchored to the client's content inset; the probe records the real geometry as data", function()
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
     QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
@@ -2295,6 +2439,7 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     local seen = {}
     for k in pairs(g) do seen[k] = true end
     assert(type(g.tabArt) == "table" and #g.tabArt >= 1 and g.tabOffset == 0 and g.questList == nil and g.questScroll == nil)
+    assert(seen.column, "our tab's computed placement is recorded"); seen.column = nil
     for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "panel", "tabs", "inset" }) do assert(seen[k], k); seen[k] = nil end
     assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
