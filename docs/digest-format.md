@@ -117,3 +117,7 @@ Any incompatible change bumps `schema`; the panel only renders versions it knows
 ## Schema 1.5 additions (all optional)
 
 On any digest entry (a line of a section, a talent, a dungeon): `asks` (1-3 natural questions, at most 90 characters each, shown as clickable chips on the card), `ref` (a reference string sent back with each question asked from that entry). A note line may carry `kind = "giver"` with `npc`, `zone`, `x`, `y`, `quest` and `title`: the panel shows the client's "!" quest icon and its card offers "Show on map" when the plan has a step for `quest`.
+
+## Schema 1.6 additions (all optional)
+
+On any digest entry: `why`, a short factual reason the entry is worth doing (at most 70 characters). The panel shows it as one dim line under the entry (at most 2 lines; the "Show why each entry matters" option hides it), the card shows it as its first detail line, and the map plan uses it as a row's sub-line when the row has no objective progress to show. Plan steps carry plain labels ("Pick up …", "Kill … (0/1)", "Collect … (0/8)", "Turn in …"), shown as they are.

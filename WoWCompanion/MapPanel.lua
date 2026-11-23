@@ -24,12 +24,17 @@ WC.panelState = { selected = false, lastTab = nil, allZones = nil, zoneSeen = ni
 -- The sub-line under a row's title: the pick-up or turn-in giver, or the live objective.
 function WC.StepSubLine(step)
     local detail = WC.PlanDetail(step)
+    -- a row with no objective progress to show carries its entry's short why instead
+    local why = WC.Setting("showWhy") and WC.QuestWhy(step.questID) or nil
     if step.kind == "pickup" or step.kind == "turnin" then
+        if why then return why end
         local who = detail:gsub("^[Ff]rom%s+", ""):gsub("^[Tt]o%s+", "")
         if who == "" then return step.kind == "pickup" and L.PANEL_PICKUP or L.PANEL_TURNIN end
         return string.format(step.kind == "pickup" and L.PANEL_PICKUP_FROM or L.PANEL_TURNIN_TO, who)
     end
-    return WC.PlanLiveText(step, detail ~= "" and detail or step.label or "")
+    local live = WC.PlanLiveText(step, detail ~= "" and detail or step.label or "")
+    if why and not live:find("%d+/%d+") then return why end
+    return live
 end
 
 -- A row's title: "[level] Quest title" (the client's title when it has one, else the plan's).

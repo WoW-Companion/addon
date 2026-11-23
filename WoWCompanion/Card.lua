@@ -192,6 +192,7 @@ function WC.CardModel(entry)
     end
     local label = L["CARD_KIND_" .. kind] or L.CARD_KIND_note
     m.subtitle = level and string.format(L.CARD_LEVEL_KIND, math.floor(level), label) or label
+    if entry.why then rows[#rows + 1] = row(entry.why, WC.COLORS.white) end
     for _, d in ipairs(entry.details or {}) do rows[#rows + 1] = row(d, WC.COLORS.white) end
     if kind == "quest" then
         local st = quest_rows(entry, rows)
