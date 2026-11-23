@@ -1882,8 +1882,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.6" and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_6_1")
+    assert(TOC_VERSION == "0.6.7" and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -3447,28 +3447,107 @@ cases[#cases + 1] = { "upgrades: the panel shows the same two lines under each i
     UnitLevel = nil
 end }
 
-cases[#cases + 1] = { "upgrades: the card lists every upgrade with its path, chips and Show on map", function()
+cases[#cases + 1] = { "upgrades: the card is a list of compact rows, with the facts once and questions per row", function()
     UnitLevel = function() return 10 end
     local p, WC = card_client(upgrade_digest(), { [10] = "active" })
     local entry = chip_of(p, "upgrade").chip.entry
     local m = WC.CardModel(entry)
-    local text = card_text(WC, entry)
     assert(m.title == "6 upgrades you can get", m.title)
-    assert(text:find("You wear: Worn Cloak\nLook for: Traveler's Shawl \226\128\148 Big upgrade\n", 1, true), text)
-    assert(text:find("You wear: nothing in this slot\nLook for: Copper Chain Vest \226\128\148 Solid upgrade", 1, true))
-    assert(text:find("Finish Lost Shawl and choose it", 1, true) and text:find("Copper Bar: have 3 of 6", 1, true))
-    assert(not text:find("instead of your", 1, true) and not text:find("fills an empty slot", 1, true))
-    assert(text:find("Fang Boots", 1, true) and text:find("Extra Ring", 1, true), "every upgrade, not four")
-    assert(table.concat(m.asks, "|") == "How do I get Traveler's Shawl?|How do I get Copper Chain Vest?|How do I get Tough Bracers?")
+    assert(#m.list == 6 and #m.rows == 0 and #m.asks == 0)
+    local r1, r2, r3 = m.list[1], m.list[2], m.list[3]
+    assert(r1.slot == "Cloak" and r1.gain == "Big upgrade" and r1.look == "Look for: Traveler's Shawl", r1.look)
+    assert(r1.detail[1].text == "You wear: Worn Cloak" and r1.detail[2].text == "Finish Lost Shawl and choose it")
+    assert(r2.detail[1].text == "You wear: nothing in this slot" and r2.detail[3].text == "Copper Bar: have 3 of 6")
+    assert(r3.look == "From level 12 \194\183 Look for: Tough Bracers", r3.look)
+    assert(table.concat(r1.asks, "|") == "How do I get Traveler's Shawl?" and #m.list[4].asks == 0)
     assert(#m.actions == 1 and m.actions[1].label == "Show on map")
     -- one upgrade's own card
     local own = entry.upgrades[1]
     local om = WC.CardModel(own)
     assert(om.asks[1] == "How do I get Traveler's Shawl?" and #om.actions == 1 and om.actions[1].label == "Show on map")
-    local craft = WC.CardModel(entry.upgrades[2])
-    assert(#craft.actions == 0 and craft.asks[1] == "How do I get Copper Chain Vest?")
-    assert(card_text(WC, entry.upgrades[3]):find("Usually on the Auction House \194\183 from level 12", 1, true))
+    assert(card_text(WC, own):find("You wear: Worn Cloak\nLook for: Traveler's Shawl \226\128\148 Big upgrade", 1, true))
+    assert(#WC.CardModel(entry.upgrades[2]).actions == 0)
     UnitLevel = nil
+end }
+
+local function open_upgrades(WC, p)
+    local entry = chip_of(p, "upgrade").chip.entry
+    UIParent.h = 768
+    WC.OpenCard(entry)
+    return WC.card
+end
+
+cases[#cases + 1] = { "upgrades: the card is capped to the screen, scrolls, and one row opens at a time", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(upgrade_digest(), { [10] = "active" })
+    local c = open_upgrades(WC, p)
+    local cap = WC.CardMaxHeight(c)
+    assert(c:GetHeight() <= cap and cap <= 768, c:GetHeight() .. " " .. cap)
+    assert(c.content.parent == c.scroll and c.scroll.child == c.content and c.scroll.wheel)
+    -- collapsed: six rows of two lines; a tall list on a short screen scrolls
+    for i = 1, 6 do assert(c.rowBtns[i]:IsShown() and c.rowBtns[i].slot.text and c.rowBtns[i].look.text:find("Look for: ", 1, true)) end
+    assert(not c.rowBtns[7] or not c.rowBtns[7]:IsShown())
+    assert(c.scrollRange == 0 and c.contentHeight <= c.viewHeight)
+    c.rowBtns[1].scripts.OnClick(c.rowBtns[1])
+    assert(c.expanded == 1 and c.asksShown[1] == "How do I get Traveler's Shawl?" and c.chips[1]:IsShown())
+    c.rowBtns[2].scripts.OnClick(c.rowBtns[2])
+    assert(c.expanded == 2 and #c.asksShown == 1 and c.asksShown[1] == "How do I get Copper Chain Vest?")
+    local open = 0
+    for _, b in ipairs(c.rowBtns) do if b.open then open = open + 1 end end
+    assert(open == 1)
+    c.rowBtns[2].scripts.OnClick(c.rowBtns[2])
+    assert(c.expanded == nil)
+    -- a short screen: the card stops at the cap and the content scrolls
+    UIParent.h = 330
+    WC.CloseCard()
+    WC.OpenCard(chip_of(p, "upgrade").chip.entry)
+    c = WC.card
+    c.rowBtns[1].scripts.OnClick(c.rowBtns[1])
+    assert(c:GetHeight() <= 330 and c.scrollRange > 0, c:GetHeight() .. " " .. tostring(c.scrollRange))
+    c.scroll.scripts.OnMouseWheel(c.scroll, -1)
+    assert(c.scroll:GetVerticalScroll() > 0)
+    for i = 1, 40 do c.scroll.scripts.OnMouseWheel(c.scroll, -1) end
+    assert(c.scroll:GetVerticalScroll() == c.scrollRange)
+    UIParent.h = nil
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: a row says its slot, gain and replaced item once, and no text ends in a cut word", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(upgrade_digest(), { [10] = "active" })
+    local entry = chip_of(p, "upgrade").chip.entry
+    local m = WC.CardModel(entry)
+    for _, r in ipairs(m.list) do
+        local all = { r.slot, r.gain or "", r.look }
+        for _, d in ipairs(r.detail) do all[#all + 1] = d.text end
+        local text = table.concat(all, "\n")
+        local function lines_equal(s) local n = 0 for _, l in ipairs(all) do if l == s then n = n + 1 end end return n end
+        assert(lines_equal(r.slot) == 1, text)
+        if r.gain then assert(lines_equal(r.gain) == 1 and not r.look:find(r.gain, 1, true), text) end
+        assert(not text:lower():find("instead of your", 1, true) and not r.look:find(r.slot .. ":", 1, true), text)
+        local wears = 0
+        for _, l in ipairs(all) do if l:find("^You wear:") then wears = wears + 1 end end
+        assert(wears == 1)
+        for _, s in ipairs(all) do assert(not s:find("%.%.%.$") and not s:find("\226\128\166$"), s) end
+    end
+    -- a how line is cut at a word, never inside one
+    local d = upgrade_digest()
+    d.sections[2].lines[1].how = string.rep("word ", 30)
+    local p2, WC2 = card_client(d, { [10] = "active" })
+    local how = WC2.CardModel(chip_of(p2, "upgrade").chip.entry).list[1].detail[2].text
+    assert(#how <= 120 and how:match("word$"), how)
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: an older digest's slot prefix, gain and replaced item are not said twice", function()
+    local WC = WoWCompanion
+    local u = { title = "Cloak: Traveler's Shawl \226\128\148 Big upgrade, instead of your Worn Cloak", slot = "Cloak", gain = "Big upgrade", how = "Buy it" }
+    local r = WC.UpgradeListRow(u)
+    assert(r.slot == "Cloak" and r.gain == "Big upgrade" and r.look == "Look for: Traveler's Shawl", r.look)
+    assert(r.detail[1].text == "You wear: Worn Cloak", r.detail[1].text)
+    assert(WC.UpgradeMain(u) == "Cloak: Traveler's Shawl \226\128\148 Big upgrade", WC.UpgradeMain(u))
+    local t = WC.UpgradeListRow({ title = "back: Traveler's Shawl", slot = "back", how = "Buy it" })
+    assert(t.look == "Look for: Traveler's Shawl" and t.gain == nil)
 end }
 
 cases[#cases + 1] = { "upgrades: an older digest shows <Slot>: <Item> only", function()

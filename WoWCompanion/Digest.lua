@@ -74,6 +74,16 @@ local function clean(s, max)
     return #s > max and s:sub(1, max) or s
 end
 
+-- clean(), but a string over max is cut at a word, never in the middle of one.
+local function clean_words(s, max)
+    local t = clean(s, max + 1)
+    if t and #t > max then
+        local head = t:sub(1, max)
+        t = t:sub(max + 1, max + 1):find("%s") and head:gsub("%s+$", "") or head:match("^(.-)%s+%S*$") or head
+    end
+    return t
+end
+
 -- The `details` lines of a digest entry: up to 6 strings of at most 160 characters; an empty list is nil.
 local function clean_details(list)
     if type(list) ~= "table" then return nil end
@@ -631,7 +641,7 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         if section.id == "upgrades" then
                             -- schema 1.7: the plain gain, when it can be worn, what it replaces and how to get it
                             entry.wear, entry.gain = clean(line.wear, 40), clean(line.gain, 40)
-                            entry.replaces, entry.how = clean(line.replaces, 80), clean(line.how, 120)
+                            entry.replaces, entry.how = clean(line.replaces, 80), clean_words(line.how, 120)
                             entry.pathKind = WC.PATH_ICONS[line.pathKind] and line.pathKind or nil
                             entry.materials = WC.CleanMaterials(line.materials)
                         end
