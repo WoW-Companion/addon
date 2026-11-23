@@ -13,6 +13,7 @@ local ART = "Interface\\Icons\\"
 local KIND_ICON = {
     ["note"] = ART .. "INV_Misc_Note_01", ["giver"] = "Interface\\GossipFrame\\AvailableQuestIcon", ["material"] = ART .. "INV_Misc_Bag_08",
     ["dungeon"] = ART .. "INV_Misc_Map_01", ["upgrade"] = ART .. "INV_Misc_QuestionMark",
+    ["stats"] = WC.ICONS.stats,
 }
 
 -- ---------------------------------------------------------------- client calls (each guarded; none protected)

@@ -121,3 +121,9 @@ On any digest entry (a line of a section, a talent, a dungeon): `asks` (1-3 natu
 ## Schema 1.6 additions (all optional)
 
 On any digest entry: `why`, a short factual reason the entry is worth doing (at most 70 characters). The panel shows it as one dim line under the entry (at most 2 lines; the "Show why each entry matters" option hides it), the card shows it as its first detail line, and the map plan uses it as a row's sub-line when the row has no objective progress to show. Plan steps carry plain labels ("Pick up …", "Kill … (0/1)", "Collect … (0/8)", "Turn in …"), shown as they are.
+
+## Stats check (optional)
+
+`stats = { profile = "Fury · leveling", insights = { ... }, asks = { ... } }`: `insights` are 1 to 3 short strings, `profile` names the spec and play style, `asks` are 1 to 3 questions (at most 90 characters each). The panel's Stats chip shows the profile and insights in its tooltip; its card lists the insights and offers the asks as question chips. Without `stats` the chip says to choose a play style in the overlay.
+
+The addon records the character's own stat totals for that check into `WoWCompanionDB.stats[<character name>]` = `{ at, level, str, agi, sta, int, spi, armor, ap, crit, dodge, parry, block }`, read-only, never in combat; a stat the client cannot report is left out.

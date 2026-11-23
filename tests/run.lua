@@ -3315,20 +3315,20 @@ end
 
 cases[#cases + 1] = { "chips: one per kind with something to do, none for zero, hidden by the settings", function()
     local p, WC = card_client()
-    assert(chip_kinds(p) == "talent,training,upgrade")
+    assert(chip_kinds(p) == "talent,training,upgrade,stats")
     assert(chip_of(p, "talent").count:GetText() == "2" and chip_of(p, "training").count:GetText() == "2" and chip_of(p, "upgrade").count:GetText() == "1")
     assert(chip_of(p, "talent").icon.texture == WC.ICONS.talent and chip_of(p, "upgrade").icon.texture == WC.ICONS.gear)
     local d = digest14()
     table.remove(d.sections[1].lines, 3) -- no talent line
     WoWCompanionDigest = d
     WC.Refresh()
-    assert(chip_kinds(p) == "training,upgrade", "zero points: no talent chip")
+    assert(chip_kinds(p) == "training,upgrade,stats", "zero points: no talent chip")
     WC.SetSetting("chips.training", false)
-    assert(chip_kinds(p) == "upgrade")
+    assert(chip_kinds(p) == "upgrade,stats")
     WC.SetSetting("showChips", false)
     assert(chip_kinds(p) == "" and p.chipH == 0)
     WC.ResetSetting("showChips"); WC.ResetSetting("chips.training")
-    assert(chip_kinds(p) == "training,upgrade")
+    assert(chip_kinds(p) == "training,upgrade,stats")
 end }
 
 cases[#cases + 1] = { "chips: counts come from the live talent value and the training list minus known spells", function()
@@ -3472,6 +3472,85 @@ cases[#cases + 1] = { "upgrades: an older digest shows <Slot>: <Item> only", fun
     UnitLevel = nil
 end }
 
+-- Stats: the read-only record of the character's totals, and the Stats chip with the digest's stat check.
+local function stub_stats()
+    UnitLevel = function() return 12 end
+    UnitStat = function(_, i) return 10 * i, 10 * i + 1 end
+    UnitArmor = function() return 100, 140 end
+    UnitAttackPower = function() return 50, 10, -5 end
+    GetCritChance = function() return 5.04 end
+    GetDodgeChance = function() return 3.2 end
+    GetParryChance = function() return 6 end
+    GetBlockChance = function() return 0 end
+end
+local function clear_stats()
+    UnitLevel, UnitStat, UnitArmor, UnitAttackPower = nil, nil, nil, nil
+    GetCritChance, GetDodgeChance, GetParryChance, GetBlockChance = nil, nil, nil, nil
+end
+
+cases[#cases + 1] = { "stats: the record has the contract's shape, keyed by the character name", function()
+    fresh_client(nil)
+    stub_stats()
+    local s = WoWCompanion.RecordStats()
+    local db = WoWCompanionDB.stats.Thrall
+    assert(s == db)
+    assert(db.level == 12 and db.str == 11 and db.agi == 21 and db.sta == 31 and db.int == 41 and db.spi == 51, "stat totals")
+    assert(db.armor == 140 and db.ap == 55 and db.crit == 5 and db.dodge == 3.2 and db.parry == 6 and db.block == 0)
+    assert(type(db.at) == "number")
+    clear_stats()
+end }
+
+cases[#cases + 1] = { "stats: nothing is written in combat; it is recorded when combat ends", function()
+    fresh_client(nil)
+    stub_stats()
+    COMBAT = true
+    Stub.fire(frames, "PLAYER_EQUIPMENT_CHANGED")
+    assert(WoWCompanionDB.stats == nil, "no write in combat")
+    COMBAT = false
+    Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+    assert(WoWCompanionDB.stats and WoWCompanionDB.stats.Thrall.str == 11, "deferred record")
+    WoWCompanionDB.stats = nil
+    Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+    assert(WoWCompanionDB.stats == nil, "nothing pending, nothing written")
+    clear_stats()
+end }
+
+cases[#cases + 1] = { "stats: an API this client lacks is skipped silently", function()
+    fresh_client(nil)
+    stub_stats()
+    GetBlockChance, UnitArmor = nil, nil
+    UnitAttackPower = function() error("boom") end
+    local s = WoWCompanion.RecordStats()
+    assert(s.str == 11 and s.crit == 5 and s.armor == nil and s.block == nil and s.ap == nil)
+    clear_stats()
+    WoWCompanionDB.stats = nil
+    assert(WoWCompanion.RecordStats() == nil and WoWCompanionDB.stats == nil, "no APIs, no record")
+end }
+
+cases[#cases + 1] = { "stats chip: tooltip and card with and without a stats entry", function()
+    local p, WC = card_client()
+    assert(tip_text(chip_of(p, "stats").chip) == "Choose a play style in the overlay for a stat check|Click for details")
+    assert(chip_of(p, "stats").icon.texture == WC.ICONS.stats)
+    assert(#WC.CardModel(chip_of(p, "stats").chip.entry).asks == 0)
+    local d = digest14()
+    d.stats = { profile = "Fury \194\183 leveling", insights = { "More Strength helps", "Spirit is wasted", "c", "too many" }, asks = { "Why Strength?", "What is wasted?" } }
+    WoWCompanionDigest = d
+    WC.Refresh()
+    local chip = chip_of(p, "stats").chip
+    assert(tip_text(chip) == "Fury \194\183 leveling|More Strength helps|Spirit is wasted|c|Click for details", tip_text(chip))
+    local m = WC.CardModel(chip.entry)
+    assert(card_text(WC, chip.entry) == "More Strength helps\nSpirit is wasted\nc")
+    assert(#m.asks == 2 and m.asks[1] == "Why Strength?")
+    WC.SetSetting("chips.stats", false)
+    assert(not chip_of(p, "stats"), "the option hides the chip")
+    WC.ResetSetting("chips.stats")
+    local b = chip_of(p, "stats")
+    b.scripts.OnClick(b)
+    local c = WoWCompanionCard
+    assert(c.chips[1].label:GetText() == "Why Strength?" and c.chips[2].label:GetText() == "What is wasted?" and not (c.chips[3] and c.chips[3]:IsShown()))
+    WoWCompanionCard = nil
+end }
+
 cases[#cases + 1] = { "chips: tooltip lines per kind", function()
     UnitLevel = function() return 10 end
     local p, WC = card_client()
@@ -3567,7 +3646,7 @@ cases[#cases + 1] = { "chips: the row wraps at a narrow width and the next-step 
     local top = p.scrollTop
     WC.SetSetting("panelWidth", 280)
     WC.SetSetting("view", "next")
-    assert(chip_kinds(p) == "talent,training,upgrade" and p.chipH > 0, "chips stay in the next-step view")
+    assert(chip_kinds(p) == "talent,training,upgrade,stats" and p.chipH > 0, "chips stay in the next-step view")
     assert(top > 0 and p.scrollTop >= p.chipH)
     WC.SetSetting("showChips", false)
     assert(p.scrollTop < top + 1 - 0, "no chips: no room kept")
