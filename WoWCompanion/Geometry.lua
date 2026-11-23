@@ -38,6 +38,14 @@ end
 function WC.MapGeometry()
     local g = { version = 1, t = time and time() or 0, tabs = {} }
     g.tab = frame_info(WC.mapButton, "WoWCompanionMapTab")
+    g.tabArt = {}
+    if WC.mapButton and WC.MapTabArt then
+        for _, a in ipairs(WC.MapTabArt(WC.mapButton)) do
+            local info = frame_info(a.region, a.field)
+            if info then g.tabArt[#g.tabArt + 1] = info end
+        end
+    end
+    g.tabOffset = WC.db and WC.db.settings and tonumber(WC.db.settings.mapTabY) or 0
     g.panel = frame_info(WC.mapPanel, "WoWCompanionMapPanel")
     local col = QuestMapFrame
     if type(col) == "table" then
@@ -46,6 +54,9 @@ function WC.MapGeometry()
             if t then g.tabs[#g.tabs + 1] = t end
         end
         g.inset = frame_info(WC.MapInset and WC.MapInset() or nil, "inset")
+        local q = col.QuestsFrame
+        g.questList = frame_info(q, "QuestsFrame")
+        g.questScroll = frame_info(type(q) == "table" and q.ScrollFrame or nil, "ScrollFrame")
     end
     return g
 end

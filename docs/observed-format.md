@@ -28,6 +28,9 @@ WoWCompanionDB.observed.mapGeometry = {
   version = 1, t = <unix s>,
   tab = <frame>, panel = <frame>,          -- WoWCompanionMapTab, WoWCompanionMapPanel
   tabs = { <frame>, ... },                 -- the client's QuestsTab, EventsTab, MapLegendTab (those that exist)
+  tabArt = { <frame>, ... },               -- our tab's textures (Background, Border, SelectedTexture, Icon, Highlight) and their extents
+  tabOffset = <number>,                    -- the saved map tab offset below the frame's top (0 = default)
+  questList = <frame>, questScroll = <frame>, -- the client's QuestMapFrame.QuestsFrame and its ScrollFrame, when present
   inset = <frame>,                         -- the client content-area inset the panel is anchored to
 }
 -- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
