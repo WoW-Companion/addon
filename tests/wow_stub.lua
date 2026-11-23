@@ -67,6 +67,12 @@ local function new_region(kind)
     function r:CreateFontString() return new_region("FontString") end
     function r:CreateTexture() return new_region("Texture") end
     function r:SetAllPoints(rel) self.allPointsTo = rel; self.points = { { "TOPLEFT", rel, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", rel, "BOTTOMRIGHT", 0, 0 } } end
+    function r:SetAtlas(a) self.atlas = a end
+    function r:GetAtlas() return self.atlas end
+    function r:CreateMaskTexture() return new_region("MaskTexture") end
+    function r:AddMaskTexture(m) self.masks = self.masks or {}; self.masks[#self.masks + 1] = m end
+    function r:SetHighlightTexture(t) self.highlight = self.highlight or new_region("Texture"); if t then self.highlight.atlas = t end end
+    function r:GetHighlightTexture() return self.highlight end
     function r:SetColorTexture(...) self.colorTexture = { ... } end
     function r:SetShadowOffset(x, y) self.shadow = { x, y } end
     function r:SetShadowColor() end

@@ -433,6 +433,14 @@ function WC.PlaceMapPanel()
     if not inset then return end
     local list = WC.QuestListFrame()
     f:ClearAllPoints()
+    local col0 = QuestMapFrame
+    if type(col0) == "table" and inset == col0.ContentsAnchor then
+        -- exactly over the client's content area, no border of ours
+        f:SetPoint("TOPLEFT", inset, "TOPLEFT", 0, 0)
+        f:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
+        f.top, f.inset = inset, inset
+        return
+    end
     f:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 0, 0)
     f:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
     if list then
@@ -534,6 +542,9 @@ function WC.SelectMapPanel(on, by)
     if native and not f.registered then
         f.registered = pcall(QuestMapFrame.AddContentFrame, QuestMapFrame, f, WC.TAB_MODE) and true or false
         native = f.registered
+    end
+    if on and QuestMapFrame and QuestMapFrame.IsShown and not QuestMapFrame:IsShown() and QuestMapFrame.Show then
+        pcall(QuestMapFrame.Show, QuestMapFrame) -- a collapsed quest log opens first
     end
     st.selected = on
     st.lastTab = on and "plan" or "other"
