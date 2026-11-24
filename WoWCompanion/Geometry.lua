@@ -60,6 +60,20 @@ function WC.MapGeometry()
         strata = b and b.GetFrameStrata and b:GetFrameStrata() or nil,
         path = type(tp) == "table" and tp.mode or nil,
     }
+    -- which control is in use, the round button and the slots found taken (rectangles only)
+    g.control = WC.mapControl
+    g.round = frame_info(WC.mapRound, "WoWCompanionMapRoundButton")
+    if g.round then
+        g.round.level = WC.mapRound.GetFrameLevel and WC.mapRound:GetFrameLevel() or nil
+        g.round.strata = WC.mapRound.GetFrameStrata and WC.mapRound:GetFrameStrata() or nil
+        local rp = WC.roundPlace
+        g.round.slot = type(rp) == "table" and rp.slot or nil
+    end
+    g.slots = {}
+    local rp = WC.roundPlace
+    if type(rp) == "table" then
+        for _, r in ipairs(rp.occupied or {}) do g.slots[#g.slots + 1] = { x = r1(r.x), y = r1(r.y), w = r1(r.w), h = r1(r.h) } end
+    end
     g.panel = frame_info(WC.mapPanel, "WoWCompanionMapPanel")
     local col = QuestMapFrame
     if type(col) == "table" then
