@@ -1945,7 +1945,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.24" and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.25" and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -2516,7 +2516,7 @@ end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { isMaximized = true, IsMaximized = true, Hide = true, GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true }
+        SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true, HandleUserActionToggleSidePanel = true, GetWidth = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do
@@ -4656,6 +4656,58 @@ cases[#cases + 1] = { "side panel: in combat the open call is deferred with a to
     WorldMapFrame, QuestMapFrame, COMBAT = nil, nil, nil
 end }
 
+
+-- Small map whose client closes its pane only through the toggle method; counts every Hide on the client's frames.
+local function toggle_map(logOpen)
+    local WC, calls = side_map(false, logOpen)
+    calls.toggle, calls.hides = 0, 0
+    WorldMapFrame.HandleUserActionCloseQuestLog, WorldMapFrame.HandleUserActionOpenQuestLog = nil, nil
+    function WorldMapFrame:HandleUserActionToggleSidePanel()
+        calls.toggle = calls.toggle + 1
+        QuestMapFrame.shown = not QuestMapFrame.shown
+    end
+    for _, f in ipairs({ WorldMapFrame, QuestMapFrame }) do
+        local hide = f.Hide
+        f.Hide = function(self, ...) calls.hides = calls.hides + 1; return hide(self, ...) end
+    end
+    return WC, calls
+end
+
+cases[#cases + 1] = { "side panel: pane closed, plan on then off: the client's toggle closes it once, no client Hide, the probe records it", function()
+    local WC, calls = toggle_map(false)
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- the client's open call here is the toggle too
+    WC.panelState.weOpened = true
+    QuestMapFrame.shown = true
+    calls.toggle = 0
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(calls.toggle == 1 and not QuestMapFrame:IsShown() and not WC.panelState.weOpened, "closed once through the toggle")
+    assert(calls.hides == 0, "no client frame hidden")
+    local h = WC.panelState.lastHide
+    assert(h and h.weOpened and h.call == "HandleUserActionToggleSidePanel" and h.closed, "probe")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "side panel: pane open first, plan on then off: left open, quest list shown, no close, no client Hide", function()
+    local WC, calls = toggle_map(true)
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(not WC.panelState.weOpened)
+    QuestMapFrame.QuestsFrame.shown = false
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(calls.toggle == 0 and QuestMapFrame:IsShown() and calls.hides == 0, "pane kept")
+    assert(QuestMapFrame.QuestsFrame:IsShown(), "quest list shown again")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "side panel: the player toggles the pane in between: we do not close it", function()
+    local WC, calls = toggle_map(false)
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    QuestMapFrame.shown = true
+    WC.panelState.weOpened = false -- what the toggle hook does on the player's use
+    calls.toggle = 0
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(calls.toggle == 0 and QuestMapFrame:IsShown() and calls.hides == 0, "player's pane left alone")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
 
 cases[#cases + 1] = { "ride: no other addon's names in the tab code", function()
     local banned = { "ElvUI", "Questie", "Leatrix", "Mapster", "HandyNotes", "TomTom", "WorldQuestTracker", "Chinchilla", "Carbonite", "SexyMap", "Lib%u" }

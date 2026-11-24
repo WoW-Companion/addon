@@ -605,26 +605,48 @@ function WC.SidePanelOpen()
     return type(col) == "table" and col.IsShown and col:IsShown() and true or false
 end
 
--- Calls the client's own public open or close of the quest log's side panel (the one its quest-log key uses): the
--- map's HandleUserAction method, else the global QuestMapFrame function. Unprotected and guarded; false when this
--- build offers neither.
-local SIDE_CALLS = {
-    open = { { "method", "HandleUserActionOpenQuestLog" }, { "global", "QuestMapFrame_Open" } },
-    close = { { "method", "HandleUserActionCloseQuestLog" }, { "global", "QuestMapFrame_Close" } },
-}
-local function client_side_call(which)
-    for _, c in ipairs(SIDE_CALLS[which]) do
-        local fn, self_ = nil, nil
-        if c[1] == "method" and type(WorldMapFrame) == "table" and type(WorldMapFrame[c[2]]) == "function" then
-            fn, self_ = WorldMapFrame[c[2]], WorldMapFrame
-        elseif c[1] == "global" and type(_G[c[2]]) == "function" then
-            fn = _G[c[2]]
-        end
-        if fn then
-            if pcall(fn, self_) then return true end
-        end
+-- Calls the client's own public open or close of the quest log's side panel. Each way is tried in turn until the pane
+-- is in the wanted state; none of them hides a client frame. Returns the name of the call that worked, else nil.
+-- Closing prefers the very call the client's quest-pane toggle makes (the map's toggle method, else a click on the
+-- toggle's close button), since that is the one that also puts the map back to its narrow layout.
+local function map_method(name)
+    if type(WorldMapFrame) == "table" and type(WorldMapFrame[name]) == "function" then
+        return function() return WorldMapFrame[name](WorldMapFrame) end
     end
-    return false
+end
+local function toggle_click()
+    local ct = WC.ClientToggle and WC.ClientToggle()
+    local b = ct and ct.close
+    if type(b) == "table" and type(b.Click) == "function" and (not b.IsShown or b:IsShown()) then
+        return function() return b:Click() end
+    end
+end
+local function global_fn(name)
+    if type(_G[name]) == "function" then return function() return _G[name]() end end
+end
+local function client_side_call(which)
+    local ways
+    if which == "open" then
+        ways = { { "HandleUserActionOpenQuestLog", map_method("HandleUserActionOpenQuestLog") },
+            { "QuestMapFrame_Open", global_fn("QuestMapFrame_Open") } }
+    else
+        ways = { { "HandleUserActionToggleSidePanel", map_method("HandleUserActionToggleSidePanel") },
+            { "SidePanelToggle.CloseButton:Click", toggle_click() },
+            { "HandleUserActionCloseQuestLog", map_method("HandleUserActionCloseQuestLog") },
+            { "QuestMapFrame_Close", global_fn("QuestMapFrame_Close") } }
+    end
+    for _, w in ipairs(ways) do
+        if w[2] and pcall(w[2]) and (WC.SidePanelOpen() == (which == "open")) then return w[1] end
+    end
+    return nil
+end
+
+local function map_width()
+    local m = WorldMapFrame
+    if type(m) == "table" and type(m.GetWidth) == "function" then
+        local ok, w = pcall(m.GetWidth, m)
+        if ok and type(w) == "number" then return w end
+    end
 end
 
 -- Opens the side panel for our plan on the small map; remembers that we did. In combat it waits until combat ends.
@@ -636,7 +658,7 @@ function WC.OpenSidePanel()
     st.wantOpen = nil
     st.opening = true
     local ok = client_side_call("open")
-    if not ok and QuestMapFrame and QuestMapFrame.Show then pcall(QuestMapFrame.Show, QuestMapFrame) end -- a build with no open call
+    if not ok and not WC.SidePanelOpen() and QuestMapFrame and QuestMapFrame.Show then pcall(QuestMapFrame.Show, QuestMapFrame) end -- a build with no open call
     st.opening = false
     if WC.SidePanelOpen() then st.weOpened = true end
     return "opened"
@@ -646,15 +668,19 @@ end
 function WC.CloseSidePanel()
     local st = WC.panelState
     st.wantOpen = nil
-    if not st.weOpened then return "kept" end
+    if not st.weOpened then
+        st.lastHide = { weOpened = false, call = "none", widthBefore = map_width(), widthAfter = map_width(), closed = not WC.SidePanelOpen() }
+        return "kept"
+    end
     if not WC.SidePanelOpen() then st.weOpened = false return "kept" end
     if in_combat() then st.wantClose = true return "deferred" end
     st.wantClose = nil
     st.opening = true
-    local ok = client_side_call("close")
-    if not ok and QuestMapFrame and QuestMapFrame.Hide then pcall(QuestMapFrame.Hide, QuestMapFrame) end
+    local before = map_width()
+    local used = client_side_call("close") -- never a Hide of a client frame, never a size set here
     st.opening = false
     st.weOpened = false
+    st.lastHide = { weOpened = true, call = used or "none", widthBefore = before, widthAfter = map_width(), closed = not WC.SidePanelOpen() }
     return "closed"
 end
 
@@ -705,6 +731,9 @@ function WC.SelectMapPanel(on, by)
     else
         WC.HideMapPanelParts(f) -- always: even where the client's display-mode call left our frame up
         if by ~= "client" then WC.CloseSidePanel() else st.weOpened = false end
+        -- the pane stays open (the player had it): the client's quest list shows again
+        local qf = not st.weOpened and WC.SidePanelOpen() and QuestMapFrame.QuestsFrame or nil
+        if qf and qf.Show and not (qf.IsShown and qf:IsShown()) then pcall(qf.Show, qf) end
     end
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     WC.RefreshMapTab()
@@ -742,6 +771,20 @@ function WC.HookClientTabs()
             WC.PlaceMapTab()
             if mode ~= WC.TAB_MODE then client_changed() end
         end)
+    end
+    -- the player's own use of the client's pane toggle: we no longer own the pane's state
+    local function player_toggled()
+        if not WC.panelState.opening then WC.panelState.weOpened = false end
+    end
+    if not hooked.toggle and hooksecurefunc and type(WorldMapFrame) == "table"
+        and type(WorldMapFrame.HandleUserActionToggleSidePanel) == "function" then
+        hooked.toggle = pcall(hooksecurefunc, WorldMapFrame, "HandleUserActionToggleSidePanel", player_toggled)
+    end
+    local ct = WC.ClientToggle and WC.ClientToggle()
+    if ct then
+        for _, b in ipairs({ ct.open or false, ct.close or false }) do
+            if b and not hooked[b] and b.HookScript then hooked[b] = pcall(b.HookScript, b, "OnClick", player_toggled) end
+        end
     end
     if not col.GetChildren then return end
     for _, c in ipairs({ col:GetChildren() }) do

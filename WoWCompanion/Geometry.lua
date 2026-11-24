@@ -64,7 +64,7 @@ function WC.MapGeometry()
     local ps = WC.panelState or {}
     g.sizeMode = WC.MapSizeMode and WC.MapSizeMode() or nil
     g.sidePanel = { open = WC.SidePanelOpen and WC.SidePanelOpen() or false, weOpened = ps.weOpened == true,
-        planSelected = ps.selected == true, deferred = (ps.wantOpen or ps.wantClose) and true or false }
+        planSelected = ps.selected == true, lastHide = ps.lastHide, deferred = (ps.wantOpen or ps.wantClose) and true or false }
     local rb = WC.mapRound
     local rbParent = rb and rb.GetParent and rb:GetParent() or nil
     g.roundButton = { shown = rb and rb.IsShown and rb:IsShown() and true or false, rect = rect_of(rb),
