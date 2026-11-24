@@ -39,6 +39,7 @@ function WC.LeaveCombat()
     end
     WC.combatShown = {}
     WC.RefreshTracker()
+    if WC.SidePanelCombatEnded then WC.SidePanelCombatEnded() end
 end
 
 local events = CreateFrame("Frame")
