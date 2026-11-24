@@ -35,6 +35,10 @@ WoWCompanionDB.observed.mapGeometry = {
   control = "round" | "sidetab",           -- which control is in use: the round map button, or the side tab beside another addon's column
   round = <frame> + { level, strata, slot }, -- WoWCompanionMapRoundButton (slot 1 = the top of the column of round map buttons)
   slots = { { x, y, w, h }, ... },         -- the round buttons found already in that column (rectangles from the container's top-left corner)
+  sizeMode = "small" | "full",             -- the world map's size mode
+  sidePanel = { open, weOpened, planSelected, deferred }, -- the quest-log side panel's state, and whether we opened it
+  roundButton = { shown, rect = { l, b, w, h } },       -- the round button's shown state and rectangle
+  planRect = { l, b, w, h }, insetRect = { l, b, w, h }, -- our plan's rectangle next to the side panel's inset (absent until laid out)
 }
 -- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
 -- `rel` is the relative-to frame's name, or "(unnamed)"; sizes and offsets are rounded to 0.1.

@@ -125,6 +125,7 @@ local function show_map_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_LEFT, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT }) do GameTooltip:AddLine(line) end
     if WC.MapTabAlone() then GameTooltip:AddLine(WC.L.TIP_MAP_DRAG) end
+    if WC.panelState.wantOpen or WC.panelState.wantClose then GameTooltip:AddLine(WC.L.TIP_MAP_DEFERRED) end
     GameTooltip:Show()
 end
 
@@ -253,11 +254,19 @@ function WC.FindClientSideTabs(parent)
         if t.IsShown and t:IsShown() then out[#out + 1] = t end
     end
     if #out > 0 then return out end
+    return WC.ArtSideTabs(parent)
+end
+
+-- Shown children of the quest log that wear the side-tab art but are not the client's own tabs (no displayMode and
+-- activeAtlas) and not ours: a column that belongs to another map addon, read as art only. Top first.
+function WC.ArtSideTabs(parent)
+    local out = {}
+    if type(parent) ~= "table" or not parent.GetChildren then return out end
     local byArt = {}
     for i, c in ipairs({ parent:GetChildren() }) do
         local nm = type(c) == "table" and c.GetName and c:GetName() or nil
         local mine = c == WC.mapButton or c == WC.mapPanel or (nm and nm:find("^WoWCompanion"))
-        if type(c) == "table" and not mine and c.IsShown and c:IsShown() and has_sidetab_art(c) then
+        if type(c) == "table" and not mine and not is_client_tab(c) and c.IsShown and c:IsShown() and has_sidetab_art(c) then
             byArt[#byArt + 1] = { f = c, top = WC.GeoNum(c, "GetTop"), i = i }
         end
     end
@@ -482,9 +491,11 @@ function WC.ScanTabColumn()
     local pl, pt = col:GetLeft(), col:GetTop()
     if not (tonumber(pl) and tonumber(pt)) then return {} end
     local rects = {}
+    local own = {} -- the client's own quest-log tabs belong to the client, never to another addon's column
+    for _, t in ipairs(WC.CollectClientTabs(col)) do own[t] = true end
     local function walk(f, depth)
         for _, c in ipairs({ f:GetChildren() }) do
-            if type(c) == "table" and c ~= WC.mapButton and c ~= WC.mapPanel then
+            if type(c) == "table" and c ~= WC.mapButton and c ~= WC.mapPanel and c ~= WC.mapRound and not own[c] then
                 local ok, l, b, w, h = false
                 if c.GetRect then ok, l, b, w, h = pcall(c.GetRect, c) end
                 if ok and tonumber(l) and tonumber(w) and tonumber(h) and w > 0 and h > 0 and w <= WC.COLUMN_MAX_TAB and h <= WC.COLUMN_MAX_TAB
@@ -604,6 +615,7 @@ end
 local function round_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(line) end
+    if WC.panelState.wantOpen or WC.panelState.wantClose then GameTooltip:AddLine(WC.L.TIP_MAP_DEFERRED) end
     GameTooltip:Show()
 end
 
@@ -702,11 +714,12 @@ function WC.HideRoundButton()
     WC.roundPlace = nil
 end
 
--- True when another addon's side-tab column stands left of the quest log (read as geometry and art only).
+-- True when another addon's side-tab column stands left of the quest log (read as geometry and art only). The client's
+-- own tabs, which appear whenever the quest panel opens, never count: the round button must not depend on them.
 function WC.SideTabColumnFound()
     local parent = WC.mapButtonParent
     if not parent then return false end
-    return #WC.FindClientSideTabs(parent) > 0 or #WC.ScanTabColumn() > 0
+    return #WC.ArtSideTabs(parent) > 0 or #WC.ScanTabColumn() > 0
 end
 
 -- Anchors the tab in the column's first free gap, right-aligned and at the column's tab size. With a Shift-drag
@@ -857,6 +870,12 @@ function WC.WatchTabColumn(elapsed)
         WC.PlaceMapTab() -- a round button above ours appeared or went away
         return true
     end
+    if WC.mapControl == "round" then
+        if WC.SideTabColumnFound() then WC.PlaceMapTab() return true end -- another addon's column appeared
+        if WC.mapRound and WC.Setting("mapButton") ~= false and not WC.mapRound:IsShown() then WC.PlaceMapTab() return true end
+        return false
+    end
+    if not WC.SideTabColumnFound() then WC.PlaceMapTab() return true end -- the other addon's column went away
     local side = WC.FindClientSideTabs(WC.mapButtonParent)
     if #side > 0 then
         if WC.columnSig == WC.SideTabSig(side) then return false end

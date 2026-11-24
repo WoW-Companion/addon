@@ -423,37 +423,39 @@ end
 
 WC.PANEL_TOP_FALLBACK = 32 -- pixels below the quest-map frame's top when the client's quest list cannot be found
 
--- Fits the panel to the inset at the sides and bottom; its top starts at the top of the client's quest list (below
--- the client's own header), else a fixed inset below the quest-map frame's top. So its title, step line and toggle
--- sit inside the border at every map size.
+-- The client's own quest list frame wherever it is (shown or not): its rect is the content area inside the side
+-- panel's inset border, and its anchors stay set while another tab is up.
+local function quest_list_any()
+    local col = QuestMapFrame
+    if type(col) ~= "table" then return nil end
+    local q = col.QuestsFrame
+    for _, c in ipairs({ type(q) == "table" and q or false, type(q) == "table" and q.ScrollFrame or false, type(QuestScrollFrame) == "table" and QuestScrollFrame or false }) do
+        if type(c) == "table" and c.GetObjectType and c.GetNumPoints and c:GetNumPoints() > 0 then return c end
+    end
+    return nil
+end
+
+-- Fits the panel exactly over the content area inside the side panel's inset border (the client's content anchor, else
+-- the rect of its own quest list), so the border frames our plan the way it frames the quest list and crosses none of
+-- our content; the title row is inside that rect. Only anchors of our own frame are set. Without either, a fixed
+-- margin inside the quest-map frame.
 function WC.PlaceMapPanel()
     local f = WC.mapPanel
     if not f then return end
-    local inset = WC.MapInset()
-    if not inset then return end
-    local list = WC.QuestListFrame()
+    local col = QuestMapFrame
+    if not col then return end
+    local anchor = type(col) == "table" and col.ContentsAnchor
+    local rect = (type(anchor) == "table" and anchor.GetObjectType) and anchor or quest_list_any()
     f:ClearAllPoints()
-    local col0 = QuestMapFrame
-    if type(col0) == "table" and inset == col0.ContentsAnchor then
-        -- exactly over the client's content area, no border of ours
-        f:SetPoint("TOPLEFT", inset, "TOPLEFT", 0, 0)
-        f:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
-        f.top, f.inset = inset, inset
+    if rect then
+        f:SetPoint("TOPLEFT", rect, "TOPLEFT", 0, 0)
+        f:SetPoint("BOTTOMRIGHT", rect, "BOTTOMRIGHT", 0, 0)
+        f.top, f.inset = rect, rect
         return
     end
-    f:SetPoint("BOTTOMLEFT", inset, "BOTTOMLEFT", 0, 0)
-    f:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", 0, 0)
-    if list then
-        f:SetPoint("TOPLEFT", list, "TOPLEFT", 0, 0)
-        f:SetPoint("TOPRIGHT", inset, "TOPRIGHT", 0, 0)
-        f.top = list
-    else
-        local col = QuestMapFrame
-        f:SetPoint("TOPLEFT", col, "TOPLEFT", 9, -WC.PANEL_TOP_FALLBACK)
-        f:SetPoint("TOPRIGHT", col, "TOPRIGHT", -9, -WC.PANEL_TOP_FALLBACK)
-        f.top = col
-    end
-    f.inset = inset
+    f:SetPoint("TOPLEFT", col, "TOPLEFT", 9, -WC.PANEL_TOP_FALLBACK)
+    f:SetPoint("BOTTOMRIGHT", col, "BOTTOMRIGHT", -9, 9)
+    f.top, f.inset = col, WC.MapInset()
 end
 
 local function create_frame()
@@ -531,34 +533,135 @@ function WC.PanelBackend()
     return "overlay"
 end
 
+-- ---------------------------------------------------------------- the side panel (the quest log's own)
+
+local function in_combat()
+    return (InCombatLockdown and InCombatLockdown()) or WC.inCombat == true
+end
+
+-- "small" or "full": the client's own maximized state of the world map ("full" when it cannot say).
+function WC.MapSizeMode()
+    local map = WorldMapFrame
+    if type(map) ~= "table" then return "full" end
+    local v = map.isMaximized
+    if type(map.IsMaximized) == "function" then
+        local ok, r = pcall(map.IsMaximized, map)
+        if ok then v = r end
+    end
+    if v == false then return "small" end
+    return "full"
+end
+
+-- True while the quest-log side panel is open.
+function WC.SidePanelOpen()
+    local col = QuestMapFrame
+    return type(col) == "table" and col.IsShown and col:IsShown() and true or false
+end
+
+-- Calls the client's own public open or close of the quest log's side panel (the one its quest-log key uses): the
+-- map's HandleUserAction method, else the global QuestMapFrame function. Unprotected and guarded; false when this
+-- build offers neither.
+local SIDE_CALLS = {
+    open = { { "method", "HandleUserActionOpenQuestLog" }, { "global", "QuestMapFrame_Open" } },
+    close = { { "method", "HandleUserActionCloseQuestLog" }, { "global", "QuestMapFrame_Close" } },
+}
+local function client_side_call(which)
+    for _, c in ipairs(SIDE_CALLS[which]) do
+        local fn, self_ = nil, nil
+        if c[1] == "method" and type(WorldMapFrame) == "table" and type(WorldMapFrame[c[2]]) == "function" then
+            fn, self_ = WorldMapFrame[c[2]], WorldMapFrame
+        elseif c[1] == "global" and type(_G[c[2]]) == "function" then
+            fn = _G[c[2]]
+        end
+        if fn then
+            if pcall(fn, self_) then return true end
+        end
+    end
+    return false
+end
+
+-- Opens the side panel for our plan on the small map; remembers that we did. In combat it waits until combat ends.
+function WC.OpenSidePanel()
+    local st = WC.panelState
+    st.wantClose = nil
+    if WC.SidePanelOpen() then return "open" end
+    if in_combat() then st.wantOpen = true return "deferred" end
+    st.wantOpen = nil
+    st.opening = true
+    local ok = client_side_call("open")
+    if not ok and QuestMapFrame and QuestMapFrame.Show then pcall(QuestMapFrame.Show, QuestMapFrame) end -- a build with no open call
+    st.opening = false
+    if WC.SidePanelOpen() then st.weOpened = true end
+    return "opened"
+end
+
+-- Closes the side panel only if we opened it.
+function WC.CloseSidePanel()
+    local st = WC.panelState
+    st.wantOpen = nil
+    if not st.weOpened then return "kept" end
+    if not WC.SidePanelOpen() then st.weOpened = false return "kept" end
+    if in_combat() then st.wantClose = true return "deferred" end
+    st.wantClose = nil
+    st.opening = true
+    local ok = client_side_call("close")
+    if not ok and QuestMapFrame and QuestMapFrame.Hide then pcall(QuestMapFrame.Hide, QuestMapFrame) end
+    st.opening = false
+    st.weOpened = false
+    return "closed"
+end
+
+-- Combat ended: the open or close that was waiting runs now.
+function WC.SidePanelCombatEnded()
+    local st = WC.panelState
+    if st.wantOpen and st.selected then
+        WC.OpenSidePanel()
+        if st.selected then WC.SelectMapPanel(true) end
+    elseif st.wantClose and not st.selected then
+        WC.CloseSidePanel()
+    end
+    st.wantOpen, st.wantClose = nil, nil
+    if WC.PlaceMapTab then WC.PlaceMapTab() end
+end
+
 -- Selects or deselects our tab's panel. by == "client" means another tab did it, so nothing is asked of the client.
 function WC.SelectMapPanel(on, by)
     local st = WC.panelState
     local f = create_frame()
     if not f then return false end
     on = on and true or false
-    if on == st.selected and f:IsShown() == on then return on end
+    if on == st.selected and f:IsShown() == on and not (on and st.wantOpen) then return on end
     local native = WC.PanelBackend() == "native"
     if native and not f.registered then
         f.registered = pcall(QuestMapFrame.AddContentFrame, QuestMapFrame, f, WC.TAB_MODE) and true or false
         native = f.registered
     end
-    if on and QuestMapFrame and QuestMapFrame.IsShown and not QuestMapFrame:IsShown() and QuestMapFrame.Show then
-        pcall(QuestMapFrame.Show, QuestMapFrame) -- a collapsed quest log opens first
+    if on and WC.MapSizeMode() == "small" then
+        WC.OpenSidePanel() -- the client's own way, so the map extends to the right as with the quest-log key
+    elseif on and QuestMapFrame and QuestMapFrame.IsShown and not QuestMapFrame:IsShown() and QuestMapFrame.Show then
+        pcall(QuestMapFrame.Show, QuestMapFrame) -- the full-size map: a collapsed quest log opens first
     end
     st.selected = on
     st.lastTab = on and "plan" or "other"
     if native and by ~= "client" then
         if on then
             st.prevMode = QuestMapFrame.displayMode
+            st.opening = true
             pcall(QuestMapFrame.SetDisplayMode, QuestMapFrame, WC.TAB_MODE)
+            st.opening = false
         elseif st.prevMode ~= nil then
             pcall(QuestMapFrame.SetDisplayMode, QuestMapFrame, st.prevMode)
         end
     end
     if not native then f:SetShown(on) end
     if on then WC.RefreshMapPanel() end
+    if not on then
+        if by ~= "client" and WC.MapSizeMode() == "small" then WC.CloseSidePanel() else st.weOpened = false end
+    end
+    if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     WC.RefreshMapTab()
+    if WC.PlaceMapTab then WC.PlaceMapTab() end
+    if WC.RecordMapGeometry then WC.RecordMapGeometry() end
     return on
 end
 
@@ -576,6 +679,7 @@ end
 
 -- Another tab or the map's own controls changed the view: ours deselects.
 local function client_changed()
+    if WC.panelState.opening then return end -- our own call to the client's open or close
     if WC.panelState.selected then WC.SelectMapPanel(false, "client") end
 end
 

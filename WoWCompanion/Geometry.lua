@@ -34,6 +34,14 @@ local function frame_info(f, field)
     return info
 end
 
+-- A frame's rect as plain numbers { l, b, w, h }, or nil when the client has not laid it out.
+local function rect_of(f)
+    if type(f) ~= "table" or type(f.GetRect) ~= "function" then return nil end
+    local ok, l, b, w, h = pcall(f.GetRect, f)
+    if not ok or not (tonumber(l) and tonumber(b) and tonumber(w) and tonumber(h)) then return nil end
+    return { l = r1(l), b = r1(b), w = r1(w), h = r1(h) }
+end
+
 -- Builds the record: our tab and panel, the client's own side tabs and the content inset.
 function WC.MapGeometry()
     local g = { version = 1, t = time and time() or 0, tabs = {} }
@@ -75,6 +83,13 @@ function WC.MapGeometry()
         for _, r in ipairs(rp.occupied or {}) do g.slots[#g.slots + 1] = { x = r1(r.x), y = r1(r.y), w = r1(r.w), h = r1(r.h) } end
     end
     g.panel = frame_info(WC.mapPanel, "WoWCompanionMapPanel")
+    -- the map size, the side panel (open, and whether we opened it), the round button and our plan next to the inset
+    local ps = WC.panelState or {}
+    g.sizeMode = WC.MapSizeMode and WC.MapSizeMode() or nil
+    g.sidePanel = { open = WC.SidePanelOpen and WC.SidePanelOpen() or false, weOpened = ps.weOpened == true,
+        planSelected = ps.selected == true, deferred = (ps.wantOpen or ps.wantClose) and true or false }
+    g.roundButton = { shown = WC.mapRound and WC.mapRound.IsShown and WC.mapRound:IsShown() and true or false, rect = rect_of(WC.mapRound) }
+    g.planRect, g.insetRect = rect_of(WC.mapPanel), rect_of(WC.MapInset and WC.MapInset() or nil)
     local col = QuestMapFrame
     if type(col) == "table" then
         for _, field in ipairs(WC.CLIENT_TAB_FIELDS) do
