@@ -91,27 +91,28 @@ function WC.PlanShownOnMap()
     return WC.db and WC.db.settings and WC.db.settings.planMap and true or false
 end
 
--- Sets the round button's pressed look: on while the plan is up in the side panel (or, with no side panel in this
--- client, while the plan shows on the map).
+-- Sets the round button's look: bright while our map overlays are on, dimmed while they are off. Also refreshes the
+-- plan tab's state.
 function WC.RefreshMapTab()
     local r = WC.mapRound
     if not r then return end
-    local on
-    if QuestMapFrame then on = WC.panelState.selected == true else on = WC.PlanShownOnMap() end
-    if r.checkedTex then r.checkedTex:SetShown(on and true or false) end
+    local on = WC.PlanShownOnMap()
+    if r.icon then
+        if r.icon.SetAlpha then r.icon:SetAlpha(on and 1 or 0.4) end
+        if r.icon.SetDesaturated then r.icon:SetDesaturated(not on) end
+    end
+    if r.checkedTex then r.checkedTex:SetShown(false) end
+    if WC.RefreshPlanTab then WC.RefreshPlanTab() end
 end
 
--- A click on the round map button: left shows or hides the plan in the side panel (the client's quest-pane frame),
--- shift-left shows or hides the plan on the map, right opens the options window. A client without the quest-pane
--- frame has no side panel: left flips the plan on the map.
-function WC.MapButtonClick(button, shift)
+-- A click on the round map button: left shows or hides our map overlays (badges, lines, arrows, glow); right opens the
+-- options window. The plan pane has its own tab (see WC.PlanTabClick).
+function WC.MapButtonClick(button)
     if button == "RightButton" then
         WC.OpenOptions()
-    elseif shift or not QuestMapFrame then
+    else
         WC.TogglePlan("map")
         if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
-    else
-        WC.ToggleMapPanel()
     end
     WC.RefreshMapTab()
 end
@@ -212,7 +213,7 @@ end
 
 local function round_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(line) end
+    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(line) end
     if WC.panelState.wantOpen or WC.panelState.wantClose then GameTooltip:AddLine(WC.L.TIP_MAP_DEFERRED) end
     GameTooltip:Show()
 end
@@ -243,7 +244,7 @@ local function create_round_button()
     b.checkedTex:Hide()
     b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", self, "TOPLEFT", 9, -7) end) -- pushed
     b:SetScript("OnMouseUp", function(self) self.icon:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -6) end)
-    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button, shift_down()) end)
+    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button) end)
     b:SetScript("OnEnter", round_tooltip)
     b:SetScript("OnLeave", hide_tooltip)
     b:RegisterForDrag("LeftButton")
@@ -274,8 +275,9 @@ function WC.SetRoundFromCursor(cursorY)
     return off
 end
 
-function WC.RaiseRoundButton()
-    local b, parent = WC.mapRound, WC.RoundParent()
+function WC.RaiseRoundButton(b)
+    b = b or WC.mapRound
+    local parent = WC.RoundParent()
     if not b then return end
     local map = WorldMapFrame
     if b.SetFrameStrata then pcall(b.SetFrameStrata, b, "HIGH") end -- the client's map buttons' strata
@@ -327,6 +329,7 @@ function WC.PlaceMapTab()
     local ok, err = pcall(function()
         WC.mapControl = "round"
         WC.PlaceRoundButton()
+        if WC.PlacePlanTab then WC.PlacePlanTab() end
         if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     end)
     if ok or WC.placeErrorSeen then return end
@@ -374,7 +377,7 @@ function WC.CreateMapButton()
     local col = QuestMapFrame
     if col and col.HookScript then
         col:HookScript("OnShow", function() WC.PlaceMapTabSoon(); WC.RefreshMapTab(); WC.ReplaceMapControl() end)
-        col:HookScript("OnHide", function() WC.ReplaceMapControl() end)
+        col:HookScript("OnHide", function() WC.PaneClosedByClient(); WC.ReplaceMapControl() end)
         col:HookScript("OnSizeChanged", WC.ReplaceMapControl)
     end
     if map.HookScript then
@@ -393,6 +396,7 @@ function WC.CreateMapButton()
         WC.mapChangedHooked = pcall(hooksecurefunc, map, "OnMapChanged", WC.ReplaceMapControl)
     end
     if col and WC.HookDisplayMode then WC.HookDisplayMode(col) end
+    pcall(WC.PlacePlanTab)
     WC.InitMapPanel()
     WC.RefreshMapTab()
 end
@@ -470,6 +474,7 @@ function WC.ApplyButtons()
     local b = WC.minimapButton
     if b then b:SetShown(s.show ~= false) end
     if WC.mapRound then WC.mapRound:SetShown(WC.Setting("mapButton") ~= false) end
+    if WC.planTab then WC.planTab:SetShown(WC.Setting("mapButton") ~= false) end
     local comp = AddonCompartmentFrame
     if comp and comp.RegisterAddon then
         if s.compartment ~= false and not WC.compartmentInfo then

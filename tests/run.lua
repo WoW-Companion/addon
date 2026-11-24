@@ -1945,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.22" and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1")
+    assert(TOC_VERSION == "0.6.23" and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2272,7 +2272,7 @@ cases[#cases + 1] = { "map panel: no border or backdrop art of our own, the titl
     QuestMapFrame = fake_column({})
     fresh_client(nil)
     local WC = WoWCompanion
-    WC.mapRound.scripts.OnClick(WC.mapRound, "LeftButton")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
     local f = WC.mapPanel
     assert(f.backdrop == nil and f.borderColor == nil and f.border == nil and f.titleFrame == nil)
     local tl = f.title.points[1]
@@ -2322,7 +2322,7 @@ cases[#cases + 1] = { "map panel: the plan rect is the quest list's scroll rect,
     QuestMapFrame.QuestsFrame.ScrollFrame = scroll
     fresh_client(nil)
     local WC = WoWCompanion
-    local b = WC.mapRound
+    local b = WC.planTab
     PRINTED = {}
     b.scripts.OnClick(b, "LeftButton")
     local f = WC.mapPanel
@@ -2359,7 +2359,7 @@ cases[#cases + 1] = { "map panel: the plan rect is the quest list's scroll rect,
     assert(g.inset.name == "QuestMapContentsInset" and g.inset.field == "inset")
     local seen = {}
     for k in pairs(g) do seen[k] = true end
-    for _, k in ipairs({ "version", "t", "panel", "inset", "control", "round", "slots", "sizeMode", "sidePanel", "roundButton", "planRect", "questScrollRect", "insetRect", "scrollTemplate", "questList", "questScroll" }) do seen[k] = nil end
+    for _, k in ipairs({ "version", "t", "panel", "inset", "control", "round", "slots", "sizeMode", "sidePanel", "roundButton", "planRect", "planTab", "questScrollRect", "insetRect", "scrollTemplate", "questList", "questScroll" }) do seen[k] = nil end
     assert(next(seen) == nil, "only the documented keys, no side-tab fields")
     QuestScrollFrame = nil
     WorldMapFrame, QuestMapFrame = nil, nil
@@ -2374,7 +2374,7 @@ cases[#cases + 1] = { "map panel: the top anchors to the client's quest list whe
     QuestMapFrame.QuestsFrame = list
     fresh_client(nil)
     local WC = WoWCompanion
-    WC.mapRound.scripts.OnClick(WC.mapRound, "LeftButton")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
     local f = WC.mapPanel
     local tl, br = f.anchors.TOPLEFT, f.anchors.BOTTOMRIGHT
     assert(f.top == list and tl[2] == list and tl[5] == 0 and br[2] == list, "exactly the quest list's rect, inside the border")
@@ -2401,12 +2401,12 @@ cases[#cases + 1] = { "world map tab: left-click selects the plan panel, right-c
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
     local b = WC.mapRound
     local before = WC.db.settings.planMap
-    assert(b.checkedTex.shown == false)
     b.scripts.OnClick(b, "LeftButton")
-    assert(WC.db.settings.planMap == before and b.checkedTex.shown == true and WC.panelState.selected)
+    assert(WC.db.settings.planMap == not before and not WC.panelState.selected and WC.mapPanel == nil, "the round button flips the overlays and never opens the plan")
+    assert(b.icon.alpha == (before and 0.4 or 1), "dimmed while the overlays are off")
     assert(not WoWCompanionOptions:IsShown())
     b.scripts.OnClick(b, "RightButton")
-    assert(WoWCompanionOptions:IsShown() and b.checkedTex.shown == true)
+    assert(WoWCompanionOptions:IsShown() and not WC.panelState.selected)
     WC.SetSetting("mapButton", false)
     assert(not b:IsShown())
     WC.SetSetting("mapButton", true)
@@ -2421,7 +2421,7 @@ cases[#cases + 1] = { "world map: without the quest-pane frame the round button 
     local WC = WoWCompanion
     assert(WC.mapRound and WC.mapRound.parent == WorldMapFrame)
     WC.mapRound.scripts.OnClick(WC.mapRound, "LeftButton")
-    assert(WC.mapRound.checkedTex.shown == WC.PlanShownOnMap())
+    assert(WC.mapRound.icon.alpha == (WC.PlanShownOnMap() and 1 or 0.4))
     local src = assert(io.open("WoWCompanion/Button.lua")):read("*a")
     assert(not src:find("AddOverlayFrame", 1, true))
     WorldMapFrame = nil
@@ -2469,7 +2469,7 @@ local function side_panel_client(opts)
     WITH_TOOLTIP_HOOKS = nil
     local WC = WoWCompanion
     WC.plan = { steps = synthetic_steps(), done = {}, generated = 1800000000 }
-    return WC, WC.mapRound, QuestMapFrame
+    return WC, WC.planTab, QuestMapFrame
 end
 
 local function side_panel_done()
@@ -2478,22 +2478,22 @@ end
 
 cases[#cases + 1] = { "side panel (overlay): our tab selects its panel, any other tab or display-mode change deselects it", function()
     local WC, tab, col = side_panel_client()
-    assert(WC.PanelBackend() == "overlay" and WC.mapPanel == nil and not tab.checkedTex.shown, "nothing built before the first click")
+    assert(WC.PanelBackend() == "overlay" and WC.mapPanel == nil and not WC.panelState.selected, "nothing built before the first click")
     tab.scripts.OnClick(tab, "LeftButton")
     local f = WC.mapPanel
-    assert(f and f:IsShown() and tab.checkedTex.shown and WC.panelState.selected and WC.panelState.lastTab == "plan")
+    assert(f and f:IsShown() and WC.panelState.selected and WC.panelState.selected and WC.panelState.lastTab == "plan")
     assert(f.parent == col, "our frame is a child of the quest panel, never a client frame")
     tab.scripts.OnClick(tab, "LeftButton")
-    assert(not f:IsShown() and not tab.checkedTex.shown, "a second click deselects")
+    assert(not f:IsShown() and not WC.panelState.selected, "a second click deselects")
     tab.scripts.OnClick(tab, "LeftButton")
     local sibling = col.children[1]
     assert(sibling.scripts.OnClick, "the client's tab is watched")
     sibling.scripts.OnClick(sibling)
-    assert(not f:IsShown() and not tab.checkedTex.shown and WC.panelState.lastTab == "other", "another tab brings its content back")
+    assert(not f:IsShown() and not WC.panelState.selected and WC.panelState.lastTab == "other", "another tab brings its content back")
     tab.scripts.OnClick(tab, "LeftButton")
     assert(f:IsShown())
     HOOKS.SetDisplayMode(col, "map legend")
-    assert(not f:IsShown() and not tab.checkedTex.shown, "a display-mode change by the map's own controls deselects")
+    assert(not f:IsShown() and not WC.panelState.selected, "a display-mode change by the map's own controls deselects")
     tab.scripts.OnClick(tab, "LeftButton")
     HOOKS.SetDisplayMode(col, WC.TAB_MODE)
     assert(f:IsShown(), "our own mode does not")
@@ -2505,18 +2505,18 @@ cases[#cases + 1] = { "side panel (native): the client's public content-frame pa
     assert(WC.PanelBackend() == "native")
     tab.scripts.OnClick(tab, "LeftButton")
     assert(#col.added == 1 and col.added[1][1] == WC.mapPanel and col.added[1][2] == WC.TAB_MODE)
-    assert(col.modes[1] == WC.TAB_MODE and tab.checkedTex.shown and WC.panelState.selected)
+    assert(col.modes[1] == WC.TAB_MODE and WC.panelState.selected and WC.panelState.selected)
     tab.scripts.OnClick(tab, "LeftButton")
-    assert(col.modes[2] == "quests" and not tab.checkedTex.shown, "deselecting returns to the mode that was showing")
+    assert(col.modes[2] == "quests" and not WC.panelState.selected, "deselecting returns to the mode that was showing")
     tab.scripts.OnClick(tab, "LeftButton")
     HOOKS.SetDisplayMode(col, "events")
-    assert(not tab.checkedTex.shown and #col.modes == 3, "a client-made change is not answered with another call")
+    assert(not WC.panelState.selected and #col.modes == 3, "a client-made change is not answered with another call")
     side_panel_done()
 end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { isMaximized = true, IsMaximized = true, Hide = true, GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true }
+        SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do
@@ -2750,16 +2750,16 @@ cases[#cases + 1] = { "side panel: the eye and shift-click flip the plan on the 
     f.eye.scripts.OnClick(f.eye)
     assert(WC.db.settings.planMap == not before and WC.panelState.selected and f:IsShown())
     assert(f.eye.alpha == (before and 0.4 or 1))
-    SHIFT = true
-    tab.scripts.OnClick(tab, "LeftButton")
-    SHIFT = false
-    assert(WC.db.settings.planMap == before and WC.panelState.selected and f:IsShown() and tab.checkedTex.shown, "shift-click leaves the panel alone")
-    tab.scripts.OnClick(tab, "RightButton")
+    local round = WC.mapRound
+    round.scripts.OnClick(round, "LeftButton")
+    assert(WC.db.settings.planMap == before and WC.panelState.selected and f:IsShown(), "the round button leaves the panel alone")
+    round.scripts.OnClick(round, "RightButton")
     assert(WoWCompanionOptions:IsShown() and WC.panelState.selected)
-    tab.scripts.OnEnter(tab)
+    GameTooltip.calls = {}
+    round.scripts.OnEnter(round)
     local text = {}
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" then text[#text + 1] = c[2] end end
-    assert(#text == 5 and text[2]:find("plan", 1, true) and text[3]:find("Shift", 1, true) and text[4]:find("Right-click", 1, true))
+    assert(#text == 4 and text[2] == "Show or hide the plan on the map" and text[3]:find("Right-click", 1, true) and text[4]:find("Shift-drag", 1, true))
     side_panel_done()
 end }
 
@@ -2772,7 +2772,7 @@ cases[#cases + 1] = { "side panel: open-on-tab setting, the session's last tab, 
     assert(not WC.panelState.selected, "off by default: the map opens on the client's tab")
     WC.SetSetting("panelOpenOnTab", true)
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
-    assert(WC.panelState.selected and WC.mapPanel:IsShown() and tab.checkedTex.shown)
+    assert(WC.panelState.selected and WC.mapPanel:IsShown() and WC.panelState.selected)
     local sibling = QuestMapFrame.children[1]
     sibling.scripts.OnClick(sibling)
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
@@ -2802,7 +2802,7 @@ cases[#cases + 1] = { "side panel: without a plan it says so, and the edge butto
     WC = WoWCompanion
     local before = WC.db.settings.planMap
     WC.mapRound.scripts.OnClick(WC.mapRound, "LeftButton")
-    assert(WC.db.settings.planMap == not before and WC.mapPanel == nil and WC.mapRound.checkedTex.shown == not before)
+    assert(WC.db.settings.planMap == not before and WC.mapPanel == nil and WC.mapRound.icon.alpha == (before and 0.4 or 1))
     WorldMapFrame = nil
 end }
 
@@ -4267,10 +4267,11 @@ cases[#cases + 1] = { "client map: a click on the round button toggles the panel
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
     local r = WC.mapRound
     assert(not WC.panelState.selected)
+    local before = WC.db.settings.planMap
     r.scripts.OnClick(r, "LeftButton")
-    assert(WC.panelState.selected == true, "opens the panel")
+    assert(WC.db.settings.planMap == not before and not WC.panelState.selected, "toggles the overlays, not the panel")
     r.scripts.OnClick(r, "LeftButton")
-    assert(WC.panelState.selected == false, "closes it")
+    assert(WC.db.settings.planMap == before)
     -- a later round button shows up: ours moves below it on the next check
     local c = CreateFrame("Button", nil, canvas)
     c.w, c.h = 32, 32
@@ -4316,7 +4317,7 @@ for _, maximized in ipairs({ true, false }) do
             local WC, calls = side_map(maximized, logOpen)
             local r = WC.mapRound
             assert(r:IsShown() and WC.mapControl == "round", "shown on map open")
-            r.scripts.OnClick(r, "LeftButton") -- plan on
+            WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- plan on
             assert(WC.panelState.selected and r:IsShown(), "shown with the plan on")
             local opens = (not maximized and not logOpen) and 1 or 0
             assert(calls.open == opens and calls.close == 0, "opens " .. calls.open)
@@ -4329,7 +4330,7 @@ for _, maximized in ipairs({ true, false }) do
             assert(g.insetRect.w == 330 and g.questScrollRect.w == 308 and g.sidePanel.planSelected)
             WC.RefreshMapTab(); WC.PlaceMapTab()
             assert(r:IsShown(), "still shown after a re-place")
-            r.scripts.OnClick(r, "LeftButton") -- plan off
+            WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- plan off
             assert(not WC.panelState.selected and r:IsShown(), "shown with the plan off")
             assert(calls.close == opens and calls.open == opens, "closed only if we opened it")
             if not maximized then assert(QuestMapFrame:IsShown() == logOpen, "side panel restored to how it was") end
@@ -4450,6 +4451,72 @@ for _, maximized in ipairs({ true, false }) do
     end
 end
 
+-- The client's quest-pane toggle: a frame with an open and a close button, each carrying atlas art.
+local function with_client_toggle()
+    local WC, calls, canvas = side_map(false, false)
+    local t = CreateFrame("Frame", nil, WorldMapFrame)
+    t.OpenButton = CreateFrame("Button", nil, t)
+    t.CloseButton = CreateFrame("Button", nil, t)
+    for _, b in ipairs({ t.OpenButton, t.CloseButton }) do
+        b:SetSize(30, 40)
+        local tex = CreateFrame("Frame", nil, b)
+        tex.atlas = b == t.OpenButton and "toggle-open" or "toggle-close"
+        b.GetNormalTexture = function() return tex end
+    end
+    t.CloseButton.shown = false
+    WorldMapFrame.SidePanelToggle = t
+    WC.PlacePlanTab()
+    return WC, calls, t
+end
+
+cases[#cases + 1] = { "plan tab: sits directly above the client's toggle, follows it, uses its art and size, falls back to the container corner", function()
+    local WC, _, t = with_client_toggle()
+    local b = WC.planTab
+    assert(b.parent == WorldMapFrame and b.strata == "HIGH" and b:IsShown())
+    local a = b.anchors.BOTTOM
+    assert(a and a[2] == t.OpenButton and a[3] == "TOP" and a[5] >= 2 and a[5] <= 4 and WC.planTabAnchor == "toggle")
+    assert(b.w == 30 and b.h == 40 and b.normalAtlas == "toggle-open", "the client's size and closed art")
+    t.OpenButton.shown, t.CloseButton.shown = false, true -- the pane opened: the client's toggle swaps buttons
+    WC.PlacePlanTab()
+    assert(b.anchors.BOTTOM[2] == t.CloseButton, "follows the toggle")
+    WorldMapFrame.SidePanelToggle = nil
+    WC.PlacePlanTab()
+    assert(WC.planTabAnchor == "fallback" and b.anchors.BOTTOMRIGHT[3] == "BOTTOMRIGHT")
+    local g = WC.MapGeometry().planTab
+    assert(g.anchor == "fallback" and g.shown and g.visible ~= nil and g.overlaysOn ~= nil)
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan tab: a click opens the pane, shows the plan and restores the pane; the client's toggle closing the pane hides the plan", function()
+    local WC, calls, t = with_client_toggle()
+    local b = WC.planTab
+    local overlays = WC.db.settings.planMap
+    b.scripts.OnClick(b, "LeftButton")
+    assert(calls.open == 1 and QuestMapFrame:IsShown() and WC.panelState.selected and WC.mapPanel:IsShown(), "pane opened, plan shown")
+    assert(b.normalAtlas == "toggle-close", "the open state's art")
+    assert(WC.db.settings.planMap == overlays, "the map overlays are untouched")
+    b.scripts.OnClick(b, "LeftButton")
+    assert(calls.close == 1 and not QuestMapFrame:IsShown() and not WC.panelState.selected, "plan hidden and the pane restored")
+    b.scripts.OnClick(b, "LeftButton") -- on again, then the player closes the pane with the client's own toggle
+    assert(WC.panelState.selected)
+    QuestMapFrame:Hide()
+    assert(not WC.panelState.selected and not WC.mapPanel:IsShown() and b.normalAtlas == "toggle-open", "our plan hides with the pane")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan rows: the step circle is slim and 10 to 99 fit inside", function()
+    local WC = WoWCompanion
+    if not WC.PANEL_BADGE then WC = select(1, side_panel_client()); side_panel_done() end
+    assert(WC.PANEL_BADGE <= 24 and WC.PANEL_BADGE >= 22 and WC.PANEL_RING >= 1.5 and WC.PANEL_RING <= 2)
+    for n = 1, 99 do assert(WC.BadgeNumberFits(n), "fits " .. n) end
+    assert(WC.PANEL_TEXT_X < 48, "the text got width back")
+    local WC2, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    local r = WC2.mapPanel.rows[1]
+    assert(r.badge.w == WC2.PANEL_BADGE and r.badge.h == WC2.PANEL_BADGE)
+    side_panel_done()
+end }
+
 cases[#cases + 1] = { "map button: no side-tab control, column detection, art or settings remain in the code", function()
     local gone = { "sidetab", "SideTab", "SIDETAB", "ScanTabColumn", "ColumnPlacement", "mapTabY", "FindClientSideTabs", "ArtSideTabs", "WoWCompanionMapTab", "QuestLogTabButtonTemplate" }
     for _, file in ipairs({ "Button", "MapPanel", "Geometry", "Settings", "Options" }) do
@@ -4465,10 +4532,10 @@ cases[#cases + 1] = { "side panel: in combat the open call is deferred with a to
     local r = WC.mapRound
     COMBAT = true
     Stub.fire(frames, "PLAYER_REGEN_DISABLED")
-    r.scripts.OnClick(r, "LeftButton")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
     assert(calls.open == 0 and not QuestMapFrame:IsShown() and WC.panelState.wantOpen and r:IsShown(), "deferred")
     GameTooltip.calls = {}
-    r.scripts.OnEnter(r)
+    WC.planTab.scripts.OnEnter(WC.planTab)
     local said = false
     for _, c in ipairs(GameTooltip.calls) do if c[1] == "AddLine" and c[2] == WC.L.TIP_MAP_DEFERRED then said = true end end
     assert(said, "the tooltip says so")
@@ -4477,7 +4544,7 @@ cases[#cases + 1] = { "side panel: in combat the open call is deferred with a to
     assert(calls.open == 1 and QuestMapFrame:IsShown() and WC.panelState.weOpened and not WC.panelState.wantOpen, "opened once after combat")
     COMBAT = true
     Stub.fire(frames, "PLAYER_REGEN_DISABLED")
-    r.scripts.OnClick(r, "LeftButton")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
     assert(calls.close == 0 and WC.panelState.wantClose, "close deferred too")
     COMBAT = false
     Stub.fire(frames, "PLAYER_REGEN_ENABLED")
