@@ -2516,7 +2516,7 @@ end }
 
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
     local allowed = { isMaximized = true, IsMaximized = true, Hide = true, GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
-        SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true }
+        SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true, HandleUserActionToggleSidePanel = true, GetWidth = true }
     local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do
