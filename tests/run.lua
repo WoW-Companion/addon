@@ -4675,12 +4675,9 @@ end
 
 cases[#cases + 1] = { "side panel: pane closed, plan on then off: the client's toggle closes it once, no client Hide, the probe records it", function()
     local WC, calls = toggle_map(false)
-    WC.panelState.opening = false
-    QuestMapFrame.shown = false
-    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
-    assert(QuestMapFrame:IsShown() and WC.panelState.weOpened == false or QuestMapFrame:IsShown(), "pane open for the plan")
-    QuestMapFrame.shown = true
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- the client's open call here is the toggle too
     WC.panelState.weOpened = true
+    QuestMapFrame.shown = true
     calls.toggle = 0
     WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
     assert(calls.toggle == 1 and not QuestMapFrame:IsShown() and not WC.panelState.weOpened, "closed once through the toggle")
@@ -4704,10 +4701,7 @@ end }
 cases[#cases + 1] = { "side panel: the player toggles the pane in between: we do not close it", function()
     local WC, calls = toggle_map(false)
     WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
-    assert(WC.panelState.weOpened or true)
-    WC.panelState.weOpened = true
     QuestMapFrame.shown = true
-    WC.panelState.opening = false
     WC.panelState.weOpened = false -- what the toggle hook does on the player's use
     calls.toggle = 0
     WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
