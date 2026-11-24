@@ -15,8 +15,9 @@ local SEL = { 0.45, 0.7, 1 } -- the selected step's accent (the current step sta
 local GOLD, DIM = { 1, 0.82, 0 }, { 0.55, 0.55, 0.55 }
 WC.TAB_MODE = "WoWCompanionPlan"
 -- The step circle in a plan row: a slim ring of PANEL_RING px round a PANEL_BADGE px disc; the text starts after it.
-WC.PANEL_BADGE, WC.PANEL_RING, WC.PANEL_ICON = 22, 1.75, 14
-local TEXT_X = 2 + WC.PANEL_BADGE + 3 + WC.PANEL_ICON + 3 -- badge, gap, small kind icon, gap
+WC.PANEL_BADGE, WC.PANEL_RING, WC.PANEL_ICON = 19, 1.25, 12
+WC.PANEL_LEFT, WC.PANEL_MARK_GAP = 6, 6 -- space left of the ring, and between the ring and the "!" / "?" mark
+local TEXT_X = WC.PANEL_LEFT + WC.PANEL_BADGE + WC.PANEL_MARK_GAP + WC.PANEL_ICON + 3 -- inset, badge, gap, kind icon, gap
 WC.PANEL_TEXT_X = TEXT_X
 -- Pure: does a step number of n's digits fit inside the ring? (a digit of the small font is about 7 px wide)
 function WC.BadgeNumberFits(n)
@@ -242,7 +243,7 @@ local function make_row(f, i)
     r.selBar:Hide()
     r.badge = CreateFrame("Frame", nil, r)
     r.badge:SetSize(WC.PANEL_BADGE, WC.PANEL_BADGE)
-    r.badge:SetPoint("LEFT", r, "LEFT", 2, 0)
+    r.badge:SetPoint("LEFT", r, "LEFT", WC.PANEL_LEFT, 0)
     WC.BadgeParts(r.badge, WC.PANEL_RING, 8, "GameFontNormalSmall", 2)
     r.badge.glow:SetSize(WC.PANEL_BADGE + 6, WC.PANEL_BADGE + 6)
     r.badge.selRing = r.badge:CreateTexture(nil, "BACKGROUND")
@@ -255,7 +256,7 @@ local function make_row(f, i)
     r.badge.mark:Hide()
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(WC.PANEL_ICON, WC.PANEL_ICON)
-    r.icon:SetPoint("LEFT", r.badge, "RIGHT", 3, 0)
+    r.icon:SetPoint("LEFT", r.badge, "RIGHT", WC.PANEL_MARK_GAP, 0)
     r.label = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     r.label:SetPoint("TOPLEFT", r, "TOPLEFT", TEXT_X, -ROW_PAD_T)
     r.label:SetJustifyH("LEFT")
@@ -539,6 +540,30 @@ local function create_frame()
     return f
 end
 
+-- Every frame and texture of ours inside the pane. Hiding the plan hides all of them (nothing of ours is left
+-- showing over the client's quest list); showing it brings the fixed ones back (rows and the list's own pieces are
+-- shown by the redraw).
+local function panel_parts(f)
+    local t = { f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.empty, f.doneHead, f.footer }
+    for _, r in ipairs(f.rows or {}) do t[#t + 1] = r end
+    return t
+end
+
+function WC.HideMapPanelParts(f)
+    f = f or WC.mapPanel
+    if not f then return end
+    for _, p in ipairs(panel_parts(f)) do if p.Hide then p:Hide() end end
+    f:Hide()
+end
+
+function WC.ShowMapPanelParts(f)
+    f = f or WC.mapPanel
+    if not f then return end
+    for _, p in ipairs({ f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.footer }) do
+        if p.Show then p:Show() end
+    end
+end
+
 -- Flips the zone filter for the session (the setting itself is the starting point).
 function WC.ToggleMapPanelZones()
     local st = WC.panelState
@@ -658,10 +683,8 @@ function WC.SelectMapPanel(on, by)
         f.registered = pcall(QuestMapFrame.AddContentFrame, QuestMapFrame, f, WC.TAB_MODE) and true or false
         native = f.registered
     end
-    if on and WC.MapSizeMode() == "small" then
-        WC.OpenSidePanel() -- the client's own way, so the map extends to the right as with the quest-log key
-    elseif on and QuestMapFrame and QuestMapFrame.IsShown and not QuestMapFrame:IsShown() and QuestMapFrame.Show then
-        pcall(QuestMapFrame.Show, QuestMapFrame) -- the full-size map: a collapsed quest log opens first
+    if on then
+        WC.OpenSidePanel() -- the client's own way (the same on either map size); remembers that we opened it
     end
     st.selected = on
     st.lastTab = on and "plan" or "other"
@@ -675,10 +698,13 @@ function WC.SelectMapPanel(on, by)
             pcall(QuestMapFrame.SetDisplayMode, QuestMapFrame, st.prevMode)
         end
     end
-    if not native then f:SetShown(on) end
-    if on then WC.RefreshMapPanel() end
-    if not on then
-        if by ~= "client" and WC.MapSizeMode() == "small" then WC.CloseSidePanel() else st.weOpened = false end
+    if on then
+        if not native then f:Show() end
+        WC.ShowMapPanelParts(f)
+        WC.RefreshMapPanel()
+    else
+        WC.HideMapPanelParts(f) -- always: even where the client's display-mode call left our frame up
+        if by ~= "client" then WC.CloseSidePanel() else st.weOpened = false end
     end
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     WC.RefreshMapTab()
@@ -729,6 +755,7 @@ end
 -- ---------------------------------------------------------------- the plan tab (lower right, above the client's toggle)
 
 WC.PLAN_TAB_GAP = 3 -- pixels between our tab and the client's toggle
+WC.PLAN_PANE_GAP = 4 -- pixels between our tab and the pane's left edge (full-size map)
 WC.PLAN_TAB_SIZE = { 32, 32 } -- used when the client's toggle cannot be measured
 
 -- The client's quest-pane toggle: { frame, open, close } where open and close are its two buttons; nil when this build
@@ -806,7 +833,8 @@ local function create_plan_tab()
     local ok, b = pcall(CreateFrame, "Button", "WoWCompanionPlanTab", WorldMapFrame)
     if not ok or type(b) ~= "table" then return nil end
     b:SetSize(WC.PLAN_TAB_SIZE[1], WC.PLAN_TAB_SIZE[2])
-    b:RegisterForClicks("LeftButtonUp")
+    b:RegisterForClicks("LeftButtonUp") -- our own hit rect only; a click never reaches a frame under the tab
+    if b.EnableMouse then b:EnableMouse(true) end
     b.icon = b:CreateTexture(nil, "OVERLAY") -- ours, where the client's toggle has its "?"
     b.icon:SetSize(16, 16)
     b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -818,27 +846,80 @@ local function create_plan_tab()
     return b
 end
 
--- Puts our tab directly above the client's toggle (following it), else at the canvas container's lower right corner.
+-- Pure: do two rects { left, right, top, bottom } (screen y up) overlap? A missing rect never overlaps.
+function WC.RectsOverlap(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    return a.left < b.right and b.left < a.right and a.bottom < b.top and b.bottom < a.top
+end
+
+local function rect_of_frame(f)
+    if type(f) ~= "table" or not f.GetLeft or not f.GetRight or not f.GetTop or not f.GetBottom then return nil end
+    local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
+    if not (tonumber(l) and tonumber(r) and tonumber(t) and tonumber(b)) then return nil end
+    return { left = l, right = r, top = t, bottom = b }
+end
+
+local function frame_visible(f)
+    if type(f) ~= "table" then return false end
+    if f.IsVisible then return f:IsVisible() and true or false end
+    return f.IsShown and f:IsShown() and true or false
+end
+
+-- The client's toggle button that is showing now (its close button while the pane is open, else its open button), or nil.
+local function shown_toggle_button(ct)
+    if not ct then return nil end
+    for _, b in ipairs({ ct.close or false, ct.open or false }) do
+        if type(b) == "table" and frame_visible(b) then return b end
+    end
+    return nil
+end
+
+-- A frame level above the side pane and everything in it, so nothing of the client's covers our tab.
+local function plan_tab_level(b)
+    local top = (b.GetFrameLevel and b:GetFrameLevel()) or 1
+    for _, f in ipairs({ QuestMapFrame, WC.mapPanel }) do
+        if type(f) == "table" and f.GetFrameLevel then
+            local l = f:GetFrameLevel()
+            if tonumber(l) and l + 10 > top then top = l + 10 end
+        end
+    end
+    return top
+end
+
+-- Puts our tab directly above the client's toggle wherever that is showing (the small map); with the toggle hidden (the
+-- full-size map) at the pane's left edge, bottom, outside it while the pane is open, else at the canvas container's
+-- lower right. Never over a showing client toggle.
 function WC.PlacePlanTab()
     local b = create_plan_tab()
     if not b then return end
     if b.GetParent and b:GetParent() ~= WorldMapFrame then b:SetParent(WorldMapFrame) end
     WC.RaiseRoundButton(b)
+    if b.SetFrameLevel then b:SetFrameLevel(plan_tab_level(b)) end
     local ct = WC.ClientToggle()
     local seen = ct and ct.frame or false
     if b.artFor ~= seen then b.artFor, b.artState = seen, nil end -- the client's toggle appeared or changed: copy its art
     WC.RefreshPlanTab()
-    local anchor = ct and ((ct.close and ct.close.IsShown and ct.close:IsShown() and ct.close)
-        or (ct.open and ct.open.IsShown and ct.open:IsShown() and ct.open) or ct.frame) or nil
+    local anchor = shown_toggle_button(ct)
     b:ClearAllPoints()
     if anchor then
         b:SetPoint("BOTTOM", anchor, "TOP", 0, WC.PLAN_TAB_GAP)
         WC.planTabAnchor = "toggle"
+    elseif WC.SidePanelOpen() then
+        b:SetPoint("BOTTOMRIGHT", QuestMapFrame, "BOTTOMLEFT", -WC.PLAN_PANE_GAP, 0)
+        WC.planTabAnchor = "pane"
     else
-        local parent = WC.RoundParent() or WorldMapFrame
-        b:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, (tonumber(b:GetHeight()) and b:GetHeight() > 0 and b:GetHeight() or WC.PLAN_TAB_SIZE[2]) + WC.PLAN_TAB_GAP)
-        WC.planTabAnchor = "fallback"
+        b:SetPoint("BOTTOMRIGHT", WC.RoundParent() or WorldMapFrame, "BOTTOMRIGHT", 0, 0)
+        WC.planTabAnchor = "corner"
     end
+    -- never cover a client toggle that shows: if the rects meet, move up onto it
+    WC.planTabOverlap = false
+    local tb = shown_toggle_button(ct)
+    if tb and WC.planTabAnchor ~= "toggle" and WC.RectsOverlap(rect_of_frame(b), rect_of_frame(tb)) then
+        b:ClearAllPoints()
+        b:SetPoint("BOTTOM", tb, "TOP", 0, WC.PLAN_TAB_GAP)
+        WC.planTabAnchor = "toggle"
+    end
+    WC.planTabOverlap = tb ~= nil and WC.RectsOverlap(rect_of_frame(b), rect_of_frame(tb)) or false
     b:SetShown(WC.Setting("mapButton") ~= false)
     if ct and not WC.toggleHooked then
         WC.toggleHooked = true

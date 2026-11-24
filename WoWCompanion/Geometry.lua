@@ -75,7 +75,8 @@ function WC.MapGeometry()
     local ct = WC.ClientToggle and WC.ClientToggle() or nil
     g.planTab = { rect = rect_of(pt), shown = pt and pt.IsShown and pt:IsShown() and true or false,
         visible = pt and pt.IsVisible and pt:IsVisible() and true or false, anchor = pt and WC.planTabAnchor or nil,
-        toggleRect = rect_of(ct and ct.frame or nil), overlaysOn = WC.PlanShownOnMap and WC.PlanShownOnMap() or false }
+        toggleRect = rect_of(ct and ct.frame or nil), overlap = WC.planTabOverlap == true,
+        paneRect = rect_of(type(QuestMapFrame) == "table" and QuestMapFrame or nil), overlaysOn = WC.PlanShownOnMap and WC.PlanShownOnMap() or false }
     g.planRect, g.insetRect = rect_of(WC.mapPanel), rect_of(WC.MapInset and WC.MapInset() or nil)
     g.questScrollRect = rect_of(WC.QuestScrollRect and WC.QuestScrollRect() or nil)
     g.scrollTemplate = WC.mapPanel and WC.mapPanel.scrollTemplate or nil

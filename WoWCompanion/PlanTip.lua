@@ -30,7 +30,8 @@ function WC.PlanTipWho(s)
     local d = WC.PlanDetail(s)
     local who
     if s.kind == "pickup" then
-        who = d:match("^from (.+)$") or d:match("^Pick up .- from (.+)$")
+        local npc = d:match("^[Ff]rom (.+)$") or d:match("^Pick up .- from (.+)$")
+        who = npc and string.format(L.PANEL_PICKUP_FROM, npc) or nil
     elseif s.kind == "turnin" then
         local npc = d:match("^to (.+)$")
         who = npc and string.format(L.PLAN_TIP_TURNIN_TO, npc) or nil
@@ -41,6 +42,12 @@ function WC.PlanTipWho(s)
     if who and s.kind ~= "turnin" and s.npcLevel and tostring(s.npcLevel) ~= "" then who = who .. " (" .. tostring(s.npcLevel) .. ")" end
     if s.approx then who = (who and who .. " " or "") .. L.PLAN_TIP_APPROX end
     return who
+end
+
+-- A line compared without its "3/8" count, a trailing "(approx.)" or level tag, case or spacing.
+local function plain_text(t)
+    t = tostring(t or ""):gsub("^%d+/%d+%s*", ""):gsub("%s*%b()%s*$", ""):gsub("%s+", " ")
+    return t:lower()
 end
 
 -- Lines for one step; each is { text =, color =, right =, rightColor =, small = true }.
@@ -61,10 +68,17 @@ local function step_lines(lines, group, s, prevQuest, opts)
     if state == "ready" and (s.kind == "objective" or s.kind == "turnin") then
         lines[#lines + 1] = { text = INDENT .. L.PLAN_TIP_READY, color = GREEN }
     elseif s.kind == "objective" and state == "active" then
+        -- each objective once, and never the heading line again
+        local seen = {}
+        if who then seen[plain_text(who)] = true end
         for _, o in ipairs(WC.QuestObjectives(s.questID) or {}) do
             local text = o.text
             if o.have and o.need and not text:find("%d+/%d+") then text = o.have .. "/" .. o.need .. " " .. text end
-            lines[#lines + 1] = { text = INDENT .. text, color = o.finished and DIM or WHITE }
+            local key = plain_text(text)
+            if not seen[key] then
+                seen[key] = true
+                lines[#lines + 1] = { text = INDENT .. text, color = o.finished and DIM or WHITE }
+            end
         end
     end
     local total = group.total or (WC.plan and WC.plan.steps and #WC.plan.steps)

@@ -1278,7 +1278,7 @@ cases[#cases + 1] = { "plan: tooltip layout per kind, merged de-dup, label strip
     local F = "|Step %d of 20"
     local function one(g) local t = texts(g) return t end
     local s1 = texts({ steps = { P } })
-    assert(s1:find("^Blood Tithe|Bob|Step 1 of %d+"), s1)
+    assert(s1:find("^Blood Tithe|Pick up from Bob|Step 1 of %d+"), s1)
     assert(texts({ steps = { O }, next = O }):find("^Blood Tithe|Find Aamelia Windfield|Step 2 of %d+ \194\183 Next"))
     local m = texts({ steps = { O, T }, next = O })
     assert(select(2, m:gsub("Blood Tithe", "")) == 1, "quest name once in a merged badge")
@@ -1298,7 +1298,7 @@ cases[#cases + 1] = { "badge tooltip: title, who, rows, xp, levels, footer, comb
     local g = { steps = { P }, next = P, total = 20 }
     local L1 = lines(g, { dist = 125, dir = "W" })
     assert(L1[1].text == "[10] The Skybreaker Bulwark (Class)" and L1[1].right == nil, "no xp when not in the log")
-    assert(L1[2].text == "Seena Skybreaker" and L1[3].text == "Step 1 of 20 \194\183 Next \194\183 125 yd W")
+    assert(L1[2].text == "Pick up from Seena Skybreaker" and L1[3].text == "Step 1 of 20 \194\183 Next \194\183 125 yd W")
     assert(lines(g)[3].text == "Step 1 of 20 \194\183 Next", "no distance off the minimap")
     -- no level data: no brackets and no (levels) on the who line
     local N = { n = 2, kind = "pickup", questID = 11, quest = "Crab Season", label = "Pick up Crab Season from Bob" }
@@ -1945,7 +1945,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.23" and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.24" and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4319,7 +4319,7 @@ for _, maximized in ipairs({ true, false }) do
             assert(r:IsShown() and WC.mapControl == "round", "shown on map open")
             WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- plan on
             assert(WC.panelState.selected and r:IsShown(), "shown with the plan on")
-            local opens = (not maximized and not logOpen) and 1 or 0
+            local opens = (not logOpen) and 1 or 0
             assert(calls.open == opens and calls.close == 0, "opens " .. calls.open)
             assert((WC.panelState.weOpened == true) == (opens == 1))
             assert(QuestMapFrame:IsShown(), "the panel is open for the plan")
@@ -4333,7 +4333,7 @@ for _, maximized in ipairs({ true, false }) do
             WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- plan off
             assert(not WC.panelState.selected and r:IsShown(), "shown with the plan off")
             assert(calls.close == opens and calls.open == opens, "closed only if we opened it")
-            if not maximized then assert(QuestMapFrame:IsShown() == logOpen, "side panel restored to how it was") end
+            assert(QuestMapFrame:IsShown() == logOpen, "side panel restored to how it was")
             assert(not WC.panelState.weOpened)
             WorldMapFrame, QuestMapFrame, COMBAT = nil, nil, nil
         end }
@@ -4481,10 +4481,114 @@ cases[#cases + 1] = { "plan tab: sits directly above the client's toggle, follow
     assert(b.anchors.BOTTOM[2] == t.CloseButton, "follows the toggle")
     WorldMapFrame.SidePanelToggle = nil
     WC.PlacePlanTab()
-    assert(WC.planTabAnchor == "fallback" and b.anchors.BOTTOMRIGHT[3] == "BOTTOMRIGHT")
+    assert(WC.planTabAnchor == "corner" and b.anchors.BOTTOMRIGHT[3] == "BOTTOMRIGHT")
     local g = WC.MapGeometry().planTab
-    assert(g.anchor == "fallback" and g.shown and g.visible ~= nil and g.overlaysOn ~= nil)
+    assert(g.anchor == "corner" and g.shown and g.visible ~= nil and g.overlaysOn ~= nil)
     WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+-- A full-size map whose client toggle is hidden: the pane's and the toggle's rects are set so overlap can be probed.
+local function full_map_no_toggle(paneOpen)
+    local WC, calls = side_map(true, paneOpen)
+    local t = CreateFrame("Frame", nil, WorldMapFrame)
+    t.OpenButton = CreateFrame("Button", nil, t)
+    t.CloseButton = CreateFrame("Button", nil, t)
+    t.OpenButton.shown, t.CloseButton.shown = false, false
+    WorldMapFrame.SidePanelToggle = t
+    QuestMapFrame.level = 5
+    local canvas = WC.RoundParent()
+    QuestMapFrame.GetLeft, QuestMapFrame.GetRight, QuestMapFrame.GetTop, QuestMapFrame.GetBottom = function() return 1000 end, function() return 1330 end, function() return 700 end, function() return 80 end
+    WC.PlacePlanTab()
+    return WC, calls, t, canvas
+end
+
+cases[#cases + 1] = { "plan tab: full-size map, pane open: left of the pane, bottom, above it in frame level; pane closed: the canvas's bottom right", function()
+    local WC, _, _, canvas = full_map_no_toggle(true)
+    local b = WC.planTab
+    local a = b.anchors.BOTTOMRIGHT
+    assert(WC.planTabAnchor == "pane" and a[2] == QuestMapFrame and a[3] == "BOTTOMLEFT" and a[4] == -4 and a[5] == 0, "pane's left edge, 4px gap")
+    assert(b.strata == "HIGH" and b:GetFrameLevel() > QuestMapFrame:GetFrameLevel(), "above the pane")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(WC.mapPanel and b:GetFrameLevel() > WC.mapPanel:GetFrameLevel(), "above our own plan frame too")
+    QuestMapFrame:Hide()
+    WC.PlacePlanTab()
+    a = b.anchors.BOTTOMRIGHT
+    assert(WC.planTabAnchor == "corner" and a[2] == canvas and a[3] == "BOTTOMRIGHT", "canvas bottom right")
+    assert(WC.MapGeometry().planTab.overlap == false)
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan tab: never overlaps a shown client toggle", function()
+    local WC, _, t = full_map_no_toggle(true)
+    local b = WC.planTab
+    -- the client toggle shows in the very spot the pane anchor would give ours
+    t.OpenButton.shown = true
+    t.OpenButton:SetSize(30, 40)
+    t.OpenButton.GetLeft, t.OpenButton.GetRight, t.OpenButton.GetTop, t.OpenButton.GetBottom = function() return 940 end, function() return 970 end, function() return 120 end, function() return 80 end
+    b.GetLeft, b.GetRight, b.GetTop, b.GetBottom = function() return 960 end, function() return 996 end, function() return 120 end, function() return 80 end
+    assert(WC.RectsOverlap({ left = 0, right = 10, top = 10, bottom = 0 }, { left = 5, right = 15, top = 12, bottom = 2 }))
+    assert(not WC.RectsOverlap({ left = 0, right = 10, top = 10, bottom = 0 }, { left = 10, right = 15, top = 12, bottom = 2 }))
+    WC.PlacePlanTab()
+    assert(WC.planTabAnchor == "toggle" and b.anchors.BOTTOM[2] == t.OpenButton and b.anchors.BOTTOM[3] == "TOP", "sits above the shown toggle")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan hide: every region of ours hides, no quest header call is made, the pane we opened closes", function()
+    local WC, calls = full_map_no_toggle(false)
+    local forbidden = {}
+    for _, n in ipairs({ "ToggleHeader", "CollapseAll", "ExpandAll", "SetHeaderCollapsed", "ToggleQuestHeader" }) do
+        QuestMapFrame[n] = function() forbidden[#forbidden + 1] = n end
+        _G["QuestMapFrame_" .. n] = QuestMapFrame[n]
+    end
+    local src = assert(io.open("WoWCompanion/MapPanel.lua")):read("*a")
+    for _, n in ipairs({ "CollapseQuestHeader", "ExpandQuestHeader", "CollapseAll", "ToggleHeader", "ExpandAll" }) do assert(not src:find(n, 1, true), n) end
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    local f = WC.mapPanel
+    assert(f:IsShown() and f.bg:IsShown() and f.scroll:IsShown() and f.title:IsShown())
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    for _, p in ipairs({ f, f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.empty, f.doneHead, f.footer }) do
+        assert(not p:IsShown(), "still shown")
+    end
+    for _, r in ipairs(f.rows) do assert(not r:IsShown()) end
+    assert(#forbidden == 0 and calls.close == 1 and not QuestMapFrame:IsShown(), "closed the client's way, no header calls")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton") -- and it comes back whole
+    assert(f.bg:IsShown() and f.scroll:IsShown())
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan hide: a pane that was already open stays open as it was", function()
+    local WC, calls = full_map_no_toggle(true)
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    WC.planTab.scripts.OnClick(WC.planTab, "LeftButton")
+    assert(calls.open == 0 and calls.close == 0 and QuestMapFrame:IsShown() and not WC.mapPanel:IsShown() and not WC.mapPanel.bg:IsShown())
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "plan rows: ring diameter at most 20, stroke at most 1.5, 6px inset before it and 6px to the mark", function()
+    local WC, tab = side_panel_client()
+    assert(WC.PANEL_BADGE >= 18 and WC.PANEL_BADGE <= 20 and WC.PANEL_RING >= 1 and WC.PANEL_RING <= 1.5)
+    tab.scripts.OnClick(tab, "LeftButton")
+    local r = WC.mapPanel.rows[1]
+    assert(r.badge.w <= 20 and r.badge.points[1][4] == 6 and r.icon.points[1][4] == 6, "insets")
+    side_panel_done()
+end }
+
+cases[#cases + 1] = { "badge tooltip: each step leads with its action and no line repeats", function()
+    local WC = plan_client("full")
+    local function texts(g) local t = {} for _, l in ipairs(WC.PlanTipLines(g)) do t[#t + 1] = l.text end return t end
+    local P = { n = 2, kind = "pickup", quest = "Al'Aketh Assassins", label = "Pick up Al'Aketh Assassins from Fendaal Windstone" }
+    local T = { n = 3, kind = "turnin", quest = "Al'Aketh Assassins", label = "Turn in Al'Aketh Assassins to Fendaal Windstone" }
+    local t = texts({ steps = { P, T }, total = 23 })
+    assert(t[2] == "Pick up from Fendaal Windstone" and t[5] == "Turn in to Fendaal Windstone", table.concat(t, "|"))
+    local O = { n = 4, kind = "objective", questID = 12, quest = "Crab", label = "Crab: 0/6 Windsong Crawler" }
+    QUESTS[12] = "active"
+    C_QuestLog.GetQuestObjectives = function() return { { text = "Windsong Crawler", numFulfilled = 0, numRequired = 6 }, { text = "Windsong Crawler", numFulfilled = 0, numRequired = 6 } } end
+    local o = texts({ steps = { O }, total = 23 })
+    local seen = {}
+    for _, l in ipairs(o) do assert(not seen[l], "duplicate " .. l); seen[l] = true end
+    C_QuestLog.GetQuestObjectives = nil
+    QUESTS[12] = nil
+    WorldMapFrame = nil
 end }
 
 cases[#cases + 1] = { "plan tab: a click opens the pane, shows the plan and restores the pane; the client's toggle closing the pane hides the plan", function()
@@ -4507,7 +4611,7 @@ end }
 cases[#cases + 1] = { "plan rows: the step circle is slim and 10 to 99 fit inside", function()
     local WC = WoWCompanion
     if not WC.PANEL_BADGE then WC = select(1, side_panel_client()); side_panel_done() end
-    assert(WC.PANEL_BADGE <= 24 and WC.PANEL_BADGE >= 22 and WC.PANEL_RING >= 1.5 and WC.PANEL_RING <= 2)
+    assert( WC.PANEL_RING >= 1 and WC.PANEL_RING <= 1.5 and WC.PANEL_BADGE >= 18 and WC.PANEL_BADGE <= 20)
     for n = 1, 99 do assert(WC.BadgeNumberFits(n), "fits " .. n) end
     assert(WC.PANEL_TEXT_X < 48, "the text got width back")
     local WC2, tab = side_panel_client()
