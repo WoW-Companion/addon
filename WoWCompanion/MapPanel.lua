@@ -1,6 +1,6 @@
--- WoW Companion: the plan in the world map's right-hand panel, behind our side tab.
+-- WoW Companion: the plan in the world map's right-hand panel, behind our round map button.
 -- Approach: the client has no public way to add a content frame to its quest panel, so by default a child frame of
--- the panel (our own, never a client frame) is shown over the panel's content area while our tab is selected, and
+-- the panel (our own, never a client frame) is shown over the quest list's own rect while the plan is selected, and
 -- hidden the moment another tab or the map's own controls change the view. If a client ever offers
 -- QuestMapFrame:AddContentFrame + SetDisplayMode, that public pair is used instead ("native").
 -- Display only: nothing here changes a client frame; every client call is guarded and unprotected.
@@ -8,12 +8,15 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local PAD, TOP_INSET, SCROLL_W = 10, 12, 26
+local PAD, TOP_INSET, HEADER_H = 10, 12, 100 -- HEADER_H: the title, step, advice and zone rows that open the scrolling content
 local ROW_MIN, ROW_PAD_T, ROW_PAD_B, ROW_GAP = 34, 6, 6, 2
 local LINE_TITLE, LINE_SUB = 13, 11 -- a line's height when the client cannot measure the text
 local SEL = { 0.45, 0.7, 1 } -- the selected step's accent (the current step stays gold)
 local GOLD, DIM = { 1, 0.82, 0 }, { 0.55, 0.55, 0.55 }
 WC.TAB_MODE = "WoWCompanionPlan"
+-- The scroll frame template the client's own quest list uses, so our plan's scroll bar is the client's; the older
+-- panel scroll template when this build has no such template.
+WC.SCROLL_TEMPLATE, WC.SCROLL_TEMPLATE_OLD = "ScrollFrameTemplate", "UIPanelScrollFrameTemplate"
 
 -- Session state: whether our tab is selected, the last tab the player used (nil until one is), the zone filter the
 -- player flipped (nil = follow the setting) and whether the Completed group is open.
@@ -339,7 +342,7 @@ function WC.RefreshMapPanel()
     if sw and sw > 0 then f.rowWidth = math.floor(sw) end
     f.child:SetWidth(f.rowWidth)
     local used = 0
-    local y = 0
+    local y = HEADER_H
     local function put(m)
         used = used + 1
         y = y + fill_row(f, used, m, y).hh
@@ -366,6 +369,9 @@ function WC.RefreshMapPanel()
         f.footer:SetText("")
     end
     for i = used + 1, #f.rows do f.rows[i]:Hide() end
+    f.footer:ClearAllPoints()
+    f.footer:SetPoint("TOPLEFT", f.child, "TOPLEFT", PAD + 4, -(y + 6))
+    y = y + 24
     f.child:SetHeight(math.max(y + 8, 1))
     f.scrollRange = math.max(0, y + 8 - (f.scroll:GetHeight() or 0))
     if WC.HoverCheck then WC.HoverCheck() end
@@ -421,31 +427,31 @@ function WC.QuestListFrame()
     return nil
 end
 
+
 WC.PANEL_TOP_FALLBACK = 32 -- pixels below the quest-map frame's top when the client's quest list cannot be found
 
--- The client's own quest list frame wherever it is (shown or not): its rect is the content area inside the side
--- panel's inset border, and its anchors stay set while another tab is up.
-local function quest_list_any()
+-- The client's own quest list scroll frame, wherever it is (shown or not): its rect is where the quest list goes
+-- inside the side panel's border, and its anchors stay set while another tab is up. QuestMapFrame.QuestsFrame's
+-- ScrollFrame, else the QuestScrollFrame global, else the QuestsFrame itself.
+function WC.QuestScrollRect()
     local col = QuestMapFrame
     if type(col) ~= "table" then return nil end
     local q = col.QuestsFrame
-    for _, c in ipairs({ type(q) == "table" and q or false, type(q) == "table" and q.ScrollFrame or false, type(QuestScrollFrame) == "table" and QuestScrollFrame or false }) do
+    for _, c in ipairs({ type(q) == "table" and q.ScrollFrame or false, type(QuestScrollFrame) == "table" and QuestScrollFrame or false, type(q) == "table" and q or false }) do
         if type(c) == "table" and c.GetObjectType and c.GetNumPoints and c:GetNumPoints() > 0 then return c end
     end
     return nil
 end
 
--- Fits the panel exactly over the content area inside the side panel's inset border (the client's content anchor, else
--- the rect of its own quest list), so the border frames our plan the way it frames the quest list and crosses none of
--- our content; the title row is inside that rect. Only anchors of our own frame are set. Without either, a fixed
--- margin inside the quest-map frame.
+-- Fits the plan exactly over the client's quest list rect (QuestScrollFrame), where the quest list goes inside the side
+-- panel's border; the title rows are inside that rect, scrolling with the plan. Only anchors of our own frame are
+-- set. Without the quest list, a fixed margin inside the quest-map frame.
 function WC.PlaceMapPanel()
     local f = WC.mapPanel
     if not f then return end
     local col = QuestMapFrame
     if not col then return end
-    local anchor = type(col) == "table" and col.ContentsAnchor
-    local rect = (type(anchor) == "table" and anchor.GetObjectType) and anchor or quest_list_any()
+    local rect = WC.QuestScrollRect()
     f:ClearAllPoints()
     if rect then
         f:SetPoint("TOPLEFT", rect, "TOPLEFT", 0, 0)
@@ -469,19 +475,33 @@ local function create_frame()
     WC.PlaceMapPanel()
     if f.SetFrameLevel and col.GetFrameLevel then f:SetFrameLevel((col:GetFrameLevel() or 1) + 20) end
     f:EnableMouse(true) -- swallows clicks so they never reach the quest list underneath
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
+    f.bg = f:CreateTexture(nil, "BACKGROUND") -- opaque, only inside the quest list's rect, so the list never shows through
     f.bg:SetAllPoints()
     f.bg:SetColorTexture(0.06, 0.05, 0.04, 1)
-    -- a plain header line in the client's header font, as the client shows the zone name; no border or title art of ours
-    f.title = f:CreateFontString(nil, "OVERLAY", _G.QuestFont_Huge and "QuestFont_Huge" or "GameFontNormalLarge")
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -TOP_INSET)
-    f.stepText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    -- the client's own scroll frame template: its scroll bar stands where the quest list's bar does
+    local sok, sc = pcall(CreateFrame, "ScrollFrame", "WoWCompanionMapPanelScroll", f, WC.SCROLL_TEMPLATE)
+    if sok and type(sc) == "table" then
+        f.scrollTemplate = WC.SCROLL_TEMPLATE
+    else
+        sc = CreateFrame("ScrollFrame", "WoWCompanionMapPanelScroll", f, WC.SCROLL_TEMPLATE_OLD)
+        f.scrollTemplate = WC.SCROLL_TEMPLATE_OLD
+    end
+    f.scroll = sc
+    f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    f.child = CreateFrame("Frame", nil, f.scroll)
+    f.child:SetSize(f.rowWidth, 1)
+    f.scroll:SetScrollChild(f.child)
+    -- the header rows are the first rows of the scrolling content, in the client's header font
+    f.title = f.child:CreateFontString(nil, "OVERLAY", _G.QuestFont_Huge and "QuestFont_Huge" or "GameFontNormalLarge")
+    f.title:SetPoint("TOPLEFT", f.child, "TOPLEFT", PAD + 4, -TOP_INSET)
+    f.stepText = f.child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.stepText:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -5)
-    f.advice = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    f.advice = f.child:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f.advice:SetPoint("TOPLEFT", f.stepText, "BOTTOMLEFT", 0, -4)
-    f.eye = CreateFrame("Button", "WoWCompanionMapPanelEye", f)
+    f.eye = CreateFrame("Button", "WoWCompanionMapPanelEye", f.child)
     f.eye:SetSize(22, 22)
-    f.eye:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD - SCROLL_W, -TOP_INSET + 2)
+    f.eye:SetPoint("TOPRIGHT", f.child, "TOPRIGHT", -PAD, -TOP_INSET + 2)
     f.eye.tex = f.eye:CreateTexture(nil, "ARTWORK")
     f.eye.tex:SetAllPoints()
     f.eye.tex:SetTexture("Interface\\Icons\\INV_Misc_Eye_01")
@@ -492,26 +512,19 @@ local function create_frame()
         GameTooltip:Show()
     end)
     f.eye:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    f.zoneBtn = CreateFrame("Button", "WoWCompanionMapPanelZone", f, "UIPanelButtonTemplate")
+    f.zoneBtn = CreateFrame("Button", "WoWCompanionMapPanelZone", f.child, "UIPanelButtonTemplate")
     f.zoneBtn:SetSize(90, 22)
     f.zoneBtn:SetPoint("TOPLEFT", f.advice, "BOTTOMLEFT", 0, -6)
     f.zoneBtn:SetScript("OnClick", function() WC.ToggleMapPanelZones() end)
-    f.scroll = CreateFrame("ScrollFrame", "WoWCompanionMapPanelScroll", f, "UIPanelScrollFrameTemplate")
-    f.scroll:SetPoint("TOPLEFT", f.zoneBtn, "BOTTOMLEFT", -4, -6)
-    f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD - SCROLL_W, 40)
-    f.child = CreateFrame("Frame", nil, f.scroll)
-    f.child:SetSize(f.rowWidth, 1)
-    f.scroll:SetScrollChild(f.child)
     f.empty = f.child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    f.empty:SetPoint("TOPLEFT", f.child, "TOPLEFT", 4, -8)
+    f.empty:SetPoint("TOPLEFT", f.child, "TOPLEFT", 4, -HEADER_H - 8)
     f.empty:SetWidth(f.rowWidth - 8)
     f.empty:SetJustifyH("LEFT")
     f.doneHead = CreateFrame("Button", "WoWCompanionMapPanelDone", f.child)
     f.doneHead:SetSize(f.rowWidth - 8, 20)
     f.doneHead:SetNormalFontObject("GameFontNormal")
     f.doneHead:SetScript("OnClick", function() WC.panelState.doneOpen = not WC.panelState.doneOpen; WC.RefreshMapPanel() end)
-    f.footer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.footer:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD + 4, 18)
+    f.footer = f.child:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     f:Hide()
     WC.mapPanel = f
     return f
@@ -671,7 +684,7 @@ end
 
 -- On map open: the session's last tab wins; with none yet, the open-on-our-tab setting decides.
 function WC.ApplyMapTabState()
-    if WC.mapButtonMode ~= "tab" then return end
+    if not WC.mapRound then return end
     local st = WC.panelState
     local want = st.lastTab == "plan" or (st.lastTab == nil and WC.Setting("panelOpenOnTab") == true)
     if want or st.selected then WC.SelectMapPanel(want) end
@@ -697,7 +710,7 @@ function WC.HookClientTabs()
     end
     if not col.GetChildren then return end
     for _, c in ipairs({ col:GetChildren() }) do
-        if c ~= WC.mapButton and c ~= WC.mapPanel and not hooked[c] and c.HookScript and c.IsShown and c:IsShown()
+        if c ~= WC.mapRound and c ~= WC.mapPanel and not hooked[c] and c.HookScript and c.IsShown and c:IsShown()
             and (c:GetWidth() or 0) > 0 and (c:GetWidth() or 0) <= 80 and (c:GetHeight() or 0) <= 80 then
             hooked[c] = pcall(c.HookScript, c, "OnClick", client_changed)
         end
@@ -706,7 +719,7 @@ end
 
 -- Sets the tab up once the button exists: hooks, and the map-open behaviour (the map's OnShow hook is in Button.lua).
 function WC.InitMapPanel()
-    if WC.mapButtonMode ~= "tab" or WC.panelInited then return end
+    if not WC.mapRound or WC.panelInited then return end
     WC.panelInited = true
     WC.HookClientTabs()
     WC.ApplyMapTabState()
