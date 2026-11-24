@@ -1945,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.20" and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1")
+    assert(TOC_VERSION == "0.6.21" and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -4703,6 +4703,7 @@ local function round_map(n, withColumn)
     canvas.GetTop = function() return 900 end
     canvas.GetHeight = function() return 600 end
     WorldMapFrame.ScrollContainer = canvas
+    function WorldMapFrame:GetCanvasContainer() return canvas end
     for i = 1, n do
         local c = CreateFrame("Button", nil, canvas)
         c.w, c.h = 32, 32
@@ -4733,10 +4734,11 @@ for _, n in ipairs({ 0, 1, 2 }) do
         local WC = WoWCompanion
         WorldMapFrame.scripts.OnShow(WorldMapFrame)
         local r = WC.mapRound
-        assert(r and r:IsShown() and r.parent == canvas and r.w == 32 and r.h == 32)
+        assert(r and r:IsShown() and r.parent == WorldMapFrame and r.w == 32 and r.h == 32)
         assert(not WC.mapButton:IsShown(), "the side tab is hidden")
         local p = r.points[1]
         assert(p[1] == "TOPLEFT" and p[2] == canvas and p[3] == "TOPLEFT" and p[4] == 3 and p[5] == -(3 + n * 32), "slot " .. (n + 1))
+        assert(r:GetFrameStrata() == "HIGH" and r.parent == WorldMapFrame and p[2] == WorldMapFrame:GetCanvasContainer(), "map child, HIGH, anchored to the canvas container")
         assert(r:GetFrameLevel() > canvas:GetFrameLevel() and r:GetFrameStrata() == "HIGH", "above the canvas")
         local g = WoWCompanionDB.observed.mapGeometry
         assert(g.control == "round" and g.round.name == "WoWCompanionMapRoundButton" and g.round.level == r:GetFrameLevel() and g.round.strata == "HIGH")
@@ -4824,6 +4826,77 @@ for _, maximized in ipairs({ true, false }) do
             if not maximized then assert(QuestMapFrame:IsShown() == logOpen, "side panel restored to how it was") end
             assert(not WC.panelState.weOpened)
             WorldMapFrame, QuestMapFrame, COMBAT = nil, nil, nil
+        end }
+    end
+end
+
+
+cases[#cases + 1] = { "client map: the slot follows the client's pin button; re-placed on OnMapChanged, size toggle and quest-pane toggle; the probe refreshes t", function()
+    local hooks = {}
+    local canvas = round_map(0)
+    WorldMapTrackingPinButtonMixin = { OnLoad = function() end }
+    local pin = CreateFrame("Button", nil, WorldMapFrame)
+    pin.w, pin.h, pin.OnLoad = 32, 32, WorldMapTrackingPinButtonMixin.OnLoad
+    pin.GetLeft = function() return 103 end
+    pin.GetTop = function() return 900 end
+    pin.GetHeight = function() return 32 end
+    WorldMapFrame.overlayFrames = { pin }
+    function WorldMapFrame:OnMapChanged() end
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local cs = {}
+    C_Timer = { After = function(sec, fn) cs[#cs + 1] = { sec, fn } end }
+    hooksecurefunc = function(obj, name, fn) hooks[name] = { obj = obj, fn = fn } end
+    WC.mapChangedHooked, WC.mapButton = nil, nil
+    WC.CreateMapButton()
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local r = WC.mapRound
+    assert(r.points[1][5] == -32 and WC.roundPlace.slot == 2, "below the pin button")
+    assert(hooks.OnMapChanged and hooks.OnMapChanged.obj == WorldMapFrame, "hooks OnMapChanged")
+    -- a button moves in after us: each trigger re-places
+    local extra = CreateFrame("Button", nil, canvas)
+    extra.w, extra.h = 32, 32
+    extra.GetLeft = function() return 103 end
+    extra.GetTop = function() return 900 - 32 end
+    extra.GetHeight = function() return 32 end
+    hooks.OnMapChanged.fn(WorldMapFrame)
+    assert(r.points[1][5] == -64, "re-placed on OnMapChanged")
+    extra.GetTop = function() return 900 - 64 end
+    WorldMapFrame.scripts.OnSizeChanged(WorldMapFrame)
+    assert(r.points[1][5] == -96, "re-placed on a size toggle")
+    extra:Hide()
+    QuestMapFrame.scripts.OnHide(QuestMapFrame)
+    assert(r.points[1][5] == -32, "re-placed on a quest-pane close")
+    local later = false
+    for _, c in ipairs(cs) do if c[1] == 0.2 then later = true end end
+    assert(later, "and once more about 0.2 s later")
+    -- the probe's time stamp moves on every trigger
+    for _, trigger in ipairs({
+        function() hooks.OnMapChanged.fn(WorldMapFrame) end,
+        function() WorldMapFrame.scripts.OnSizeChanged(WorldMapFrame) end,
+        function() QuestMapFrame.scripts.OnShow(QuestMapFrame) end,
+        function() QuestMapFrame.scripts.OnHide(QuestMapFrame) end,
+    }) do
+        NOW = NOW + 5
+        trigger()
+        local g = WoWCompanionDB.observed.mapGeometry
+        assert(g.t == NOW and g.roundButton.t == NOW, "probe t refreshed")
+    end
+    local rb = WoWCompanionDB.observed.mapGeometry.roundButton
+    assert(rb.shown and rb.visible and rb.strata == "HIGH" and rb.slot == 2 and rb.parent == nil or rb.parent, "probe fields")
+    assert(rb.shown and rb.strata == "HIGH" and rb.level and rb.slot, "probe records strata, level, slot, shown")
+    hooksecurefunc, C_Timer, WorldMapTrackingPinButtonMixin = nil, nil, nil
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+for _, maximized in ipairs({ true, false }) do
+    for _, logOpen in ipairs({ true, false }) do
+        cases[#cases + 1] = { "client map: round button shown on the " .. (maximized and "full" or "small") .. " map with the quest pane " .. (logOpen and "open" or "closed") .. ", on the map frame at HIGH", function()
+            local WC = side_map(maximized, logOpen)
+            local r = WC.mapRound
+            assert(r:IsShown() and r:IsVisible() and r.parent == WorldMapFrame and r:GetFrameStrata() == "HIGH")
+            assert(WoWCompanionDB.observed.mapGeometry.roundButton.visible == true)
+            WorldMapFrame, QuestMapFrame = nil, nil
         end }
     end
 end
