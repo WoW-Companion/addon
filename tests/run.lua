@@ -2538,7 +2538,7 @@ cases[#cases + 1] = { "side tabs: the client's own tabs are found by their atlas
     -- none found: the free-space placement stays
     for _, f in ipairs({ a, c }) do f.Background.atlas = nil end
     WC.PlaceMapTab()
-    assert(WC.mapTabPlace.mode ~= "sidetab")
+    assert(WC.mapControl == "round" and not WC.mapButton:IsShown(), "no column left: the round button")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
@@ -2635,6 +2635,7 @@ cases[#cases + 1] = { "side tabs: opening the plan shows a collapsed quest log; 
     QuestMapFrame = fake_column({})
     QuestMapFrame.shown = true
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end
     local WC = WoWCompanion
     local b = WC.mapButton
     QuestMapFrame:Hide()
