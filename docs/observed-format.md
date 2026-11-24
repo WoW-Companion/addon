@@ -32,6 +32,9 @@ WoWCompanionDB.observed.mapGeometry = {
   tabOffset = <number>,                    -- the saved map tab offset below the frame's top (0 = default)
   questList = <frame>, questScroll = <frame>, -- the client's QuestMapFrame.QuestsFrame and its ScrollFrame, when present
   inset = <frame>,                         -- the client content-area inset the panel is anchored to
+  control = "round" | "sidetab",           -- which control is in use: the round map button, or the side tab beside another addon's column
+  round = <frame> + { level, strata, slot }, -- WoWCompanionMapRoundButton (slot 1 = the top of the column of round map buttons)
+  slots = { { x, y, w, h }, ... },         -- the round buttons found already in that column (rectangles from the container's top-left corner)
 }
 -- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
 -- `rel` is the relative-to frame's name, or "(unnamed)"; sizes and offsets are rounded to 0.1.

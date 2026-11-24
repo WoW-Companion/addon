@@ -101,6 +101,8 @@ function WC.RefreshMapTab()
     if b.SetChecked then b:SetChecked(on) end
     if b.checkedTex then b.checkedTex:SetShown(on) end
     if b.sideSel then b.sideSel:SetShown(on and true or false) end
+    local r = WC.mapRound
+    if r and r.checkedTex then r.checkedTex:SetShown(on and true or false) end
 end
 
 -- A click on the world map tab: left selects (or deselects) the plan in the side panel, shift-left shows or hides
@@ -531,12 +533,201 @@ function WC.QuestListTopOffset(parent)
     return -30
 end
 
+-- ---------------------------------------------------------------- round map button (the client's own map)
+-- Without another addon's side-tab column, the control is a round overlay button in the column of round buttons at the
+-- map's top-left edge, below every one already there. Those are read as rectangles only (about 32 x 32, near the
+-- container's top-left corner); no name, global or library of theirs is used, and no frame of theirs is touched.
+
+WC.ROUND_SIZE, WC.ROUND_X, WC.ROUND_Y0, WC.ROUND_PITCH = 32, 3, 3, 32
+WC.ROUND_NEAR = 40 -- a round button counts as in the column when its left edge is within this of the corner
+
+-- The frame the round buttons are stacked on: the map's canvas container (or the map itself).
+function WC.RoundParent()
+    local map = WorldMapFrame
+    if not map then return nil end
+    return (type(map.ScrollContainer) == "table" and map.ScrollContainer) or map
+end
+
+-- Pure: the first free slot below the occupied ones. rects: { x, y, w, h } measured from the container's top-left corner,
+-- y going down. Returns x, y (down from the corner), and the slot number (1 = the top).
+function WC.RoundSlot(rects)
+    local y = WC.ROUND_Y0
+    for _, r in ipairs(rects) do
+        local bottom = r.y + r.h
+        if bottom > y then y = bottom end
+    end
+    local slot = math.floor((y - WC.ROUND_Y0) / WC.ROUND_PITCH + 0.5) + 1
+    return WC.ROUND_X, y, slot
+end
+
+-- The shown round-button-sized frames in the corner column of the container and of the map, as rectangles.
+function WC.ScanRoundColumn()
+    local parent = WC.RoundParent()
+    if not parent then return {} end
+    local cl, ct = WC.GeoNum(parent, "GetLeft"), WC.GeoNum(parent, "GetTop")
+    if not (cl and ct) then return {} end
+    local rects, seen = {}, {}
+    for _, owner in ipairs({ parent, WorldMapFrame }) do
+        if type(owner) == "table" and owner.GetChildren and not seen[owner] then
+            seen[owner] = true
+            for _, c in ipairs({ owner:GetChildren() }) do
+                if type(c) == "table" and c ~= WC.mapRound and c ~= WC.mapButton and c ~= WC.mapPanel and not seen[c]
+                    and c.IsShown and c:IsShown() then
+                    seen[c] = true
+                    local l, t, w, h = WC.GeoNum(c, "GetLeft"), WC.GeoNum(c, "GetTop"), WC.GeoNum(c, "GetWidth"), WC.GeoNum(c, "GetHeight")
+                    if l and t and w and h and math.abs(w - WC.ROUND_SIZE) <= 4 and math.abs(h - WC.ROUND_SIZE) <= 4
+                        and l - cl >= -2 and l - cl <= WC.ROUND_NEAR and ct - t >= -2 then
+                        rects[#rects + 1] = { x = l - cl, y = ct - t, w = w, h = h }
+                    end
+                end
+            end
+        end
+    end
+    return rects
+end
+
+local function round_sig(rects)
+    local parts = {}
+    for _, r in ipairs(rects) do parts[#parts + 1] = string.format("%d,%d", r.x + 0.5, r.y + 0.5) end
+    table.sort(parts)
+    return table.concat(parts, ";")
+end
+
+-- Pure: the vertical offset (down, in pixels; may be negative to move up) saved by a drag, kept inside the container.
+function WC.RoundOffset(saved, baseY, containerH)
+    local off = tonumber(saved) or 0
+    local h = tonumber(containerH)
+    if not h or h <= 0 then return off end
+    return math.min(h - WC.ROUND_SIZE - baseY, math.max(-baseY, off))
+end
+
+local function round_tooltip(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_SHIFT, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(line) end
+    GameTooltip:Show()
+end
+
+local function create_round_button()
+    local parent = WC.RoundParent()
+    if WC.mapRound or not parent or type(CreateFrame) ~= "function" then return WC.mapRound end
+    local ok, b = pcall(CreateFrame, "Button", "WoWCompanionMapRoundButton", parent)
+    if not ok or type(b) ~= "table" then return nil end
+    b:SetSize(WC.ROUND_SIZE, WC.ROUND_SIZE)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b.back = b:CreateTexture(nil, "BACKGROUND") -- the client's own round-button art
+    b.back:SetSize(20, 20)
+    b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 7, -5)
+    b.back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(17, 17)
+    b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 8, -6)
+    b.icon:SetTexture(WC.ICON)
+    b.border = b:CreateTexture(nil, "OVERLAY")
+    b.border:SetSize(54, 54)
+    b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    if b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight") end
+    b.checkedTex = b:CreateTexture(nil, "HIGHLIGHT")
+    b.checkedTex:SetAllPoints(b.back)
+    b.checkedTex:SetColorTexture(1, 1, 1, 0.25)
+    b.checkedTex:Hide()
+    b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", self, "TOPLEFT", 9, -7) end) -- pushed
+    b:SetScript("OnMouseUp", function(self) self.icon:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -6) end)
+    b:SetScript("OnClick", function(_, button) WC.MapButtonClick(button, shift_down()) end)
+    b:SetScript("OnEnter", round_tooltip)
+    b:SetScript("OnLeave", hide_tooltip)
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function(self)
+        if not shift_down() then return end
+        self:SetScript("OnUpdate", function()
+            local _, cy = GetCursorPosition()
+            WC.SetRoundFromCursor(cy)
+        end)
+    end)
+    b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+    WC.mapRound = b
+    return b
+end
+
+-- Moves the round button so its middle sits at the cursor's height; the offset from its slot is saved. Returns it.
+function WC.SetRoundFromCursor(cursorY)
+    local parent, b = WC.RoundParent(), WC.mapRound
+    local top = WC.GeoNum(parent, "GetTop")
+    if not (b and top and tonumber(cursorY)) then return nil end
+    local scale = parent.GetEffectiveScale and parent:GetEffectiveScale() or 1
+    if not scale or scale <= 0 then return nil end
+    local base = WC.roundBase or WC.ROUND_Y0
+    local y = top - cursorY / scale - WC.ROUND_SIZE / 2 -- the wanted top edge, down from the corner
+    local off = math.floor(WC.RoundOffset(y - base, base, WC.GeoNum(parent, "GetHeight")) + 0.5)
+    WC.SetSetting("mapRoundY", off)
+    WC.PlaceRoundButton()
+    return off
+end
+
+function WC.RaiseRoundButton()
+    local b, parent = WC.mapRound, WC.RoundParent()
+    if not b then return end
+    local map = WorldMapFrame
+    if b.SetFrameStrata and map and map.GetFrameStrata then pcall(b.SetFrameStrata, b, map:GetFrameStrata()) end
+    local top = 0
+    for _, f in ipairs({ map, parent, map and map.BorderFrame, map and map.ScrollContainer }) do
+        if type(f) == "table" and f.GetFrameLevel then
+            local ok, l = pcall(f.GetFrameLevel, f)
+            if ok and tonumber(l) and l > top then top = l end
+        end
+    end
+    if b.SetFrameLevel then b:SetFrameLevel(top + 10) end
+end
+
+-- Shows the round button in the column's first free slot (plus the player's saved vertical offset).
+function WC.PlaceRoundButton()
+    local parent = WC.RoundParent()
+    local b = create_round_button()
+    if not (b and parent) then return end
+    if b.GetParent and b:GetParent() ~= parent then b:SetParent(parent) end
+    WC.RaiseRoundButton()
+    local rects = WC.ScanRoundColumn()
+    local x, y, slot = WC.RoundSlot(rects)
+    WC.roundBase, WC.roundSig = y, round_sig(rects)
+    local off = WC.RoundOffset(WC.Setting("mapRoundY"), y, WC.GeoNum(parent, "GetHeight"))
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", parent, "TOPLEFT", x, -(y + off))
+    b:SetShown(WC.Setting("mapButton") ~= false)
+    WC.roundPlace = { x = x, y = y + off, slot = slot, occupied = rects }
+    WC.RefreshMapTab()
+end
+
+function WC.HideRoundButton()
+    if WC.mapRound and WC.mapRound.Hide then WC.mapRound:Hide() end
+    WC.roundPlace = nil
+end
+
+-- True when another addon's side-tab column stands left of the quest log (read as geometry and art only).
+function WC.SideTabColumnFound()
+    local parent = WC.mapButtonParent
+    if not parent then return false end
+    return #WC.FindClientSideTabs(parent) > 0 or #WC.ScanTabColumn() > 0
+end
+
 -- Anchors the tab in the column's first free gap, right-aligned and at the column's tab size. With a Shift-drag
 -- position saved it stays there until Reset. Without any rectangle it falls back to sitting under the lowest of the
 -- client's own tabs, else (alone) at the saved or default height, 44 x 44. Re-run on map show, resize and change.
 local function place_map_tab()
     local b, parent = WC.mapButton, WC.mapButtonParent
     if not b or WC.mapButtonMode ~= "tab" or not parent then return end
+    if not WC.SideTabColumnFound() then
+        -- the client's own map: no side-tab column to stand in, so the round button in the top-left column is the control
+        WC.mapControl = "round"
+        b:Hide()
+        WC.mapTabPlace = nil
+        WC.PlaceRoundButton()
+        if WC.PlaceMapPanel then WC.PlaceMapPanel() end
+        if WC.HookClientTabs then WC.HookClientTabs() end
+        return
+    end
+    WC.mapControl = "sidetab"
+    WC.HideRoundButton()
+    if b.Show and parent.IsShown and parent:IsShown() then b:Show() end
     local side = WC.FindClientSideTabs(parent)
     if #side > 0 then
         -- the client's own side tabs: ours stacks flat below the last one, right edges together, at their size and spacing
@@ -662,6 +853,10 @@ function WC.WatchTabColumn(elapsed)
     if WC.columnClock < WC.COLUMN_SCAN_EVERY then return false end
     WC.columnClock = 0
     if not WC.mapButton or WC.mapButtonMode ~= "tab" then return false end
+    if WC.mapControl == "round" and WC.roundSig and WC.roundSig ~= round_sig(WC.ScanRoundColumn()) then
+        WC.PlaceMapTab() -- a round button above ours appeared or went away
+        return true
+    end
     local side = WC.FindClientSideTabs(WC.mapButtonParent)
     if #side > 0 then
         if WC.columnSig == WC.SideTabSig(side) then return false end
@@ -693,6 +888,7 @@ end
 
 function WC.ResetMapTabPosition()
     WC.SetSetting("mapTabY", WC.DEF_OF["mapTabY"].default)
+    WC.SetSetting("mapRoundY", WC.DEF_OF["mapRoundY"].default)
     if WC.PlaceMapTab then WC.PlaceMapTab() end
 end
 
@@ -766,7 +962,7 @@ function WC.CreateMapButton()
     WC.mapButton = b
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
-        if column.HookScript then column:HookScript("OnShow", function() b:Show(); WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.RefreshMapTab(); WC.RecordMapGeometry() end) end
+        if column.HookScript then column:HookScript("OnShow", function() if WC.mapControl ~= "round" then b:Show() end; WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.RefreshMapTab(); WC.RecordMapGeometry() end) end
         -- riding the client's tabs, they decide (same parent, so a hidden log hides them and us together); the
         -- fallback placement follows the log
         if column.HookScript then column:HookScript("OnHide", function() if not (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then b:Hide() end end) end
@@ -851,7 +1047,8 @@ function WC.ApplyButtons()
     local s = WC.db.settings.minimap
     local b = WC.minimapButton
     if b then b:SetShown(s.show ~= false) end
-    if WC.mapButton then WC.mapButton:SetShown(WC.Setting("mapButton") ~= false) end
+    if WC.mapButton and WC.mapControl ~= "round" then WC.mapButton:SetShown(WC.Setting("mapButton") ~= false) end
+    if WC.mapRound and WC.mapControl == "round" then WC.mapRound:SetShown(WC.Setting("mapButton") ~= false) end
     local comp = AddonCompartmentFrame
     if comp and comp.RegisterAddon then
         if s.compartment ~= false and not WC.compartmentInfo then

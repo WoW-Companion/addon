@@ -1945,8 +1945,8 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.18" and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
-    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1")
+    assert(TOC_VERSION == "0.6.19" and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
     for _, k in ipairs({ "WHATS_NEW_0_4_5_1", "WHATS_NEW_0_4_5_2", "WHATS_NEW_0_4_5_3" }) do has(k) end
@@ -2271,6 +2271,7 @@ cases[#cases + 1] = { "world map tab: built from the client's side-tab template 
     WorldMapFrame = CreateFrame("Frame", nil, UIParent)
     QuestMapFrame = fake_column({})
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local b = WC.mapButton
@@ -2287,6 +2288,7 @@ cases[#cases + 1] = { "map tab: visible background with the atlas or the fallbac
     QuestMapFrame:SetFrameLevel(12)
     QuestMapFrame.shown = true
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     local WC = WoWCompanion
     local b = WC.mapButton
     WorldMapFrame.scripts.OnShow(WorldMapFrame)
@@ -2321,6 +2323,7 @@ cases[#cases + 1] = { "world map tab: anchored below the lowest client tab at it
     QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
     QuestMapFrame.EventsTab.w, QuestMapFrame.EventsTab.h = 40, 42
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local function point() local p = WC.mapButton.points[1] return p[1], p[2], p[3], p[4], p[5] end
@@ -2413,6 +2416,7 @@ cases[#cases + 1] = { "map tab column: placed flush right in the free slot, foll
     local map, col, tabs = geo_map(tab_rects({ 800, 753 }, 1000, 44))
     WorldMapFrame, QuestMapFrame = map, col
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     WorldMapFrame.scripts.OnShow(WorldMapFrame) -- the tab is placed when the map is shown, not at creation
     local WC = WoWCompanion
     local b = WC.mapButton
@@ -2673,6 +2677,7 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     local inset = CreateFrame("Frame", "QuestMapContentsInset", QuestMapFrame)
     QuestMapFrame.ContentsAnchor = inset
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     local WC = WoWCompanion
     local b = WC.mapButton
     assert(b.kind == "CheckButton" and b.template == "QuestLogTabButtonTemplate", "the client's own tab template and frame type")
@@ -2710,7 +2715,8 @@ cases[#cases + 1] = { "map panel: anchored to the client's content inset; the pr
     for k in pairs(g) do seen[k] = true end
     assert(type(g.tabArt) == "table" and #g.tabArt >= 1 and g.tabOffset == 0 and g.questList == nil and g.questScroll == nil)
     assert(seen.column, "our tab's computed placement is recorded"); seen.column = nil
-    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "art", "panel", "tabs", "inset", "sideTabs" }) do assert(seen[k], k); seen[k] = nil end
+    for _, k in ipairs({ "version", "t", "tab", "tabArt", "tabOffset", "art", "panel", "tabs", "inset", "sideTabs", "control", "slots" }) do assert(seen[k], k); seen[k] = nil end
+    seen.round = nil
     assert(next(seen) == nil, "only the documented keys")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
@@ -2752,6 +2758,7 @@ cases[#cases + 1] = { "world map tab: art stays inside its frame; hidden client 
     local art = { Background = true, SelectedTexture = true, Border = true }
     local made = CreateFrame
     fresh_client(nil)
+    WoWCompanion.SideTabColumnFound = function() return true end -- these cases are about the side tab itself
     local WC = WoWCompanion
     local b = WC.mapButton
     for k in pairs(art) do b[k] = b:CreateTexture() end
@@ -4653,9 +4660,9 @@ cases[#cases + 1] = { "ride: our tab follows the last tab's show and hide and re
     l:Hide()
     assert(b.points[1][2] == e and b:IsShown(), "last hides: anchored under the previous shown one")
     e:Hide(); q:Hide()
-    assert(WC.mapTabPlace.mode ~= "sidetab" and b:IsShown(), "none shown: the fallback placement keeps the tab")
+    assert(WC.mapControl == "round" and not b:IsShown() and WC.mapRound:IsShown(), "none shown: the round button takes over")
     q:Show()
-    assert(b.points[1][2] == q and WC.mapTabPlace.mode == "sidetab", "back on the client's tab when it shows")
+    assert(b.points[1][2] == q and WC.mapTabPlace.mode == "sidetab" and b:IsShown() and not WC.mapRound:IsShown(), "back on the client's tab when it shows")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
@@ -4667,7 +4674,97 @@ cases[#cases + 1] = { "ride: atlases copied from the client's tab, fallback keep
     assert(A.normal == "common-sidetab-c60" and A.selected == "client-selected" and A.hover == "client-hover" and A.mask == "client-mask" and A.glow == "client-glow")
     assert(WC.mapButton.sideGlow.atlas == "client-glow" and WC.mapButton.sideBack.atlas == "common-sidetab-c60")
     tabs[1]:Hide()
-    assert(WC.mapButton:GetParent() == QuestMapFrame and WC.mapTabPlace.mode == "alone")
+    assert(WC.mapControl == "round" and WC.mapRound:IsShown() and not WC.mapButton:IsShown(), "no side tab left: the round button")
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+-- A client map for the round-button cases: a canvas container at (100, 900) with n round buttons stacked 32 apart.
+local function round_map(n, withColumn)
+    WorldMapFrame = CreateFrame("Frame", nil, UIParent)
+    WorldMapFrame:SetFrameStrata("HIGH"); WorldMapFrame:SetFrameLevel(10)
+    local canvas = CreateFrame("Frame", nil, WorldMapFrame)
+    canvas:SetFrameLevel(11)
+    canvas.GetLeft = function() return 100 end
+    canvas.GetTop = function() return 900 end
+    canvas.GetHeight = function() return 600 end
+    WorldMapFrame.ScrollContainer = canvas
+    for i = 1, n do
+        local c = CreateFrame("Button", nil, canvas)
+        c.w, c.h = 32, 32
+        c.GetLeft = function() return 103 end
+        c.GetTop = function() return 900 - 3 - (i - 1) * 32 end
+        c.GetHeight = function() return 32 end
+    end
+    QuestMapFrame = fake_column({})
+    QuestMapFrame.shown = true
+    if withColumn then
+        local t = CreateFrame("Button", nil, QuestMapFrame)
+        t.w, t.h = 40, 42
+        t.GetLeft = function() return 960 end
+        t.GetTop = function() return 800 end
+        t.GetBottom = function() return 758 end
+        t.GetHeight = function() return 42 end
+        t.GetAtlas = function() return "common-sidetab-c60" end
+        t.GetRegions = function() return end
+        t.Background = t
+    end
+    return canvas
+end
+
+for _, n in ipairs({ 0, 1, 2 }) do
+    cases[#cases + 1] = { "client map: with " .. n .. " round buttons ours takes slot " .. (n + 1) .. ", above the canvas, no side tab, probe records it", function()
+        local canvas = round_map(n)
+        fresh_client(nil)
+        local WC = WoWCompanion
+        WorldMapFrame.scripts.OnShow(WorldMapFrame)
+        local r = WC.mapRound
+        assert(r and r:IsShown() and r.parent == canvas and r.w == 32 and r.h == 32)
+        assert(not WC.mapButton:IsShown(), "the side tab is hidden")
+        local p = r.points[1]
+        assert(p[1] == "TOPLEFT" and p[2] == canvas and p[3] == "TOPLEFT" and p[4] == 3 and p[5] == -(3 + n * 32), "slot " .. (n + 1))
+        assert(r:GetFrameLevel() > canvas:GetFrameLevel() and r:GetFrameStrata() == "HIGH", "above the canvas")
+        local g = WoWCompanionDB.observed.mapGeometry
+        assert(g.control == "round" and g.round.name == "WoWCompanionMapRoundButton" and g.round.level == r:GetFrameLevel() and g.round.strata == "HIGH")
+        assert(g.round.slot == n + 1 and #g.slots == n and (n == 0 or g.slots[1].x == 3))
+        WorldMapFrame, QuestMapFrame = nil, nil
+    end }
+end
+
+cases[#cases + 1] = { "client map: a click on the round button toggles the panel; right opens options; shift-drag offsets and saves", function()
+    local canvas = round_map(1)
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    local r = WC.mapRound
+    assert(not WC.panelState.selected)
+    r.scripts.OnClick(r, "LeftButton")
+    assert(WC.panelState.selected == true, "opens the panel")
+    r.scripts.OnClick(r, "LeftButton")
+    assert(WC.panelState.selected == false, "closes it")
+    -- a later round button shows up: ours moves below it on the next check
+    local c = CreateFrame("Button", nil, canvas)
+    c.w, c.h = 32, 32
+    c.GetLeft = function() return 103 end
+    c.GetTop = function() return 900 - 3 - 32 end
+    c.GetHeight = function() return 32 end
+    WC.columnClock = 1
+    assert(WC.WatchTabColumn(0) == true and r.points[1][5] == -(3 + 64))
+    -- drag: the offset is saved from the cursor and clamped to the container
+    assert(WC.SetRoundFromCursor(900 - 200) == 200 - 16 - WC.roundBase and WC.Setting("mapRoundY") ~= 0)
+    assert(r.points[1][5] == -(200 - 16))
+    assert(WC.SetRoundFromCursor(-5000) == 600 - 32 - WC.roundBase, "clamped to the bottom")
+    WC.ResetMapTabPosition()
+    assert(WC.Setting("mapRoundY") == 0)
+    WorldMapFrame, QuestMapFrame = nil, nil
+end }
+
+cases[#cases + 1] = { "client map: with another addon's side-tab column the side tab is used and the round button is hidden", function()
+    round_map(1, true)
+    fresh_client(nil)
+    local WC = WoWCompanion
+    WorldMapFrame.scripts.OnShow(WorldMapFrame)
+    assert(WC.mapControl == "sidetab" and WC.mapButton:IsShown() and not (WC.mapRound and WC.mapRound:IsShown()))
+    assert(WoWCompanionDB.observed.mapGeometry.control == "sidetab")
     WorldMapFrame, QuestMapFrame = nil, nil
 end }
 
