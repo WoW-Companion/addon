@@ -1,4 +1,4 @@
--- WoW Companion: a read-only record of where the world map's side tabs and our tab and panel really sit.
+-- WoW Companion: a read-only record of where our round map button and plan and the client's quest list really sit.
 -- Each time the map opens, the geometry is written to WoWCompanionDB.observed.mapGeometry as plain data (it leaves
 -- the game only when the client saves). Nothing here changes a frame, prints or sends anything; only the client's
 -- own frames and ours are recorded.
@@ -42,34 +42,11 @@ local function rect_of(f)
     return { l = r1(l), b = r1(b), w = r1(w), h = r1(h) }
 end
 
--- Builds the record: our tab and panel, the client's own side tabs and the content inset.
+-- Builds the record: our round button and plan, the client's quest list and the content inset.
 function WC.MapGeometry()
-    local g = { version = 1, t = time and time() or 0, tabs = {} }
-    g.tab = frame_info(WC.mapButton, "WoWCompanionMapTab")
-    g.tabArt = {}
-    if WC.mapButton and WC.MapTabArt then
-        for _, a in ipairs(WC.MapTabArt(WC.mapButton)) do
-            local info = frame_info(a.region, a.field)
-            if info then g.tabArt[#g.tabArt + 1] = info end
-        end
-    end
-    -- our tab's computed placement, as numbers only (never a name of any frame in the column)
-    local tp = WC.mapTabPlace
-    if type(tp) == "table" then g.column = { n = tp.n, w = r1(tp.w), h = r1(tp.h), gap = r1(tp.gap), x = r1(tp.x), y = r1(tp.y), mode = tp.mode } end
-    g.tabOffset = WC.db and WC.db.settings and tonumber(WC.db.settings.mapTabY) or 0
-    local b, q = WC.mapButton, QuestMapFrame
-    local bg = b and b.sideBack
-    g.art = {
-        bgShown = type(bg) == "table" and bg.IsShown and bg:IsShown() and true or false,
-        bgAtlas = type(bg) == "table" and bg.GetAtlas and bg:GetAtlas() or nil,
-        fallback = b and b.sideFallback and true or false,
-        level = b and b.GetFrameLevel and b:GetFrameLevel() or nil,
-        questLevel = type(q) == "table" and q.GetFrameLevel and q:GetFrameLevel() or nil,
-        strata = b and b.GetFrameStrata and b:GetFrameStrata() or nil,
-        path = type(tp) == "table" and tp.mode or nil,
-    }
+    local g = { version = 1, t = time and time() or 0 }
     -- which control is in use, the round button and the slots found taken (rectangles only)
-    g.control = WC.mapControl
+    g.control = WC.mapRound and "round" or nil
     g.round = frame_info(WC.mapRound, "WoWCompanionMapRoundButton")
     if g.round then
         g.round.level = WC.mapRound.GetFrameLevel and WC.mapRound:GetFrameLevel() or nil
@@ -95,19 +72,10 @@ function WC.MapGeometry()
         strata = rb and rb.GetFrameStrata and rb:GetFrameStrata() or nil, level = rb and rb.GetFrameLevel and rb:GetFrameLevel() or nil,
         parent = frame_name(rbParent), slot = type(WC.roundPlace) == "table" and WC.roundPlace.slot or nil, t = time and time() or 0 }
     g.planRect, g.insetRect = rect_of(WC.mapPanel), rect_of(WC.MapInset and WC.MapInset() or nil)
+    g.questScrollRect = rect_of(WC.QuestScrollRect and WC.QuestScrollRect() or nil)
+    g.scrollTemplate = WC.mapPanel and WC.mapPanel.scrollTemplate or nil
     local col = QuestMapFrame
     if type(col) == "table" then
-        for _, field in ipairs(WC.CLIENT_TAB_FIELDS) do
-            local t = frame_info(col[field], field)
-            if t then g.tabs[#g.tabs + 1] = t end
-        end
-        g.sideTabs = { n = 0, tabs = {} }
-        if WC.FindClientSideTabs then
-            for _, t in ipairs(WC.FindClientSideTabs(col)) do
-                g.sideTabs.n = g.sideTabs.n + 1
-                g.sideTabs.tabs[#g.sideTabs.tabs + 1] = frame_info(t, "sidetab")
-            end
-        end
         g.inset = frame_info(WC.MapInset and WC.MapInset() or nil, "inset")
         local q = col.QuestsFrame
         g.questList = frame_info(q, "QuestsFrame")
@@ -118,7 +86,7 @@ end
 
 -- Called whenever the map opens (and once more a moment later).
 function WC.RecordMapGeometry()
-    if not WC.db or WC.mapButtonMode ~= "tab" then return end
+    if not WC.db or not WC.mapRound then return end
     local ok, g = pcall(WC.MapGeometry)
     if not ok then g = { version = 1, t = time and time() or 0, error = tostring(g):sub(1, 200) } end
     if type(WC.db.observed) ~= "table" then WC.db.observed = { version = WC.OBSERVED_VERSION or 1, events = {} } end

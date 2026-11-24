@@ -323,6 +323,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_22_1 = "The map button is always with the other map buttons, and the plan on the map now sits inside the quest log's frame like the quest list.",
     WHATS_NEW_0_6_21_1 = "The WoW Companion map button now always shows with the other map buttons, on the small map too.",
     WHATS_NEW_0_6_20_1 = "On the small map, the WoW Companion plan opens beside the map like the quest log, and its map button always stays visible.",
     WHATS_NEW_0_6_19_1 = "On the game's own map, WoW Companion now has a round button with the other map buttons at the top left. Click it to show or hide the plan.",

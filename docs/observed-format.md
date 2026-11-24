@@ -20,25 +20,23 @@ A removal that follows a turn-in is not an abandon; an abandon is logged about a
 
 ## Map geometry (`WoWCompanionDB.observed.mapGeometry`)
 
-Each time the world map opens, the addon records where its own tab and panel and the client's own side tabs and
-content inset really sit. It is data only (no chat, nothing sent); it reaches disk at the next client save.
+Each time the world map opens, the addon records where its own round button and plan and the client's own quest list
+really sit. It is data only (no chat, nothing sent); it reaches disk at the next client save.
 
 ```lua
 WoWCompanionDB.observed.mapGeometry = {
   version = 1, t = <unix s>,
-  tab = <frame>, panel = <frame>,          -- WoWCompanionMapTab, WoWCompanionMapPanel
-  tabs = { <frame>, ... },                 -- the client's QuestsTab, EventsTab, MapLegendTab (those that exist)
-  tabArt = { <frame>, ... },               -- our tab's textures (Background, Border, SelectedTexture, Icon, Highlight) and their extents
-  tabOffset = <number>,                    -- the saved map tab offset below the frame's top (0 = default)
+  panel = <frame>,                         -- WoWCompanionMapPanel (our plan)
   questList = <frame>, questScroll = <frame>, -- the client's QuestMapFrame.QuestsFrame and its ScrollFrame, when present
-  inset = <frame>,                         -- the client content-area inset the panel is anchored to
-  control = "round" | "sidetab",           -- which control is in use: the round map button, or the side tab beside another addon's column
+  inset = <frame>,                         -- the client content-area inset around the quest list
+  control = "round",                       -- the map control: always the round map button
   round = <frame> + { level, strata, slot }, -- WoWCompanionMapRoundButton (slot 1 = the top of the column of round map buttons)
   slots = { { x, y, w, h }, ... },         -- the round buttons found already in that column (rectangles from the container's top-left corner)
   sizeMode = "small" | "full",             -- the world map's size mode
   sidePanel = { open, weOpened, planSelected, deferred }, -- the quest-log side panel's state, and whether we opened it
-  roundButton = { shown, rect = { l, b, w, h } },       -- the round button's shown state and rectangle
-  planRect = { l, b, w, h }, insetRect = { l, b, w, h }, -- our plan's rectangle next to the side panel's inset (absent until laid out)
+  roundButton = { shown, visible, rect = { l, b, w, h }, strata, level, parent, slot, t }, -- the round button's state
+  planRect = { l, b, w, h }, questScrollRect = { l, b, w, h }, insetRect = { l, b, w, h }, -- our plan's rectangle, the client quest list's, and the inset's (absent until laid out)
+  scrollTemplate = <string>,               -- the scroll frame template our plan's scroll bar comes from
 }
 -- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
 -- `rel` is the relative-to frame's name, or "(unnamed)"; sizes and offsets are rounded to 0.1.
