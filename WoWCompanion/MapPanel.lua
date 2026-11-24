@@ -14,6 +14,15 @@ local LINE_TITLE, LINE_SUB = 13, 11 -- a line's height when the client cannot me
 local SEL = { 0.45, 0.7, 1 } -- the selected step's accent (the current step stays gold)
 local GOLD, DIM = { 1, 0.82, 0 }, { 0.55, 0.55, 0.55 }
 WC.TAB_MODE = "WoWCompanionPlan"
+-- The step circle in a plan row: a slim ring of PANEL_RING px round a PANEL_BADGE px disc; the text starts after it.
+WC.PANEL_BADGE, WC.PANEL_RING, WC.PANEL_ICON = 22, 1.75, 14
+local TEXT_X = 2 + WC.PANEL_BADGE + 3 + WC.PANEL_ICON + 3 -- badge, gap, small kind icon, gap
+WC.PANEL_TEXT_X = TEXT_X
+-- Pure: does a step number of n's digits fit inside the ring? (a digit of the small font is about 7 px wide)
+function WC.BadgeNumberFits(n)
+    local inner = WC.PANEL_BADGE - 2 * WC.PANEL_RING
+    return #tostring(n) * 7 <= inner - 2
+end
 -- The scroll frame template the client's own quest list uses, so our plan's scroll bar is the client's; the older
 -- panel scroll template when this build has no such template.
 WC.SCROLL_TEMPLATE, WC.SCROLL_TEMPLATE_OLD = "ScrollFrameTemplate", "UIPanelScrollFrameTemplate"
@@ -232,23 +241,23 @@ local function make_row(f, i)
     r.selBar:SetColorTexture(SEL[1], SEL[2], SEL[3], 1)
     r.selBar:Hide()
     r.badge = CreateFrame("Frame", nil, r)
-    r.badge:SetSize(24, 24)
+    r.badge:SetSize(WC.PANEL_BADGE, WC.PANEL_BADGE)
     r.badge:SetPoint("LEFT", r, "LEFT", 2, 0)
-    WC.BadgeParts(r.badge, 2, 9, "GameFontNormalSmall", 3)
-    r.badge.glow:SetSize(30, 30)
+    WC.BadgeParts(r.badge, WC.PANEL_RING, 8, "GameFontNormalSmall", 2)
+    r.badge.glow:SetSize(WC.PANEL_BADGE + 6, WC.PANEL_BADGE + 6)
     r.badge.selRing = r.badge:CreateTexture(nil, "BACKGROUND")
     r.badge.selRing:SetTexture(WC.DISC or "Interface\\COMMON\\Indicator-Gray")
-    r.badge.selRing:SetPoint("TOPLEFT", r.badge, "TOPLEFT", -3, 3)
-    r.badge.selRing:SetPoint("BOTTOMRIGHT", r.badge, "BOTTOMRIGHT", 3, -3)
+    r.badge.selRing:SetPoint("TOPLEFT", r.badge, "TOPLEFT", -2, 2)
+    r.badge.selRing:SetPoint("BOTTOMRIGHT", r.badge, "BOTTOMRIGHT", 2, -2)
     r.badge.selRing:SetVertexColor(SEL[1], SEL[2], SEL[3], 1)
     r.badge.selRing:Hide()
     r.badge.notchBg:Hide()
     r.badge.mark:Hide()
     r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(14, 14)
-    r.icon:SetPoint("LEFT", r.badge, "RIGHT", 4, 0)
+    r.icon:SetSize(WC.PANEL_ICON, WC.PANEL_ICON)
+    r.icon:SetPoint("LEFT", r.badge, "RIGHT", 3, 0)
     r.label = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", 48, -ROW_PAD_T)
+    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", TEXT_X, -ROW_PAD_T)
     r.label:SetJustifyH("LEFT")
     r.sub = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.sub:SetPoint("TOPLEFT", r.label, "BOTTOMLEFT", 0, -ROW_GAP)
@@ -301,7 +310,7 @@ local function fill_row(f, i, m, y)
     r.badge.num:SetText(tostring(m.n))
     r.badge.num:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
     if m.icon then r.icon:SetTexture(m.icon) r.icon:Show() else r.icon:Hide() end
-    local tw = math.max(60, f.rowWidth - 48 - 26) -- text clears the badge on the left and the check / New tag on the right
+    local tw = math.max(60, f.rowWidth - TEXT_X - 26) -- text clears the badge on the left and the check / New tag on the right
     for _, fs in ipairs({ r.label, r.sub, r.thenLine }) do fs:SetWidth(tw) end
     r.label:SetText(m.title)
     r.sub:SetText(m.sub or "")
@@ -715,6 +724,139 @@ function WC.HookClientTabs()
             hooked[c] = pcall(c.HookScript, c, "OnClick", client_changed)
         end
     end
+end
+
+-- ---------------------------------------------------------------- the plan tab (lower right, above the client's toggle)
+
+WC.PLAN_TAB_GAP = 3 -- pixels between our tab and the client's toggle
+WC.PLAN_TAB_SIZE = { 32, 32 } -- used when the client's toggle cannot be measured
+
+-- The client's quest-pane toggle: { frame, open, close } where open and close are its two buttons; nil when this build
+-- has none. Read only.
+function WC.ClientToggle()
+    local map = WorldMapFrame
+    local t = type(map) == "table" and map.SidePanelToggle or nil
+    if type(t) ~= "table" then return nil end
+    return { frame = t, open = t.OpenButton, close = t.CloseButton }
+end
+
+-- Copies the art of one of the client's buttons (atlas, else texture) onto ours for the given state. Guarded.
+local function copy_art(src, dst, getter, setterAtlas, setterTex)
+    if type(src) ~= "table" or type(src[getter]) ~= "function" then return end
+    local ok, tex = pcall(src[getter], src)
+    if not ok or type(tex) ~= "table" then return end
+    local atlas = type(tex.GetAtlas) == "function" and tex:GetAtlas() or nil
+    if atlas and type(dst[setterAtlas]) == "function" then
+        pcall(dst[setterAtlas], dst, atlas)
+    elseif type(tex.GetTexture) == "function" and type(dst[setterTex]) == "function" then
+        local path = tex:GetTexture()
+        if path then pcall(dst[setterTex], dst, path) end
+    end
+end
+
+-- Gives our tab the art of the client's button for `state` ("open" while the pane is open, "closed" otherwise).
+function WC.ApplyPlanTabArt(b, state)
+    local ct = WC.ClientToggle()
+    if not ct then return end
+    local src = state == "open" and ct.close or ct.open
+    if type(src) ~= "table" then return end
+    copy_art(src, b, "GetNormalTexture", "SetNormalAtlas", "SetNormalTexture")
+    copy_art(src, b, "GetPushedTexture", "SetPushedAtlas", "SetPushedTexture")
+    copy_art(src, b, "GetHighlightTexture", "SetHighlightAtlas", "SetHighlightTexture")
+    if src.GetSize then
+        local w, h = src:GetSize()
+        if tonumber(w) and tonumber(h) and w > 0 and h > 0 then b:SetSize(w, h) end
+    end
+end
+
+-- True while our plan is the thing showing in an open side pane.
+function WC.PlanTabOn()
+    return WC.panelState.selected == true and WC.SidePanelOpen()
+end
+
+function WC.RefreshPlanTab()
+    local b = WC.planTab
+    if not b then return end
+    local state = WC.PlanTabOn() and "open" or "closed"
+    if b.artState ~= state then
+        b.artState = state
+        WC.ApplyPlanTabArt(b, state)
+    end
+end
+
+local function plan_tab_tooltip(owner)
+    GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
+    GameTooltip:AddLine(WC.L.TIP_PLAN_TAB)
+    if WC.panelState.wantOpen or WC.panelState.wantClose then GameTooltip:AddLine(WC.L.TIP_MAP_DEFERRED) end
+    GameTooltip:Show()
+end
+
+-- A click on our tab: shows or hides our plan in the side pane (opening the pane the client's way first).
+function WC.PlanTabClick()
+    if WC.panelState.selected and not WC.SidePanelOpen() and not (WC.panelState.wantOpen) then
+        WC.SelectMapPanel(false) -- stale selection with the pane closed: start again
+    end
+    WC.ToggleMapPanel()
+    WC.RefreshPlanTab()
+end
+
+local function create_plan_tab()
+    if WC.planTab then return WC.planTab end
+    if type(WorldMapFrame) ~= "table" or type(CreateFrame) ~= "function" then return nil end
+    local ok, b = pcall(CreateFrame, "Button", "WoWCompanionPlanTab", WorldMapFrame)
+    if not ok or type(b) ~= "table" then return nil end
+    b:SetSize(WC.PLAN_TAB_SIZE[1], WC.PLAN_TAB_SIZE[2])
+    b:RegisterForClicks("LeftButtonUp")
+    b.icon = b:CreateTexture(nil, "OVERLAY") -- ours, where the client's toggle has its "?"
+    b.icon:SetSize(16, 16)
+    b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+    b.icon:SetTexture(WC.ICON)
+    b:SetScript("OnClick", function() WC.PlanTabClick() end)
+    b:SetScript("OnEnter", plan_tab_tooltip)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    WC.planTab = b
+    return b
+end
+
+-- Puts our tab directly above the client's toggle (following it), else at the canvas container's lower right corner.
+function WC.PlacePlanTab()
+    local b = create_plan_tab()
+    if not b then return end
+    if b.GetParent and b:GetParent() ~= WorldMapFrame then b:SetParent(WorldMapFrame) end
+    WC.RaiseRoundButton(b)
+    local ct = WC.ClientToggle()
+    local seen = ct and ct.frame or false
+    if b.artFor ~= seen then b.artFor, b.artState = seen, nil end -- the client's toggle appeared or changed: copy its art
+    WC.RefreshPlanTab()
+    local anchor = ct and ((ct.close and ct.close.IsShown and ct.close:IsShown() and ct.close)
+        or (ct.open and ct.open.IsShown and ct.open:IsShown() and ct.open) or ct.frame) or nil
+    b:ClearAllPoints()
+    if anchor then
+        b:SetPoint("BOTTOM", anchor, "TOP", 0, WC.PLAN_TAB_GAP)
+        WC.planTabAnchor = "toggle"
+    else
+        local parent = WC.RoundParent() or WorldMapFrame
+        b:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, (tonumber(b:GetHeight()) and b:GetHeight() > 0 and b:GetHeight() or WC.PLAN_TAB_SIZE[2]) + WC.PLAN_TAB_GAP)
+        WC.planTabAnchor = "fallback"
+    end
+    b:SetShown(WC.Setting("mapButton") ~= false)
+    if ct and not WC.toggleHooked then
+        WC.toggleHooked = true
+        for _, f in ipairs({ ct.frame, ct.open, ct.close }) do
+            if type(f) == "table" and f.HookScript then
+                pcall(f.HookScript, f, "OnShow", function() WC.PlacePlanTab() end)
+                pcall(f.HookScript, f, "OnHide", function() WC.PlacePlanTab() end)
+            end
+        end
+    end
+end
+
+-- The client's own toggle (or anything else) closed the side pane: our plan hides with it.
+function WC.PaneClosedByClient()
+    local st = WC.panelState
+    if st.opening or not st.selected or WC.SidePanelOpen() then return end
+    if st.wantOpen then return end
+    WC.SelectMapPanel(false, "client")
 end
 
 -- Sets the tab up once the button exists: hooks, and the map-open behaviour (the map's OnShow hook is in Button.lua).

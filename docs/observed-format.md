@@ -35,6 +35,7 @@ WoWCompanionDB.observed.mapGeometry = {
   sizeMode = "small" | "full",             -- the world map's size mode
   sidePanel = { open, weOpened, planSelected, deferred }, -- the quest-log side panel's state, and whether we opened it
   roundButton = { shown, visible, rect = { l, b, w, h }, strata, level, parent, slot, t }, -- the round button's state
+  planTab = { rect, shown, visible, anchor = "toggle" | "fallback", toggleRect, overlaysOn }, -- our lower-right plan tab, the client's quest-pane toggle's rectangle, and whether our map overlays are on
   planRect = { l, b, w, h }, questScrollRect = { l, b, w, h }, insetRect = { l, b, w, h }, -- our plan's rectangle, the client quest list's, and the inset's (absent until laid out)
   scrollTemplate = <string>,               -- the scroll frame template our plan's scroll bar comes from
 }
