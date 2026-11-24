@@ -88,7 +88,12 @@ function WC.MapGeometry()
     g.sizeMode = WC.MapSizeMode and WC.MapSizeMode() or nil
     g.sidePanel = { open = WC.SidePanelOpen and WC.SidePanelOpen() or false, weOpened = ps.weOpened == true,
         planSelected = ps.selected == true, deferred = (ps.wantOpen or ps.wantClose) and true or false }
-    g.roundButton = { shown = WC.mapRound and WC.mapRound.IsShown and WC.mapRound:IsShown() and true or false, rect = rect_of(WC.mapRound) }
+    local rb = WC.mapRound
+    local rbParent = rb and rb.GetParent and rb:GetParent() or nil
+    g.roundButton = { shown = rb and rb.IsShown and rb:IsShown() and true or false, rect = rect_of(rb),
+        visible = rb and rb.IsVisible and rb:IsVisible() and true or false,
+        strata = rb and rb.GetFrameStrata and rb:GetFrameStrata() or nil, level = rb and rb.GetFrameLevel and rb:GetFrameLevel() or nil,
+        parent = frame_name(rbParent), slot = type(WC.roundPlace) == "table" and WC.roundPlace.slot or nil, t = time and time() or 0 }
     g.planRect, g.insetRect = rect_of(WC.mapPanel), rect_of(WC.MapInset and WC.MapInset() or nil)
     local col = QuestMapFrame
     if type(col) == "table" then

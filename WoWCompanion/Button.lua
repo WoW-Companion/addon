@@ -525,7 +525,7 @@ function WC.RaiseMapTab()
     local b = WC.mapButton
     if not b or WC.mapButtonMode ~= "tab" or (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then return end
     local map, parent = WorldMapFrame, WC.mapButtonParent
-    if b.SetFrameStrata and map and map.GetFrameStrata then pcall(b.SetFrameStrata, b, map:GetFrameStrata()) end
+    if b.SetFrameStrata then pcall(b.SetFrameStrata, b, "HIGH") end -- the client's map buttons' strata
     local top = 0
     for _, f in ipairs({ map, parent, map and map.BorderFrame, map and map.ScrollContainer }) do
         if type(f) == "table" and f.GetFrameLevel then
@@ -556,6 +556,10 @@ WC.ROUND_NEAR = 40 -- a round button counts as in the column when its left edge 
 function WC.RoundParent()
     local map = WorldMapFrame
     if not map then return nil end
+    if type(map.GetCanvasContainer) == "function" then
+        local ok, c = pcall(map.GetCanvasContainer, map)
+        if ok and type(c) == "table" then return c end
+    end
     return (type(map.ScrollContainer) == "table" and map.ScrollContainer) or map
 end
 
@@ -594,6 +598,17 @@ function WC.ScanRoundColumn()
             end
         end
     end
+    -- the client's own pin button leads the column: found by its mixin's load function, wherever it hangs
+    local pinMixin = type(WorldMapTrackingPinButtonMixin) == "table" and WorldMapTrackingPinButtonMixin.OnLoad or nil
+    if pinMixin and type(WorldMapFrame) == "table" and type(WorldMapFrame.overlayFrames) == "table" then
+        for _, f in ipairs(WorldMapFrame.overlayFrames) do
+            if type(f) == "table" and f.OnLoad == pinMixin and not seen[f] and f ~= WC.mapRound and f.IsShown and f:IsShown() then
+                seen[f] = true
+                local l, t, w, h = WC.GeoNum(f, "GetLeft"), WC.GeoNum(f, "GetTop"), WC.GeoNum(f, "GetWidth"), WC.GeoNum(f, "GetHeight")
+                if l and t and w and h then rects[#rects + 1] = { x = l - cl, y = ct - t, w = w, h = h } end
+            end
+        end
+    end
     return rects
 end
 
@@ -622,7 +637,7 @@ end
 local function create_round_button()
     local parent = WC.RoundParent()
     if WC.mapRound or not parent or type(CreateFrame) ~= "function" then return WC.mapRound end
-    local ok, b = pcall(CreateFrame, "Button", "WoWCompanionMapRoundButton", parent)
+    local ok, b = pcall(CreateFrame, "Button", "WoWCompanionMapRoundButton", WorldMapFrame) -- on the map itself, like the client's own buttons
     if not ok or type(b) ~= "table" then return nil end
     b:SetSize(WC.ROUND_SIZE, WC.ROUND_SIZE)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -680,7 +695,7 @@ function WC.RaiseRoundButton()
     local b, parent = WC.mapRound, WC.RoundParent()
     if not b then return end
     local map = WorldMapFrame
-    if b.SetFrameStrata and map and map.GetFrameStrata then pcall(b.SetFrameStrata, b, map:GetFrameStrata()) end
+    if b.SetFrameStrata then pcall(b.SetFrameStrata, b, "HIGH") end -- the client's map buttons' strata
     local top = 0
     for _, f in ipairs({ map, parent, map and map.BorderFrame, map and map.ScrollContainer }) do
         if type(f) == "table" and f.GetFrameLevel then
@@ -696,7 +711,7 @@ function WC.PlaceRoundButton()
     local parent = WC.RoundParent()
     local b = create_round_button()
     if not (b and parent) then return end
-    if b.GetParent and b:GetParent() ~= parent then b:SetParent(parent) end
+    if b.GetParent and b:GetParent() ~= WorldMapFrame then b:SetParent(WorldMapFrame) end
     WC.RaiseRoundButton()
     local rects = WC.ScanRoundColumn()
     local x, y, slot = WC.RoundSlot(rects)
@@ -712,6 +727,15 @@ end
 function WC.HideRoundButton()
     if WC.mapRound and WC.mapRound.Hide then WC.mapRound:Hide() end
     WC.roundPlace = nil
+end
+
+-- Places again now and once more shortly after, for buttons that move after us; the probe is refreshed each time.
+function WC.ReplaceMapControl()
+    WC.PlaceMapTab()
+    WC.RecordMapGeometry()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.2, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
+    end
 end
 
 -- True when another addon's side-tab column stands left of the quest log (read as geometry and art only). The client's
@@ -981,18 +1005,23 @@ function WC.CreateMapButton()
     WC.mapButton = b
     if WC.mapButtonMode == "tab" then
         -- the tab follows the quest log, as the client's own tabs do
-        if column.HookScript then column:HookScript("OnShow", function() if WC.mapControl ~= "round" then b:Show() end; WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.RefreshMapTab(); WC.RecordMapGeometry() end) end
+        if column.HookScript then column:HookScript("OnShow", function() if WC.mapControl ~= "round" then b:Show() end; WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.RefreshMapTab(); WC.ReplaceMapControl() end) end
         -- riding the client's tabs, they decide (same parent, so a hidden log hides them and us together); the
         -- fallback placement follows the log
         if column.HookScript then column:HookScript("OnHide", function() if not (WC.mapTabPlace and WC.mapTabPlace.mode == "sidetab") then b:Hide() end end) end
-        if column.HookScript then column:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        if column.HookScript then column:HookScript("OnSizeChanged", WC.ReplaceMapControl) end
         if map.HookScript then map:HookScript("OnShow", function()
             WC.PlaceMapTabSoon(); WC.RaiseMapTab(); WC.ApplyMapTabState(); WC.RefreshMapTab(); WC.RecordMapGeometry()
             if C_Timer and C_Timer.After then -- again once the client has laid the map out
+                C_Timer.After(0.2, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
                 C_Timer.After(0.5, function() WC.PlaceMapTab(); WC.RecordMapGeometry() end)
             end
         end) end
-        if map.HookScript then map:HookScript("OnSizeChanged", WC.PlaceMapTab) end
+        if map.HookScript then map:HookScript("OnSizeChanged", WC.ReplaceMapControl) end
+        if hooksecurefunc and type(map.OnMapChanged) == "function" and not WC.mapChangedHooked then
+            WC.mapChangedHooked = pcall(hooksecurefunc, map, "OnMapChanged", WC.ReplaceMapControl)
+        end
+        if column.HookScript then column:HookScript("OnHide", WC.ReplaceMapControl) end
         if map.HookScript then map:HookScript("OnUpdate", function(_, elapsed) WC.WatchTabColumn(elapsed) end) end
         if map.HookScript then map:HookScript("OnHide", function() WC.ClearSelectedStep() end) end -- the selection ends with the map
         -- no placement here: the tab is made without any layout and placed on the map's and the log's OnShow
