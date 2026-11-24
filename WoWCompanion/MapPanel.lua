@@ -723,9 +723,6 @@ function WC.SelectMapPanel(on, by)
         elseif st.prevMode ~= nil then
             pcall(QuestMapFrame.SetDisplayMode, QuestMapFrame, st.prevMode)
         end
-        -- the pane stays open (the player had it): the client's quest list shows again
-        local qf = not st.weOpened and WC.SidePanelOpen() and QuestMapFrame.QuestsFrame or nil
-        if qf and qf.Show and not (qf.IsShown and qf:IsShown()) then pcall(qf.Show, qf) end
     end
     if on then
         if not native then f:Show() end
@@ -734,6 +731,9 @@ function WC.SelectMapPanel(on, by)
     else
         WC.HideMapPanelParts(f) -- always: even where the client's display-mode call left our frame up
         if by ~= "client" then WC.CloseSidePanel() else st.weOpened = false end
+        -- the pane stays open (the player had it): the client's quest list shows again
+        local qf = not st.weOpened and WC.SidePanelOpen() and QuestMapFrame.QuestsFrame or nil
+        if qf and qf.Show and not (qf.IsShown and qf:IsShown()) then pcall(qf.Show, qf) end
     end
     if WC.PlaceMapPanel then WC.PlaceMapPanel() end
     WC.RefreshMapTab()
