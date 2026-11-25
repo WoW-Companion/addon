@@ -10,6 +10,26 @@ local denied = {
     "SecureCmdOptionParse", "setfenv", "load", "dofile", "loadfile", "require",
 }
 
+-- The client APIs the character capture (Capture.lua) may call. Every one only READS state: none is
+-- protected, none acts, none sends anything. Any other client API called there fails the guard until it is
+-- reviewed as read-only and added here. (Local helpers are lower-case and WC.* members are ours.)
+local capture_allowed = {}
+for name in ([[
+    UnitName GetRealmName UnitLevel UnitClass UnitRace UnitFactionGroup GetBuildInfo time InCombatLockdown
+    GetMoney UnitXP UnitXPMax GetXPExhaustion GetBindLocation
+    GetInventoryItemID GetInventoryItemLink
+    GetContainerNumSlots GetContainerItemID GetContainerItemInfo
+    C_Container.GetContainerNumSlots C_Container.GetContainerItemInfo
+    GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard
+    C_QuestLog.GetInfo C_QuestLog.IsComplete C_QuestLog.GetAllCompletedQuestIDs GetQuestsCompleted
+    GetNumTalentTabs GetTalentTabInfo GetNumTalents GetTalentInfo
+    GetNumSkillLines GetSkillLineInfo GetNumSpellTabs GetSpellTabInfo GetSpellLink C_SpellBook.GetSpellBookItemInfo
+    GetNumFactions GetFactionInfo
+    IsTradeSkillLinked GetTradeSkillLine GetNumTradeSkills GetTradeSkillInfo GetTradeSkillItemLink
+    GetCraftDisplaySkillLine GetCraftName GetNumCrafts GetCraftInfo GetCraftItemLink
+    CreateFrame
+]]):gmatch("%S+") do capture_allowed[name] = true end
+
 local handle = assert(io.popen('find "' .. root .. '" -name "*.lua" | sort'))
 local files = {}
 for f in handle:lines() do files[#files + 1] = f end
@@ -21,12 +41,24 @@ local function report(file, n, msg, line)
     print(string.format("%s:%d: %s: %s", file, n, msg, (line:gsub("^%s+", ""))))
 end
 
+local function check_capture(file, n, code, line)
+    if not file:find("Capture%.lua$") then return end
+    for name in code:gmatch("%f[%w_.:]([%u][%w_]*)%s*%(") do
+        local before = code:match("([%.:]?)" .. name .. "%s*%(")
+        if before == "" and not capture_allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
+    end
+    for name in code:gmatch("(C_%a+%.[%a_]+)%s*%(") do
+        if not capture_allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
+    end
+end
+
 for _, file in ipairs(files) do
     local in_slash = false
     local n = 0
     for line in io.lines(file) do
         n = n + 1
         local code = line:gsub("%-%-.*$", "")
+        check_capture(file, n, code, line)
         if code:find("SlashCmdList%s*%[.-%]%s*=%s*function") then in_slash = true end
         for _, name in ipairs(denied) do
             if code:find("%f[%w_]" .. name .. "%f[^%w_]") then report(file, n, "forbidden call " .. name, line) end

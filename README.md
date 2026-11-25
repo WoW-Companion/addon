@@ -11,13 +11,16 @@ The addon only shows things. It never plays the game for you, and everything in 
 
 ## Works with the WoW Companion app
 
-The app is the main experience. This addon is the in-game extra. Three pieces work together:
+The app is the main experience. This addon is the in-game extra. Two pieces work together:
 
-- **ForeverScribe** is another addon. It is required. It writes down what your character has: level, quests,
-  bags and talents.
-- **The WoW Companion app** runs in a window beside the game. It reads what ForeverScribe saved and works
+- **The WoW Companion addon** (this one) writes down what your character has: level, quests, bags, bank,
+  gear, talents and recipes, using only the game's read-only information. Until the app version that reads this
+  capture is out, ForeverScribe (another addon) still works, and having both is fine. Once that version is out,
+  ForeverScribe is no longer needed. You can turn the recording off in the options. The format is in
+  [docs/capture-format.md](docs/capture-format.md).
+- **The WoW Companion app** runs in a window beside the game. It reads what your character has and works
   out your next steps and the best route. Then it hands the advice to the addon.
-- **The WoW Companion addon** shows that advice in the game: the plan on your map, the panel and the
+- The same addon also shows that advice in the game: the plan on your map, the panel and the
   minimap button.
 
 <!-- screenshot: overlay-beside-game.png — the game with the WoW Companion app beside it -->

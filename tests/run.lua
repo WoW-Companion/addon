@@ -1945,7 +1945,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.25" and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.26" and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4713,6 +4713,159 @@ cases[#cases + 1] = { "ride: no other addon's names in the tab code", function()
     local banned = { "ElvUI", "Questie", "Leatrix", "Mapster", "HandyNotes", "TomTom", "WorldQuestTracker", "Chinchilla", "Carbonite", "SexyMap", "Lib%u" }
     local src = assert(io.open("WoWCompanion/Button.lua")):read("*a")
     for _, n in ipairs(banned) do assert(not src:find(n), "Button names " .. n) end
+end }
+
+-- Character capture: synthetic character, client reads stubbed.
+local function capture_client()
+    local function run_timers()
+        local f = WoWCompanion.captureTimer
+        if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 5) end
+    end
+    UnitLevel = function() return 23 end
+    UnitClass = function() return "Warrior", "WARRIOR" end
+    UnitRace = function() return "Orc", "Orc" end
+    UnitFactionGroup = function() return "Horde" end
+    GetMoney = function() return 12345 end
+    UnitXP = function() return 100 end
+    UnitXPMax = function() return 500 end
+    GetXPExhaustion = function() return nil end
+    GetBindLocation = function() return "Testtown" end
+    C_Map = { GetBestMapForUnit = function() return 1411 end, GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.25 end } end }
+    GetInventoryItemID = function(_, slot) return slot == 16 and 1234 or nil end
+    GetInventoryItemLink = function(_, slot) return slot == 16 and "|cff|Hitem:1234:77:0:0:0:0:-5:0|h[Sword]|h|r" or nil end
+    BAGS = { [0] = { [1] = { 2001, 5 } }, [-1] = { [3] = { 3001, 1 } } }
+    C_Container = {
+        GetContainerNumSlots = function(b) return BAGS[b] and 4 or 0 end,
+        GetContainerItemInfo = function(b, slot) local i = BAGS[b] and BAGS[b][slot]; return i and { itemID = i[1], stackCount = i[2] } end,
+    }
+    GetNumQuestLogEntries = function() return 2 end
+    GetQuestLogTitle = function(i)
+        if i == 1 then return "Zone", 0, nil, true, false, nil, nil, nil end
+        return "Test Quest", 12, nil, false, false, 1, nil, 777
+    end
+    GetNumQuestLeaderBoards = function() return 1 end
+    GetQuestLogLeaderBoard = function() return "Boars slain: 3/8", "monster", false end
+    GetQuestsCompleted = function() return { [20] = true, [10] = true, [30] = false } end
+    GetNumTalentTabs = function() return 1 end
+    GetTalentTabInfo = function() return "Arms" end
+    GetNumTalents = function() return 1 end
+    GetTalentInfo = function() return "Deflection", "icon", 1, 1, 2, 5 end
+    GetNumSkillLines = function() return 3 end
+    GetSkillLineInfo = function(i)
+        if i == 1 then return "Professions", true end
+        if i == 2 then return "Mining", false, nil, 150, 0, 0, 225 end
+        return "Weapon Skills", true
+    end
+    GetNumSpellTabs = function() return 1 end
+    GetSpellTabInfo = function() return "General", "icon", 0, 2 end
+    GetSpellLink = function(i) return "|cff|Hspell:" .. (100 + i) .. "|h[Spell]|h|r" end
+    GetNumFactions = function() return 2 end
+    GetFactionInfo = function(i)
+        if i == 1 then return "Testfolk", "", 5, 3000, 9000, 4000, false, false, false, false, true end
+        return "Header", "", 1, 0, 1, 0, false, false, true, false, false
+    end
+    TRADE_OPEN, TRADE_NAME = false, "Blacksmithing"
+    GetTradeSkillLine = function() return TRADE_NAME, 100, 300 end
+    GetNumTradeSkills = function() return 2 end
+    GetTradeSkillInfo = function(i) if i == 1 then return "Weapons", "header" end return "Copper Sword", "optimal" end
+    GetTradeSkillItemLink = function() return "|cff|Henchant:2663|h[x]|h|r" end
+    local WC = chain_client()
+    Stub.fire(frames, "PLAYER_ENTERING_WORLD")
+    return WC, run_timers
+end
+local function capture_clear()
+    for _, n in ipairs({ "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "GetMoney", "UnitXP", "UnitXPMax", "GetXPExhaustion", "GetBindLocation", "C_Map", "GetInventoryItemID", "GetInventoryItemLink", "BAGS", "C_Container", "GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard", "GetQuestsCompleted", "GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetNumSkillLines", "GetSkillLineInfo", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellLink", "GetNumFactions", "GetFactionInfo", "TRADE_NAME", "TRADE_OPEN", "GetTradeSkillLine", "GetNumTradeSkills", "GetTradeSkillInfo", "GetTradeSkillItemLink" }) do _G[n] = nil end
+end
+
+cases[#cases + 1] = { "capture: every part lands in the schema under realm:name", function()
+    local WC, run = capture_client()
+    assert(next(WoWCompanionDB.characters or {}) == nil, "nothing before the delay")
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(c and c.version == 1 and c.capturedAt == NOW and c.name == "Thrall" and c.realm == "Testrealm")
+    assert(c.level == 23 and c.class == "WARRIOR" and c.race == "Orc" and c.faction == "Horde")
+    assert(c.money == 12345 and c.xp == 100 and c.xpMax == 500 and c.rested == 0)
+    assert(c.client.version == "1.15.7" and c.client.build == "63456")
+    assert(c.location.map == 1411 and c.location.x == 50 and c.location.y == 25 and c.hearth == "Testtown")
+    assert(c.equipment[16].id == 1234 and c.equipment[16].enchant == 77 and c.equipment[16].suffix == -5)
+    assert(c.bags[0].size == 4 and c.bags[0].items[1].id == 2001 and c.bags[0].items[1].count == 5)
+    assert(c.bank == nil and c.bankSeenAt == nil, "bank only while open")
+    local q = c.quests.entries[1]
+    assert(c.quests.captured and #c.quests.entries == 1 and q.id == 777 and q.title == "Test Quest" and q.level == 12 and q.complete)
+    assert(q.objectives[1].have == 3 and q.objectives[1].need == 8 and q.objectives[1].done == false)
+    assert(#c.completedQuests == 2 and c.completedQuests[1] == 10 and c.completedQuests[2] == 20)
+    assert(c.talents[1].tree == "Arms" and c.talents[1].nodes[1].name == "Deflection" and c.talents[1].nodes[1].rank == 2 and c.talents[1].nodes[1].max == 5)
+    assert(#c.skills == 1 and c.skills[1].name == "Mining" and c.skills[1].rank == 150 and c.skills[1].max == 225 and c.skills[1].profession)
+    assert(#c.spells == 2 and c.spells[1] == 101)
+    assert(#c.reputations == 1 and c.reputations[1].faction == "Testfolk" and c.reputations[1].standing == 5 and c.reputations[1].value == 4000)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: the bank is read only while open and the last snapshot stays", function()
+    local WC, run = capture_client()
+    run()
+    Stub.fire(frames, "BANKFRAME_OPENED"); run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(c.bank[-1].items[3].id == 3001 and c.bankSeenAt == NOW)
+    Stub.fire(frames, "BANKFRAME_CLOSED")
+    BAGS[-1] = { [3] = { 9999, 1 } }
+    NOW = NOW + 60
+    Stub.fire(frames, "BAG_UPDATE_DELAYED"); run()
+    assert(c.bank[-1].items[3].id == 3001 and c.bankSeenAt == NOW - 60, "kept from the last open")
+    NOW = NOW - 60
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: recipes come from the trade skill window, per profession", function()
+    local WC, run = capture_client()
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(c.recipes == nil)
+    Stub.fire(frames, "TRADE_SKILL_SHOW"); run()
+    local r = c.recipes.Blacksmithing
+    assert(r and #r.entries == 1 and r.entries[1].name == "Copper Sword" and r.entries[1].id == 2663 and r.seenAt == NOW)
+    TRADE_NAME = "Tailoring"
+    Stub.fire(frames, "TRADE_SKILL_UPDATE"); run() -- window still open: re-read
+    assert(c.recipes.Tailoring and c.recipes.Blacksmithing)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: combat defers reads until it ends, and events coalesce", function()
+    local WC, run = capture_client()
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    COMBAT = true
+    GetMoney = function() return 999 end
+    Stub.fire(frames, "PLAYER_MONEY"); Stub.fire(frames, "PLAYER_MONEY"); run()
+    assert(c.money == 12345, "untouched in combat")
+    COMBAT = false
+    Stub.fire(frames, "PLAYER_REGEN_ENABLED"); run()
+    assert(c.money == 999)
+    local reads = 0
+    GetMoney = function() reads = reads + 1; return 5 end
+    Stub.fire(frames, "PLAYER_MONEY"); Stub.fire(frames, "PLAYER_MONEY"); Stub.fire(frames, "PLAYER_XP_UPDATE"); run()
+    assert(reads == 1 and c.money == 5)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: the option off records nothing; on by default", function()
+    local WC, run = capture_client()
+    assert(WC.Setting("recordCharacter") == true and WC.IsDefault("recordCharacter"))
+    assert(rawget(WC.L, WC.DEF_OF.recordCharacter.label) ~= nil)
+    WC.SetSetting("recordCharacter", false)
+    WoWCompanionDB.characters = nil
+    Stub.fire(frames, "PLAYER_LEVEL_UP"); run()
+    assert(WoWCompanionDB.characters == nil)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: a failing read costs only its own part", function()
+    local WC, run = capture_client()
+    GetNumTalentTabs = function() error("boom") end
+    Stub.fire(frames, "PLAYER_ENTERING_WORLD"); run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(c.level == 23 and c.bags and c.talents == nil)
+    capture_clear()
 end }
 
 local failed = 0
