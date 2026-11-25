@@ -324,6 +324,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_32_1 = "Your known flight points are recorded, so the app can suggest where to fly.",
     WHATS_NEW_0_6_31_1 = "More reliable recording of vendors, trainers and recipes, now with recipe materials and flight masters.",
     WHATS_NEW_0_6_30_1 = "Vendors you visit are recorded for the app, with their prices.",
     WHATS_NEW_0_6_29_1 = "Trainers, recipes and vendors you open are recorded correctly for the app.",

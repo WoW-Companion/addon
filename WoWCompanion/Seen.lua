@@ -343,6 +343,85 @@ function WC.SeenReadFlight()
     return true
 end
 
+WC.SEEN_NODE_CAP = 80 -- known flight points kept per character
+
+-- Flight path states: Enum.FlightPathState at runtime when the client has it, else its documented numbers
+-- (0 current, 1 reachable, 2 unreachable). Classic's TaxiNodeGetType says "CURRENT", "REACHABLE", "DISTANT", "NONE".
+local function node_state(v)
+    v = WC.Clean(v)
+    if type(v) == "string" then
+        v = v:lower()
+        if v == "current" or v == "reachable" then return v end
+        return nil
+    end
+    if type(v) ~= "number" then return nil end
+    local E = Enum and Enum.FlightPathState
+    if type(E) == "table" then
+        if v == E.Current then return "current" end
+        if v == E.Reachable then return "reachable" end
+        return nil
+    end
+    if v == 0 then return "current" elseif v == 1 then return "reachable" end
+end
+
+local function node_xy(x, y)
+    x, y = WC.Clean(x), WC.Clean(y)
+    if type(x) == "number" and type(y) == "number" then return round1(x * 100), round1(y * 100) end
+end
+
+-- The nodes the open taxi map shows, as { id, name, map, x, y, state }: the modern C_TaxiMap list when the client
+-- has it, else the classic Taxi* calls. Only the learned ones ("current" and "reachable") are kept.
+local function read_nodes(map)
+    local out = {}
+    local function add(id, name, x, y, st)
+        st = node_state(st)
+        name = WC.Clean(name)
+        if not st or type(name) ~= "string" or name == "" or #out >= WC.SEEN_NODE_CAP then return end
+        x, y = node_xy(x, y)
+        out[#out + 1] = { id = WC.Clean(id), name = name, map = map, x = x, y = y, state = st }
+    end
+    if C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and map then
+        local list = C_TaxiMap.GetAllTaxiNodes(map)
+        if type(list) == "table" then
+            for _, n in ipairs(list) do
+                if type(n) == "table" then
+                    local pos = n.position
+                    local px, py
+                    if type(pos) == "table" then
+                        px, py = pos.x, pos.y
+                        if px == nil and pos.GetXY then px, py = pos:GetXY() end
+                    end
+                    add(n.nodeID, n.name, px, py, n.state)
+                end
+            end
+        end
+    elseif NumTaxiNodes and TaxiNodeName and TaxiNodeGetType then
+        for i = 1, math.min(tonumber(NumTaxiNodes()) or 0, 200) do
+            local x, y
+            if TaxiNodePosition then x, y = TaxiNodePosition(i) end
+            add(i, TaxiNodeName(i), x, y, TaxiNodeGetType(i))
+        end
+    end
+    return out
+end
+
+-- Taxi window, second part: the character's known flight points, under characters[<key>].flightPoints.
+function WC.SeenReadFlightPoints()
+    if not (WC.db and WC.Setting("recordCharacter") == true and UnitName and GetRealmName) then return false end
+    local name, realm = UnitName("player"), GetRealmName()
+    if type(name) ~= "string" or name == "" then return false end
+    local map = here()
+    local nodes = read_nodes(map)
+    if #nodes == 0 then return false end
+    if type(WC.db.characters) ~= "table" then WC.db.characters = {} end
+    local key = (realm or "") .. ":" .. name
+    if type(WC.db.characters[key]) ~= "table" then WC.db.characters[key] = {} end
+    local fp = { seenAt = time(), nodes = nodes }
+    WC.CleanTree(fp)
+    WC.db.characters[key].flightPoints = fp
+    return true
+end
+
 local function skill_rank(kind)
     if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
     for i = 1, GetNumSkillLines() or 0 do
@@ -454,6 +533,7 @@ function WC.SeenGiverFor(e)
 end
 
 local READ = { trainer = "SeenReadTrainer", merchant = "SeenReadMerchant", taxi = "SeenReadFlight" }
+local EXTRA = { taxi = "SeenReadFlightPoints" } -- a second read of the same window
 local OPEN_DELAY, UPDATE_DELAY = 0.5, 1.5 -- seconds after a window opens or updates that its data is read
 local gen = {}          -- window name -> counter; a newer schedule replaces an older one (debounce)
 
@@ -463,6 +543,10 @@ local function read(win)
     pending[win] = nil
     local ok, err = pcall(WC[READ[win]])
     if not ok then WC.SeenError(win, err) end
+    if EXTRA[win] then
+        ok, err = pcall(WC[EXTRA[win]])
+        if not ok then WC.SeenError(win, err) end
+    end
 end
 
 -- Reads the window after a short delay (the lists can be empty or partial when the event fires). Repeated

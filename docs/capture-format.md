@@ -55,3 +55,15 @@ C_SpellBook.GetSpellBookItemInfo), GetNumFactions, GetFactionInfo, IsTradeSkillL
 GetNumTradeSkills, GetTradeSkillInfo, GetTradeSkillItemLink, GetCraftDisplaySkillLine, GetCraftName, GetNumCrafts,
 GetCraftInfo, GetCraftItemLink, InCombatLockdown. `tests/guard.lua` lists them and fails on any other client API
 called in `Capture.lua`.
+
+## characters[<key>].flightPoints
+
+Written when the flight map opens (read-only, never travels): the character's known flight points.
+
+```
+flightPoints = { seenAt = <unix s>,
+  nodes = { { id = <node id>, name = "<flight point>", map = <uiMapID of the taxi map>,
+              x = <0-100>, y = <0-100>, state = "current" | "reachable" }, ... } }   -- at most 80
+```
+
+Unknown and "distant" (unreachable) nodes are skipped. Opening the map again replaces the list. Source: `C_TaxiMap.GetAllTaxiNodes(uiMapID)` where the client has it, else `NumTaxiNodes`, `TaxiNodeName`, `TaxiNodeGetType`, `TaxiNodePosition`.

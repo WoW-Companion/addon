@@ -67,6 +67,7 @@ observed.vendors = {   -- at most 300 vendors; opening a vendor again overwrites
 observed.flightmasters = {  -- at most 300; the flight master's npc only, never the node list; opening again replaces
   { npc, name, map, x, y, reaction, faction, t },
 }
+-- A character's known flight points are not here: they are in the capture, characters[<key>].flightPoints (docs/capture-format.md).
 observed.raw = {      -- the first 3 raw return tuples per window kind per session, to verify the field mapping; temporary
   trainer = { { call = "GetTrainerServiceInfo", n = <values returned>, t = <unix s>, vals = { ... } } },
   errors = { { kind = "<window>", t = <unix s>, msg = "<cut to 120>" } },  -- the last 5 failed reads
