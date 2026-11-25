@@ -327,7 +327,7 @@ function WC.ReadSkillLines()
 end
 
 function readers.skills(r)
-    local list = {}
+    local list, seen = {}, {}
     local group
     local primary = TRADE_SKILLS or "Professions"
     local secondary = SECONDARY_SKILLS or "Secondary Skills"
@@ -339,7 +339,16 @@ function readers.skills(r)
             if group == primary or group == secondary or group == "Professions" or group == "Secondary Skills" then
                 s.profession = true
             end
-            list[#list + 1] = s
+            local prev = seen[line.name]
+            if prev then
+                -- The client can list a line twice (or under two headers): keep one, with the best rank and cap.
+                if (s.rank or 0) > (prev.rank or 0) then prev.rank = s.rank end
+                if (s.max or 0) > (prev.max or 0) then prev.max = s.max end
+                if s.profession and not prev.profession then prev.profession, prev.group = true, s.group end
+            else
+                seen[line.name] = s
+                list[#list + 1] = s
+            end
         end
     end
     r.skills = list
