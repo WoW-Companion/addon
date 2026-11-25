@@ -87,3 +87,14 @@ Fishing cast (within 20 s, 45 s for Fishing); any other loot is ignored.
 Windows are read about 0.5 s after they open and 1.5 s after an update (the lists can arrive late); the old window
 event or `PLAYER_INTERACTION_MANAGER_FRAME_SHOW` opens a window, once. A secret value (the client's `issecretvalue`)
 is never saved: every stored value is a string, number or boolean.
+
+## Character stats (`characters[<realm:name>].stats`)
+
+What the client reports about the character, read on login, level up, equipment change and talent change
+(coalesced, never in combat). The shape is in `capture-format.md`. Every value goes through `WC.Clean` and a
+number the client does not return is left out. Read-only APIs used (interface 16001): `UnitStat`,
+`UnitHealthMax`, `UnitPowerMax`, `UnitArmor`, `GetSpellCritChance`, `GetCritChance`, `GetRangedCritChance`,
+`GetDodgeChance`, `GetParryChance`, `GetBlockChance`, `GetManaRegen`, `UnitAttackPower`,
+`UnitRangedAttackPower`, `GetSpellBonusDamage`, `GetSpellBonusHealing`, and the per-point getters
+`GetSpellCritChanceFromIntellect`, `GetCritChanceFromAgility`, `GetUnitManaRegenRateFromSpirit`,
+`GetUnitHealthRegenRateFromSpirit`. The client exposes no getter for mana or health per point, so those are not stored.

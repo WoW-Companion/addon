@@ -215,6 +215,76 @@ function readers.talents(r)
     r.talents = trees
 end
 
+-- What the client reports about the character's stats, as it reports it (the numbers its own tooltips use).
+-- Every API is looked up at run time and skipped when this client lacks it, and nothing is computed here: a
+-- per-point effect is stored only when the client exposes a getter for it.
+local STAT_INDEX = { str = 1, agi = 2, sta = 3, int = 4, spi = 5 }
+local SPELL_SCHOOLS = { 2, 3, 4, 5, 6, 7 } -- holy, fire, nature, frost, shadow, arcane
+
+-- Calls a client function that may be missing or fail; each result is cleaned, and only numbers are kept.
+local function nums(fn, ...)
+    if type(fn) ~= "function" then return end
+    local out = { pcall(fn, ...) }
+    if not table.remove(out, 1) then return end
+    for i = 1, #out do
+        local v = WC.Clean(out[i])
+        out[i] = type(v) == "number" and v == v and v or nil
+    end
+    return unpack(out, 1, 5)
+end
+
+local function put(t, k, v) if v ~= nil then t[k] = v end end
+
+function readers.stats(r)
+    local s = { seenAt = time(), level = WC.Clean(UnitLevel and UnitLevel("player")) }
+    local stats = {}
+    for key, i in pairs(STAT_INDEX) do
+        local base, total, pos, neg = nums(UnitStat, "player", i)
+        if base or total then stats[key] = { base = base, total = total, pos = pos, neg = neg } end
+    end
+    s.stats = stats
+    put(s, "healthMax", (nums(UnitHealthMax, "player")))
+    put(s, "manaMax", (nums(UnitPowerMax, "player", 0)))
+    local _, armor = nums(UnitArmor, "player")
+    put(s, "armor", armor)
+    local schools, best = {}, nil
+    for _, school in ipairs(SPELL_SCHOOLS) do
+        local v = nums(GetSpellCritChance, school)
+        if v then
+            schools[school] = v
+            best = (best == nil or v > best) and v or best
+        end
+    end
+    if best then s.spellCrit = { max = best, schools = schools } end
+    put(s, "meleeCrit", (nums(GetCritChance)))
+    put(s, "rangedCrit", (nums(GetRangedCritChance)))
+    put(s, "dodge", (nums(GetDodgeChance)))
+    put(s, "parry", (nums(GetParryChance)))
+    put(s, "block", (nums(GetBlockChance)))
+    local base, casting = nums(GetManaRegen)
+    if base or casting then s.manaRegen = { base = base, casting = casting } end
+    local ab, ap, an = nums(UnitAttackPower, "player")
+    if ab then s.attackPower = ab + (ap or 0) + (an or 0) end
+    local rb, rp, rn = nums(UnitRangedAttackPower, "player")
+    if rb then s.rangedAttackPower = rb + (rp or 0) + (rn or 0) end
+    local bonus = {}
+    local dmg
+    for _, school in ipairs(SPELL_SCHOOLS) do
+        local v = nums(GetSpellBonusDamage, school)
+        if v and (dmg == nil or v > dmg) then dmg = v end
+    end
+    put(bonus, "damage", dmg)
+    put(bonus, "healing", (nums(GetSpellBonusHealing)))
+    if next(bonus) then s.spellBonus = bonus end
+    local per = {} -- the client's own per-point effects, only those it exposes
+    put(per, "spellCritFromInt", (nums(GetSpellCritChanceFromIntellect, "player")))
+    put(per, "critFromAgi", (nums(GetCritChanceFromAgility, "player")))
+    put(per, "manaRegenFromSpi", (nums(GetUnitManaRegenRateFromSpirit, "player")))
+    put(per, "healthRegenFromSpi", (nums(GetUnitHealthRegenRateFromSpirit, "player")))
+    if next(per) then s.perPoint = per end
+    r.stats = s
+end
+
 function readers.skills(r)
     local list = {}
     local group
@@ -407,7 +477,7 @@ end
 
 -- The order matters little; each part is read on its own so one failing read never costs the rest.
 local ORDER = { "identity", "money", "location", "equipment", "bags", "bank", "quests", "completed", "talents",
-    "skills", "spells", "reputations", "tradeskill", "craft" }
+    "stats", "skills", "spells", "reputations", "tradeskill", "craft" }
 
 -- Reads every waiting part now, unless capture is off or the player is in combat.
 function WC.CaptureFlush()
@@ -457,19 +527,19 @@ function WC.CaptureMark(...)
 end
 
 local EVENTS = {
-    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "completed", "talents", "skills", "spells", "reputations" },
-    PLAYER_LEVEL_UP = { "identity", "money", "talents", "spells" },
+    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "completed", "talents", "stats", "skills", "spells", "reputations" },
+    PLAYER_LEVEL_UP = { "identity", "money", "talents", "stats", "spells" },
     PLAYER_XP_UPDATE = { "money" },
     PLAYER_MONEY = { "money" },
     ZONE_CHANGED_NEW_AREA = { "location" },
     ZONE_CHANGED = { "location" },
     HEARTHSTONE_BOUND = { "location" },
-    PLAYER_EQUIPMENT_CHANGED = { "equipment" },
+    PLAYER_EQUIPMENT_CHANGED = { "equipment", "stats" },
     BAG_UPDATE_DELAYED = { "bags" },
     QUEST_LOG_UPDATE = { "quests" },
     QUEST_TURNED_IN = { "quests", "completed" },
     SKILL_LINES_CHANGED = { "skills" },
-    CHARACTER_POINTS_CHANGED = { "talents" },
+    CHARACTER_POINTS_CHANGED = { "talents", "stats" },
     SPELLS_CHANGED = { "spells" },
     LEARNED_SPELL_IN_TAB = { "spells" },
     UPDATE_FACTION = { "reputations" },

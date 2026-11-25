@@ -23,6 +23,12 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   completedQuests = { <questID>, ... },                      -- sorted; absent when the client offers none
   talents = { { tree = "<name>", nodes = { { name, rank, max } } } },
   skills = { { name, rank, max, group = "<header>", profession? = true } },
+  stats = { seenAt, level,                                     -- what the client reports; a missing API leaves its key out
+    stats = { str|agi|sta|int|spi = { base, total, pos, neg } },  -- UnitStat: "Intellect 90 (50+40)" is base 50, pos 40, total 90
+    healthMax, manaMax, armor, meleeCrit, rangedCrit, dodge, parry, block,   -- percent for the chances
+    spellCrit = { max, schools = { [2..7] = pct } }, manaRegen = { base, casting }, attackPower, rangedAttackPower,
+    spellBonus = { damage (best school), healing },
+    perPoint = { spellCritFromInt, critFromAgi, manaRegenFromSpi, healthRegenFromSpi } },  -- the client's own per-point getters only
   spells = { <spellID>, ... },                               -- the spellbook, sorted
   reputations = { { faction, standing = <1-8>, value, min, max } },
   recipes = { ["<profession>"] = { seenAt = <unix s>, entries = { { name, id?, item?, difficulty? = "orange"|"yellow"|"green"|"grey",
