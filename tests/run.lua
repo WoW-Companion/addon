@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.34" and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.35" and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -5435,6 +5435,54 @@ cases[#cases + 1] = { "seen: known flight points (classic family), the cap holds
     assert(fp.nodes[1].state == "current" and fp.nodes[1].name == "Node1" and fp.nodes[2].name == "Node2")
     for _, n in ipairs(fp.nodes) do assert(n.name:match("%d+") % 3 ~= 0, "distant skipped") end
     NumTaxiNodes, TaxiNodeName, TaxiNodeGetType, TaxiNodePosition, C_Timer = nil, nil, nil, nil, nil
+end }
+
+cases[#cases + 1] = { "seen: flight points are queried on the continent with each node's zone", function()
+    seen_client()
+    local fire = timers()
+    local infos = { [1411] = { mapID = 1411, mapType = 3, parentMapID = 12 }, [12] = { mapID = 12, mapType = 2, parentMapID = 947 } }
+    C_Map.GetMapInfo = function(id) return infos[id] end
+    C_Map.GetMapInfoAtPosition = function(m, x, y) return { mapID = x < 0.5 and 1420 or 1411 } end
+    C_Map.GetWorldPosFromMapPos = function(m, v) return m, v end
+    C_Map.GetMapPosFromWorldPos = function(c, v, zone) return { x = v.x / 2, y = v.y / 2 } end
+    CreateVector2D = function(x, y) return { x = x, y = y } end
+    local asked
+    C_TaxiMap = { GetAllTaxiNodes = function(map)
+        asked = map
+        return {
+            { nodeID = 1, name = "A", state = 0, position = { x = 0.6, y = 0.2 } },
+            { nodeID = 2, name = "B", state = 1, position = { x = 0.4, y = 0.9 } },
+        }
+    end }
+    Stub.fire(frames, "TAXIMAP_OPENED")
+    fire()
+    local fp = flight_points()
+    assert(asked == 12 and #fp.nodes == 2 and not fp.relative)
+    for _, n in ipairs(fp.nodes) do assert(n.map == 12 and n.x >= 0 and n.x <= 100 and n.y >= 0 and n.y <= 100) end
+    assert(fp.nodes[1].zoneMap == 1411 and fp.nodes[1].zoneX == 30 and fp.nodes[1].zoneY == 10)
+    assert(fp.nodes[2].zoneMap == 1420 and fp.nodes[2].zoneX == 20 and fp.nodes[2].zoneY == 45)
+    CreateVector2D = nil
+    C_Map.GetMapPosFromWorldPos = nil
+    Stub.fire(frames, "TAXIMAP_CLOSED")
+    Stub.fire(frames, "TAXIMAP_OPENED")
+    fire()
+    fp = flight_points()
+    assert(#fp.nodes == 2 and fp.nodes[1].zoneMap == nil and fp.nodes[1].map == 12, "no zone APIs: node kept without a zone")
+    C_TaxiMap, C_Timer, C_Map = nil, nil, nil
+end }
+
+cases[#cases + 1] = { "seen: flight points without a continent are kept and marked relative", function()
+    seen_client()
+    local fire = timers()
+    C_TaxiMap = { GetAllTaxiNodes = function(map)
+        assert(map == 1411)
+        return { { nodeID = 1, name = "Far", state = 1, position = { x = -0.147, y = -0.037 } } }
+    end }
+    Stub.fire(frames, "TAXIMAP_OPENED")
+    fire()
+    local fp = flight_points()
+    assert(fp.relative == true and #fp.nodes == 1 and fp.nodes[1].map == 1411 and fp.nodes[1].x == -14.7)
+    C_TaxiMap, C_Timer, C_Map = nil, nil, nil
 end }
 
 cases[#cases + 1] = { "seen: a secret flight point value is skipped", function()

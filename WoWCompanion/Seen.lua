@@ -369,16 +369,61 @@ local function node_xy(x, y)
     if type(x) == "number" and type(y) == "number" then return round1(x * 100), round1(y * 100) end
 end
 
--- The nodes the open taxi map shows, as { id, name, map, x, y, state }: the modern C_TaxiMap list when the client
--- has it, else the classic Taxi* calls. Only the learned ones ("current" and "reachable") are kept.
+-- The continent map above a zone: walk C_Map.GetMapInfo(id).parentMapID until mapType is Continent
+-- (Enum.UIMapType.Continent, documented as 2). Nil when the client lacks the API or no continent is above.
+local function continent_of(map)
+    if not (C_Map and C_Map.GetMapInfo and type(map) == "number") then return nil end
+    local cont = (Enum and Enum.UIMapType and Enum.UIMapType.Continent) or 2
+    for _ = 1, 12 do
+        local info = C_Map.GetMapInfo(map)
+        if type(info) ~= "table" then return nil end
+        local t, parent, id = WC.Clean(info.mapType), WC.Clean(info.parentMapID), WC.Clean(info.mapID)
+        if t == cont then return type(id) == "number" and id or map end
+        if type(parent) ~= "number" or parent == 0 or parent == map then return nil end
+        map = parent
+    end
+end
+
+-- The zone a continent position (0-1) falls in, and the position inside that zone (0-100):
+-- C_Map.GetMapInfoAtPosition, then GetWorldPosFromMapPos / GetMapPosFromWorldPos. Nil when the client lacks them.
+local function zone_pos(cmap, px, py)
+    if not (C_Map and C_Map.GetMapInfoAtPosition and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos
+        and CreateVector2D and type(cmap) == "number") then return nil end
+    px, py = WC.Clean(px), WC.Clean(py)
+    if type(px) ~= "number" or type(py) ~= "number" then return nil end
+    local info = C_Map.GetMapInfoAtPosition(cmap, px, py)
+    local zmap = type(info) == "table" and WC.Clean(info.mapID)
+    if type(zmap) ~= "number" or zmap == cmap then return nil end
+    local wc, wpos = C_Map.GetWorldPosFromMapPos(cmap, CreateVector2D(px, py))
+    if wpos == nil then return nil end
+    local zpos = C_Map.GetMapPosFromWorldPos(WC.Clean(wc), wpos, zmap)
+    if type(zpos) ~= "table" then return nil end
+    local zx, zy = zpos.x, zpos.y
+    if zx == nil and zpos.GetXY then zx, zy = zpos:GetXY() end
+    zx, zy = node_xy(zx, zy)
+    if zx and zy and zx >= 0 and zx <= 100 and zy >= 0 and zy <= 100 then return zmap, zx, zy end
+end
+
+-- The nodes the open taxi map shows, as { id, name, map, x, y, state [, zoneMap, zoneX, zoneY] }: the modern
+-- C_TaxiMap list (queried on the continent, so positions are continent-wide) when the client has it, else the
+-- classic Taxi* calls (TaxiNodePosition is relative to the map the flight window shows, kept as is). Only the
+-- learned ones ("current" and "reachable") are kept. Returns the nodes and whether they are zone-relative.
 local function read_nodes(map)
     local out = {}
-    local function add(id, name, x, y, st)
+    local relative = false
+    local cont = continent_of(map)
+    if cont then map = cont else relative = true end
+    local function add(id, name, x, y, st, rx, ry)
         st = node_state(st)
         name = WC.Clean(name)
         if not st or type(name) ~= "string" or name == "" or #out >= WC.SEEN_NODE_CAP then return end
-        x, y = node_xy(x, y)
-        out[#out + 1] = { id = WC.Clean(id), name = name, map = map, x = x, y = y, state = st }
+        local nx, ny = node_xy(x, y)
+        if nx and (nx < 0 or nx > 100 or ny < 0 or ny > 100) then relative = true end
+        local rec = { id = WC.Clean(id), name = name, map = map, x = nx, y = ny, state = st }
+        if cont and nx and rx then
+            rec.zoneMap, rec.zoneX, rec.zoneY = zone_pos(cont, rx, ry)
+        end
+        out[#out + 1] = rec
     end
     if C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and map then
         local list = C_TaxiMap.GetAllTaxiNodes(map)
@@ -391,7 +436,7 @@ local function read_nodes(map)
                         px, py = pos.x, pos.y
                         if px == nil and pos.GetXY then px, py = pos:GetXY() end
                     end
-                    add(n.nodeID, n.name, px, py, n.state)
+                    add(n.nodeID, n.name, px, py, n.state, px, py)
                 end
             end
         end
@@ -402,7 +447,7 @@ local function read_nodes(map)
             add(i, TaxiNodeName(i), x, y, TaxiNodeGetType(i))
         end
     end
-    return out
+    return out, relative
 end
 
 -- Taxi window, second part: the character's known flight points, under characters[<key>].flightPoints.
@@ -411,12 +456,13 @@ function WC.SeenReadFlightPoints()
     local name, realm = UnitName("player"), GetRealmName()
     if type(name) ~= "string" or name == "" then return false end
     local map = here()
-    local nodes = read_nodes(map)
+    local nodes, relative = read_nodes(map)
     if #nodes == 0 then return false end
     if type(WC.db.characters) ~= "table" then WC.db.characters = {} end
     local key = (realm or "") .. ":" .. name
     if type(WC.db.characters[key]) ~= "table" then WC.db.characters[key] = {} end
     local fp = { seenAt = time(), nodes = nodes }
+    if relative then fp.relative = true end
     WC.CleanTree(fp)
     WC.db.characters[key].flightPoints = fp
     return true
