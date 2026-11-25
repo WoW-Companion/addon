@@ -180,39 +180,94 @@ function readers.bank(r)
     r.bankSeenAt = time()
 end
 
+-- Which API paths were tried and what each gave, for the "apiProbe" block: a count per path, -1 when the client
+-- lacks the API, never a value. Rebuilt by each talents/spells read, so one /reload shows which path works.
+local function probe_of(r)
+    r.apiProbe = r.apiProbe or {}
+    r.apiProbe.seenAt = time()
+    return r.apiProbe
+end
+
+-- Calls fn with pcall; its first result, or nil when it is missing or failed.
+local function qcall(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local ok, v = pcall(fn, ...)
+    if ok then return v end
+    return nil
+end
+
+-- The quest log, read with C_QuestLog first and the legacy globals as a fallback. When no count API exists the
+-- field is left alone, so the app does not take "nothing read" for "no quests".
 function readers.quests(r)
-    local list = {}
-    local n = GetNumQuestLogEntries and GetNumQuestLogEntries() or 0
-    for i = 1, n do
+    local Q = C_QuestLog
+    local count, countPath
+    if Q and type(Q.GetNumQuestLogEntries) == "function" then
+        count, countPath = qcall(Q.GetNumQuestLogEntries), "modern"
+    elseif type(GetNumQuestLogEntries) == "function" then
+        count, countPath = qcall(GetNumQuestLogEntries), "legacy"
+    end
+    local probe = probe_of(r)
+    if type(count) ~= "number" then
+        probe.quests = { count = "none", entries = -1, ready = -1, objectives = -1 }
+        return
+    end
+    local list, ready = {}, 0
+    local objPath = -1
+    for i = 1, count do
         if #list >= MAX_QUESTS then break end
-        local title, level, isHeader, complete, id
-        if C_QuestLog and C_QuestLog.GetInfo then
-            local info = C_QuestLog.GetInfo(i)
-            if info then title, level, isHeader, id = info.title, info.level, info.isHeader, info.questID end
-            if info and C_QuestLog.IsComplete and id then complete = C_QuestLog.IsComplete(id) and 1 or nil end
-        elseif GetQuestLogTitle then
-            local t, lv, _, header, _, isComplete, _, qid = GetQuestLogTitle(i)
-            title, level, isHeader, complete, id = t, lv, header, isComplete, qid
+        local title, level, isHeader, complete, failed, id
+        if Q and type(Q.GetInfo) == "function" then
+            local info = qcall(Q.GetInfo, i)
+            if type(info) == "table" then title, level, isHeader, id = info.title, info.level, info.isHeader, info.questID end
+        elseif type(GetQuestLogTitle) == "function" then
+            local ok, t, lv, _, header, _, isComplete, _, qid = pcall(GetQuestLogTitle, i)
+            if ok then
+                title, level, isHeader, id = t, lv, header, qid
+                if isComplete == 1 or isComplete == true then complete = true end
+                if isComplete == -1 then failed = true end
+            end
         end
         if not isHeader and id then
+            if Q then
+                if qcall(Q.ReadyForTurnIn, id) or qcall(Q.IsComplete, id) then complete = true end
+                if qcall(Q.IsFailed, id) then failed = true end
+            end
             local q = { id = id, title = title, level = level }
-            if complete == 1 or complete == true then q.complete = true end
-            if complete == -1 then q.failed = true end
+            if complete then q.complete = true; ready = ready + 1 end
+            if failed then q.failed = true end
             local objs = {}
-            local count = GetNumQuestLeaderBoards and GetNumQuestLeaderBoards(i) or 0
-            for j = 1, count do
-                local text, _, done = GetQuestLogLeaderBoard(j, i)
-                local o = { text = text, done = done and true or false }
-                if type(text) == "string" then
-                    local have, need = text:match("(%d+)%s*/%s*(%d+)")
-                    if have then o.have, o.need = tonumber(have), tonumber(need) end
+            local list_o = Q and qcall(Q.GetQuestObjectives, id)
+            if type(list_o) == "table" then
+                objPath = "modern"
+                for _, ob in ipairs(list_o) do
+                    local o = { text = ob.text, done = ob.finished and true or false }
+                    if type(ob.numRequired) == "number" and ob.numRequired > 0 then
+                        o.have, o.need = ob.numFulfilled or 0, ob.numRequired
+                    elseif type(ob.text) == "string" then
+                        local have, need = ob.text:match("(%d+)%s*/%s*(%d+)")
+                        if have then o.have, o.need = tonumber(have), tonumber(need) end
+                    end
+                    objs[#objs + 1] = o
                 end
-                objs[#objs + 1] = o
+            elseif type(GetNumQuestLeaderBoards) == "function" and type(GetQuestLogLeaderBoard) == "function" then
+                if objPath == -1 then objPath = "legacy" end
+                for j = 1, qcall(GetNumQuestLeaderBoards, i) or 0 do
+                    local ok, text, _, done = pcall(GetQuestLogLeaderBoard, j, i)
+                    if ok then
+                        local o = { text = text, done = done and true or false }
+                        if type(text) == "string" then
+                            local have, need = text:match("(%d+)%s*/%s*(%d+)")
+                            if have then o.have, o.need = tonumber(have), tonumber(need) end
+                        end
+                        objs[#objs + 1] = o
+                    end
+                end
             end
             if #objs > 0 then q.objectives = objs end
             list[#list + 1] = q
         end
     end
+    probe.quests = { count = countPath, entries = #list, ready = ready, objectives = objPath }
     r.quests = { captured = true, entries = list }
 end
 
@@ -231,14 +286,6 @@ function readers.completed(r)
     end
     table.sort(ids)
     r.completedQuests = ids
-end
-
--- Which API paths were tried and what each gave, for the "apiProbe" block: a count per path, -1 when the client
--- lacks the API, never a value. Rebuilt by each talents/spells read, so one /reload shows which path works.
-local function probe_of(r)
-    r.apiProbe = r.apiProbe or {}
-    r.apiProbe.seenAt = time()
-    return r.apiProbe
 end
 
 local MAX_NODES = 200
@@ -825,6 +872,8 @@ local EVENTS = {
     PLAYER_EQUIPMENT_CHANGED = { "equipment", "stats" },
     BAG_UPDATE_DELAYED = { "bags" },
     QUEST_LOG_UPDATE = { "quests" },
+    QUEST_ACCEPTED = { "quests" },
+    QUEST_REMOVED = { "quests" },
     QUEST_TURNED_IN = { "quests", "completed" },
     SKILL_LINES_CHANGED = { "skills" },
     CHARACTER_POINTS_CHANGED = { "talents", "stats" },
