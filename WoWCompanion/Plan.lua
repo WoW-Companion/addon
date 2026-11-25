@@ -38,7 +38,8 @@ end
 -- One guided position: text plus an optional map position (a zone-only item has none).
 local function guided_spot(o)
     if type(o) ~= "table" or type(o.text) ~= "string" or o.text == "" then return nil end
-    local r = { doLine = plain(o.text), zone = type(o.zone) == "string" and plain(o.zone) or nil }
+    local r = { doLine = plain(o.text), zone = type(o.zone) == "string" and plain(o.zone) or nil,
+        place = type(o.place) == "string" and o.place ~= "" and plain(o.place) or nil }
     if tonumber(o.map) and tonumber(o.x) and tonumber(o.y) then
         r.map, r.x, r.y = tonumber(o.map), clamp(tonumber(o.x), 0, 100), clamp(tonumber(o.y), 0, 100)
     end
@@ -65,6 +66,46 @@ function WC.ParseGuidance(g)
         end
     end
     return any and out or nil
+end
+
+-- Plan.lua 1.3 per-NPC "here" blocks: { npc, npcID, map, x, y, place, steps = {n}, can = {text}, quests = { { questID, quest,
+-- role, desc, missing = {spot} } }, nearby = { [questID] = guidance } }. nil when the plan has none (an older plan).
+function WC.ParseHere(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, b in ipairs(list) do
+        if type(b) == "table" and tonumber(b.map) and tonumber(b.x) and tonumber(b.y) then
+            local blk = { npc = plain(b.npc or ""), npcID = tonumber(b.npcID), map = tonumber(b.map),
+                x = clamp(tonumber(b.x), 0, 100), y = clamp(tonumber(b.y), 0, 100),
+                place = type(b.place) == "string" and b.place ~= "" and plain(b.place) or nil,
+                steps = id_list(b.steps), can = {}, quests = {}, nearby = {} }
+            for key, e in pairs(type(b.nearby) == "table" and b.nearby or {}) do
+                local id = tonumber(type(e) == "table" and e.questID or key)
+                local g = id and type(e.guidance) == "table" and WC.ParseGuidance({ [id] = e.guidance })
+                if g and g[id] then
+                    g[id].quest = g[id].quest ~= "" and g[id].quest or plain(e.quest or "")
+                    blk.nearby[id] = g[id]
+                end
+            end
+            for _, c in ipairs(type(b.can) == "table" and b.can or {}) do
+                if type(c) == "string" then blk.can[#blk.can + 1] = c:lower() end
+            end
+            for _, q in ipairs(type(b.quests) == "table" and b.quests or {}) do
+                local id = type(q) == "table" and tonumber(q.questID)
+                if id and id > 0 and (q.role == "turnin" or q.role == "pickup") then
+                    local missing = {}
+                    for _, m in ipairs(type(q.missing) == "table" and q.missing or {}) do
+                        local spot = guided_spot(m)
+                        if spot then missing[#missing + 1] = spot end
+                    end
+                    blk.quests[#blk.quests + 1] = { questID = id, quest = plain(q.quest or ""), role = q.role,
+                        desc = type(q.text) == "string" and plain(q.text) or "", missing = missing }
+                end
+            end
+            out[#out + 1] = blk
+        end
+    end
+    return #out > 0 and out or nil
 end
 
 -- The valid steps for player in a Plan.lua table, in order; unknown fields are ignored.
@@ -95,11 +136,12 @@ function WC.ParsePlan(plan, player)
                 questIDs = id_list(s.questIDs),
                 locked = s.locked == true, unlockedBy = id_list(s.unlockedBy), unlocks = id_list(s.unlocks),
                 chain = type(s.chain) == "string" and s.chain ~= "" and plain(s.chain) or nil,
+                place = type(s.place) == "string" and s.place ~= "" and plain(s.place) or nil, -- 1.3: where the work is done
             }
         end
     end
     if #steps == 0 then return nil, "character" end
-    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance)
+    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -203,7 +245,7 @@ end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -213,7 +255,7 @@ function WC.PlanInit()
         WC.db.plan[charKey()] = saved
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
-        guidance = guidance, live = {}, liveSig = "" }
+        guidance = guidance, here = here, live = {}, liveSig = "" }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
@@ -506,6 +548,7 @@ end
 -- counts agree, else by text. An unknown objective counts as open.
 local function open_objective(g, qid)
     local live = WC.QuestObjectives(qid)
+    local done = 0
     for i, o in ipairs(g.objectives) do
         local fin = false
         if live then
@@ -518,15 +561,21 @@ local function open_objective(g, qid)
             end
             fin = m ~= nil and m.finished == true
         end
-        if not fin then return o end
+        if not fin then return o, done, #g.objectives end
+        done = done + 1
     end
 end
 
 -- The step a guided quest in the log shows: its first open objective, or its turn-in once they are done. nil when
 -- the guidance has nothing for the state. n is the route step it belongs to, so "Step n/N" stays on the route.
 local function live_step(p, g, state)
-    local spot, kind
-    if state == "ready" then spot, kind = g.turnin, "turnin" else spot, kind = open_objective(g, g.questID), "objective" end
+    local spot, kind, done, total
+    if state == "ready" then
+        spot, kind = g.turnin, "turnin"
+    else
+        spot, done, total = open_objective(g, g.questID)
+        kind = "objective"
+    end
     if not spot then return nil end
     local n
     for _, sn in ipairs(g.steps) do
@@ -534,7 +583,8 @@ local function live_step(p, g, state)
         if rs and not p.done[sn] and (rs.kind == "turnin") == (kind == "turnin") then n = sn break end
     end
     return { n = n or (100000 + g.questID), synthetic = n == nil or nil, kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
-        approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true }
+        approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true,
+        place = spot.place, doneCount = done, totalCount = total }
 end
 
 -- Rebuilds the live steps from the quest log and the plan's guidance: nothing is stored, so a reload gives the same
@@ -660,12 +710,19 @@ function WC.NextStepLine(step, mapID, px, py)
     local done, total = WC.PlanCounts()
     if total == 0 then return "" end
     if not step then return string.format(L.PLAN_DONE, total) end
-    local text = string.format(L.NEXT_STEP_LINE, WC.StepNumber(step), total, WC.PlanLiveText(step, step.label))
+    local label = WC.PlanLiveText(step, step.label)
+    local text = string.format(L.NEXT_STEP_LINE, WC.StepNumber(step), total, label)
+    if step.place and not label:find(step.place, 1, true) then text = text .. string.format(L.NEXT_STEP_PLACE, step.place) end
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
-        return text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+        text = text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+    else
+        text = text .. L.PLAN_ELSEWHERE
     end
-    return text .. L.PLAN_ELSEWHERE
+    if step.totalCount and step.totalCount > 1 and step.doneCount then
+        text = text .. string.format(L.NEXT_STEP_PROGRESS, step.doneCount, step.totalCount)
+    end
+    return text
 end
 
 -- The "next step only" rows: the digest's quest entry for the next step's quest with its objective rows, nothing else.
@@ -692,6 +749,178 @@ function WC.ViewRows(mode, rows, expanded, step)
     if mode == "compact" then return WC.CompactRows(rows, expanded) end
     if mode == "next" then return WC.NextStepRows(rows, step) end
     return rows
+end
+
+-- ---------------------------------------------------------------- the "Here" card (Plan.lua 1.3)
+
+WC.HERE_YARDS = 40 -- how close to an NPC's spot the card shows
+WC.HERE_THROTTLE = 1 -- seconds between distance checks while walking
+
+local function item_name(text)
+    return (text:gsub("%s*%(%d+/%d+%)%s*$", ""):gsub("^%d+/%d+%s*", ""))
+end
+
+-- The items of a here-quest still open: matched by name against the quest log's finished objectives; with no
+-- log objectives to compare, every item counts as open.
+local function open_items(q)
+    local live = WC.QuestObjectives(q.questID)
+    local out = {}
+    for _, m in ipairs(q.missing) do
+        local fin = false
+        local name = item_name(m.doLine):gsub("^%a+ ", ""):lower()
+        for _, lo in ipairs(live or {}) do
+            local ln = lo.text:gsub("^%d+/%d+%s*", ""):gsub(":?%s*%d+/%d+$", ""):lower()
+            if lo.finished and ln ~= "" and (ln:find(name, 1, true) or name:find(ln, 1, true)) then fin = true break end
+        end
+        if not fin then out[#out + 1] = m end
+    end
+    return out
+end
+
+-- The nearest "here" block within HERE_YARDS of the player on this map, or nil.
+function WC.HereBlock(mapID, px, py)
+    local p = WC.plan
+    if not (p and p.here and mapID and px) then return nil end
+    local best, bestD
+    for _, b in ipairs(p.here) do
+        if b.map == mapID then
+            local d = WC.PlanDistance(px, py, b.x, b.y, WC.MapYards(mapID))
+            if d <= WC.HERE_YARDS and (not bestD or d < bestD) then best, bestD = b, d end
+        end
+    end
+    return best, bestD
+end
+
+local function pickup_fits(p, id)
+    local lvl = UnitLevel and tonumber(UnitLevel("player"))
+    for _, s in ipairs(p.steps) do
+        if s.questID == id and s.kind == "pickup" and s.level and lvl and s.level > lvl then return false end
+    end
+    return true
+end
+
+-- The route step of this kind for the quest, not yet done: later than the current step it is a "while you're here".
+local function later_step(p, id, kind)
+    local cur = route_next()
+    for _, s in ipairs(p.steps) do
+        if s.questID == id and s.kind == kind and not p.done[s.n] and cur and s.n > cur.n then return s end
+    end
+end
+
+-- The card for where the player stands: { title, lines = { text }, key } or nil. Lines come from the live quest log.
+function WC.HereCard(mapID, px, py)
+    local p = WC.plan
+    local b = WC.HereBlock(mapID, px, py)
+    if not b then return nil end
+    local lines, whileHere = {}, {}
+    for _, q in ipairs(b.quests) do
+        local state = WC.PlanQuestState(q.questID)
+        local title = q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or "?")
+        if q.role == "turnin" and state == "ready" then
+            local later = later_step(p, q.questID, "turnin")
+            if later then
+                whileHere[#whileHere + 1] = string.format(L.HERE_WHILE, later.n, string.format(L.HERE_TURNIN_LC, title))
+            else
+                lines[#lines + 1] = string.format(L.HERE_TURNIN, title)
+            end
+        elseif q.role == "turnin" and state == "active" then
+            local need = {}
+            for _, m in ipairs(open_items(q)) do
+                need[#need + 1] = item_name(m.doLine) .. ((m.place or m.zone) and (" (" .. (m.place or m.zone) .. ")") or "")
+            end
+            if #need > 0 then
+                lines[#lines + 1] = string.format(L.HERE_TURNIN_NEED, title, table.concat(need, ", "))
+            else
+                lines[#lines + 1] = string.format(L.HERE_TURNIN, title)
+            end
+        elseif q.role == "pickup" and state == "none" and pickup_fits(p, q.questID) then
+            local later = later_step(p, q.questID, "pickup")
+            if later then
+                whileHere[#whileHere + 1] = string.format(L.HERE_WHILE, later.n, string.format(L.HERE_PICKUP_LC, title))
+            else
+                lines[#lines + 1] = string.format(L.HERE_PICKUP, title)
+            end
+        end
+    end
+    local trains, vendor = false, false
+    for _, c in ipairs(b.can) do
+        if c == "train" then trains = true elseif c == "buy and sell" or c == "repair" then vendor = true end
+    end
+    if trains then lines[#lines + 1] = L.HERE_TRAIN end
+    if vendor then lines[#lines + 1] = L.HERE_VENDOR end
+    for _, w in ipairs(whileHere) do lines[#lines + 1] = w end
+    if #lines == 0 then return nil end
+    return { title = b.npc ~= "" and b.npc or (b.place or "?"), lines = lines, key = b.npc .. "#" .. table.concat(lines, "|") }
+end
+
+-- Quests in the log that the route does not list but the plan has guidance for (its own, or a nearby block's):
+-- { { questID, quest, line, spot } }, each with what to do next (its first open objective, or its turn-in).
+function WC.AlsoDoing()
+    local p = WC.plan
+    local out = {}
+    if not p then return out end
+    local pool = {}
+    for id, g in pairs(p.guidance or {}) do pool[id] = g end
+    for _, b in ipairs(p.here or {}) do
+        for id, g in pairs(b.nearby) do pool[id] = pool[id] or g end
+    end
+    local ids = {}
+    for id in pairs(pool) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        local listed = false
+        for _, s in ipairs(p.steps) do
+            if step_has_quest(s, id) then listed = true break end
+        end
+        local state = WC.PlanQuestState(id)
+        if not listed and (state == "active" or state == "ready") then
+            local g = pool[id]
+            local spot
+            if state == "ready" then spot = g.turnin else spot = open_objective(g, id) end
+            if spot then
+                local name = g.quest ~= "" and g.quest or (WC.QuestTitle(id) or "?")
+                out[#out + 1] = { questID = id, quest = name, line = spot.doLine, spot = spot }
+            end
+        end
+    end
+    return out
+end
+
+-- Panel rows for the card and the "Also doing" section, to sit above the digest rows. Plain rows, data only.
+function WC.HereRows(mapID, px, py)
+    local rows = {}
+    local card = WC.HereCard(mapID, px, py)
+    if card then
+        rows[#rows + 1] = { kind = "line", text = string.format(L.HERE_TITLE, card.title), color = WC.COLORS.gold }
+        for _, t in ipairs(card.lines) do rows[#rows + 1] = { kind = "line", indent = 1, text = t } end
+    end
+    local also = WC.AlsoDoing()
+    if #also > 0 then
+        rows[#rows + 1] = { kind = "line", text = L.ALSO_DOING, color = WC.COLORS.gold }
+        for _, a in ipairs(also) do
+            local t = string.format(L.ALSO_DOING_LINE, a.quest, a.line)
+            if a.spot.map == mapID and px then
+                local d, dir = WC.PlanDistance(px, py, a.spot.x, a.spot.y, WC.MapYards(mapID))
+                t = t .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+            end
+            rows[#rows + 1] = { kind = "line", indent = 1, text = t }
+        end
+    end
+    return rows
+end
+
+-- Called from the 0.2 s tick: checks the card at most once a second and redraws the panel only when it changed.
+function WC.HereTick(mapID, px, py)
+    local p = WC.plan
+    if not p or not p.here then return end
+    local t = now()
+    if p.hereAt and t - p.hereAt < WC.HERE_THROTTLE then return end
+    p.hereAt = t
+    local card = WC.HereCard(mapID, px, py)
+    local key = card and card.key or ""
+    if key == p.hereKey then return end
+    p.hereKey = key
+    if WC.Refresh and WC.panel and WC.panel:IsShown() then WC.Refresh() end
 end
 
 local events = CreateFrame("Frame")

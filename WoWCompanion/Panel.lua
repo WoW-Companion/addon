@@ -545,6 +545,10 @@ function WC.Refresh()
     f.step:SetText(WC.SafeText(WC.NextStepLine(WC.PlanNext(), mapID, px, py)))
     WC.LayoutPanelHeader()
     rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
+    if WC.HereRows and WC.plan then -- the "Here" card and "Also doing" sit above the digest rows
+        local extra = WC.HereRows(mapID, px, py)
+        for i, r in ipairs(extra) do table.insert(rows, i, r) end
+    end
     local compact = mode ~= "full"
     f.compactButton:SetText(WC.ViewButtonLabel(mode))
 
