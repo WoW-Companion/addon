@@ -739,7 +739,7 @@ end
 
 -- A name made safe to drop into a short question: no pipes, one line, no ellipsis, bounded.
 local function ask_name(s, max)
-    s = tostring(s or ""):gsub("|", ""):gsub("%s+", " "):gsub("\226\128\166", ""):gsub("%.%.+", "")
+    s = tostring(s or ""):gsub("|", ""):gsub("%s+", " "):gsub("\226\128\166", ""):gsub("%.%.+", "") -- glyph-ok: strips the ellipsis
     s = s:gsub("^%s+", ""):gsub("[%s%p]+$", "")
     return s:sub(1, max or 50)
 end

@@ -733,7 +733,7 @@ local function tick()
         WC.RefreshPlan()
         return
     end
-    if f and f:IsShown() then f.label:SetText(WC.PlanText(step, mapID, px, py)) end
+    if f and f:IsShown() then f.label:SetText(WC.SafeText(WC.PlanText(step, mapID, px, py))) end
     if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
     if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
     local m = WC.planMinimap

@@ -19,6 +19,49 @@ function WC.Clean(v)
     return nil
 end
 
+-- Display-time filter for advice text (digest, plan, answers): the client's default font lacks many symbols
+-- and draws a box for each. Maps the common ones to safe ones and drops emoji and anything above U+2BFF.
+-- Only non-ASCII characters are touched, so item/spell links (|H..|h), colour escapes (|c..|r) and texture
+-- escapes (|T..|t), which are ASCII, pass through intact. Pure ASCII returns at once; results are cached.
+local SAFE_MAP = {}
+local function map_cp(list, to) for cp in list:gmatch("%S+") do SAFE_MAP[tonumber(cp, 16)] = to end end
+map_cp("2192 21D2 279C 27A1 2794 279E", ">")
+map_cp("2190 21D0", "<")
+map_cp("2191", "up")
+map_cp("2193", "down")
+map_cp("2022 25CF 25AA", "\194\183") -- bullet to middle dot
+map_cp("2713 2714", "+")
+map_cp("2717 2718", "x")
+map_cp("2018 2019 201A 201B 2032", "'")
+map_cp("201C 201D 201E 201F 2033", '"')
+map_cp("00A0 2007 2009 202F 2002 2003", " ")
+map_cp("2026", "...")
+map_cp("200B 200C 200D 2060", "")
+local safe_cache, safe_count = {}, 0
+
+local function safe_char(ch)
+    local b1, b2, b3, b4 = ch:byte(1, 4)
+    local cp
+    if b1 >= 240 then cp = ((b1 - 240) * 262144) + ((b2 or 128) - 128) * 4096 + ((b3 or 128) - 128) * 64 + ((b4 or 128) - 128)
+    elseif b1 >= 224 then cp = ((b1 - 224) * 4096) + ((b2 or 128) - 128) * 64 + ((b3 or 128) - 128)
+    elseif b1 >= 192 then cp = ((b1 - 192) * 64) + ((b2 or 128) - 128)
+    else return ch end
+    local m = SAFE_MAP[cp]
+    if m then return m end
+    if cp > 0x2BFF then return "" end
+    return ch
+end
+
+function WC.SafeText(s)
+    if type(s) ~= "string" or not s:find("[\128-\255]") then return s end -- glyph-ok: byte-range patterns
+    local hit = safe_cache[s]
+    if hit then return hit end
+    local out = s:gsub("[\192-\255][\128-\191]*", safe_char) -- glyph-ok: byte-range patterns
+    if safe_count > 2000 then safe_cache, safe_count = {}, 0 end
+    safe_cache[s], safe_count = out, safe_count + 1
+    return out
+end
+
 -- Removes, in place, every value in a table tree that WC.Clean refuses (secret values, functions, userdata).
 function WC.CleanTree(t, depth)
     if type(t) ~= "table" then return t end

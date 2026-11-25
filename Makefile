@@ -4,6 +4,7 @@ LUA ?= luajit
 verify:
 	$(LUA) tests/guard.lua WoWCompanion
 	$(LUA) tests/guard.lua WoWCompanion_Digest
+	$(LUA) tests/glyphs.lua WoWCompanion WoWCompanion_Digest
 	$(LUA) tests/slotcheck.lua WoWCompanion_Digest/Digest.lua tests/fixtures/digest_*.lua
 	$(LUA) tests/layout.lua
 	scripts/package.sh | xargs $(LUA) tests/layout.lua

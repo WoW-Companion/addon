@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.6.34"] = { "WHATS_NEW_0_6_34_1" },
     ["0.6.33"] = { "WHATS_NEW_0_6_33_1" },
     ["0.6.32"] = { "WHATS_NEW_0_6_32_1" },
     ["0.6.31"] = { "WHATS_NEW_0_6_31_1" },
@@ -122,7 +123,7 @@ local function create_box(version, keys)
     f.body:SetWidth(WC.WHATS_NEW_TEXT_W)
     f.body:SetJustifyH("LEFT")
     if WC.StyleText then WC.StyleText(f.body) end
-    f.body:SetText(table.concat(lines, "\n"))
+    f.body:SetText(WC.SafeText(table.concat(lines, "\n")))
     local h = (f.body.GetStringHeight and f.body:GetStringHeight()) or 0
     if h <= 0 then h = 14 * #lines end
     f.content:SetHeight(h + 4)

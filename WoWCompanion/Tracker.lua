@@ -79,7 +79,7 @@ function WC.RefreshTracker()
     end
     WC.StyleText(f.label)
     local who = UnitName("player")
-    f.label:SetText(WC.TrackerText(WoWCompanionDigest, who, time(), WC.OwnCapturedAt(who)))
+    f.label:SetText(WC.SafeText(WC.TrackerText(WoWCompanionDigest, who, time(), WC.OwnCapturedAt(who))))
     if WC.CombatHides("tracker") then
         -- Held hidden by combat: remember to bring it back when combat ends.
         WC.combatShown.tracker = true
