@@ -324,6 +324,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_29_1 = "Trainers, recipes and vendors you open are recorded correctly for the app.",
     WHATS_NEW_0_6_28_1 = "Questions you asked in game no longer pile up once the app has seen them.",
     WHATS_NEW_0_6_27_1 = "The addon remembers the trainers, vendors, herbs, ore and fishing spots you've seen, so the app's advice uses what you saw yourself.",
     WHATS_NEW_0_6_26_1 = "The addon now records your character for the WoW Companion app itself; ForeverScribe will no longer be needed.",

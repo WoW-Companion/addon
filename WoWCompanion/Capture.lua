@@ -267,35 +267,91 @@ function readers.reputations(r)
     r.reputations = list
 end
 
--- Recipes of the open trade skill or craft window, kept per profession.
-local function read_recipes(r, profession, count, info, link)
+-- Recipes of the open trade skill or craft window, kept per profession. Each entry: name, id (the recipe's spell
+-- id where the link gives one), item (the made item), difficulty (orange, yellow, green or grey).
+local DIFFICULTY = { optimal = "orange", medium = "yellow", easy = "green", trivial = "grey",
+    [0] = "orange", [1] = "yellow", [2] = "green", [3] = "grey" }
+
+local function recipe_entry(name, kind, l)
+    local spell = link_fields(l, "enchant") or link_fields(l, "spell")
+    local item = link_fields(l, "item")
+    return { name = name, id = spell and spell[1] or (item and item[1]), item = item and item[1] or nil,
+        difficulty = DIFFICULTY[kind] }
+end
+
+local function store_recipes(r, profession, out)
     if type(profession) ~= "string" or profession == "" or profession == "UNKNOWN" then return end
-    local out = {}
-    for i = 1, count or 0 do
-        if #out >= MAX_RECIPES then break end
-        local name, kind = info(i)
-        if name and kind ~= "header" then
-            local l = link and link(i)
-            local f = link_fields(l, "enchant") or link_fields(l, "item") or link_fields(l, "spell")
-            out[#out + 1] = { name = name, id = f and f[1] }
-        end
-    end
     r.recipes = r.recipes or {}
     r.recipes[profession] = { seenAt = time(), entries = out }
 end
 
+local function read_recipes(r, profession, count, info, link)
+    local out = {}
+    for i = 1, count or 0 do
+        if #out >= MAX_RECIPES then break end
+        if WC.SeenRaw and i <= 3 then WC.SeenRaw("tradeskill", "GetTradeSkillInfo", info(i, true)) end
+        local name, kind = info(i)
+        if type(name) == "string" and kind ~= "header" and kind ~= "subheader" then
+            out[#out + 1] = recipe_entry(name, kind, link and link(i))
+        end
+    end
+    store_recipes(r, profession, out)
+end
+
+-- The modern window (C_TradeSkillUI): recipe ids come from the profession, each described by a table.
+local function read_modern_recipes(r)
+    local T = C_TradeSkillUI
+    if not (T and T.GetAllRecipeIDs and T.GetRecipeInfo) then return false end
+    if T.IsTradeSkillLinked and T.IsTradeSkillLinked() then return true end
+    if T.IsTradeSkillGuild and T.IsTradeSkillGuild() then return true end
+    local profession
+    if T.GetBaseProfessionInfo then
+        local p = T.GetBaseProfessionInfo()
+        profession = type(p) == "table" and (p.professionName or p.parentProfessionName) or nil
+    end
+    if not profession and T.GetTradeSkillLine then profession = T.GetTradeSkillLine() end
+    local out = {}
+    for _, id in ipairs(T.GetAllRecipeIDs() or {}) do
+        if #out >= MAX_RECIPES then break end
+        local info = T.GetRecipeInfo(id)
+        if WC.SeenRaw and #out < 3 and type(info) == "table" then
+            WC.SeenRaw("tradeskill", "C_TradeSkillUI.GetRecipeInfo", id, info.name, info.learned, info.relativeDifficulty, info.difficulty)
+        end
+        if type(info) == "table" and info.learned ~= false and type(info.name) == "string" then
+            local item = info.itemID
+            out[#out + 1] = { name = info.name, id = info.recipeID or id, item = item,
+                difficulty = DIFFICULTY[info.relativeDifficulty] or DIFFICULTY[info.difficulty] }
+        end
+    end
+    store_recipes(r, profession, out)
+    return true
+end
+
 function readers.tradeskill(r)
-    if IsTradeSkillLinked and IsTradeSkillLinked() then return end -- someone else's list
-    local name = GetTradeSkillLine and GetTradeSkillLine()
-    read_recipes(r, name, GetNumTradeSkills and GetNumTradeSkills(),
-        function(i) local n, k = GetTradeSkillInfo(i); return n, k end, GetTradeSkillItemLink)
+    if GetNumTradeSkills and GetTradeSkillLine then
+        if IsTradeSkillLinked and IsTradeSkillLinked() then return end -- someone else's list
+        local name = GetTradeSkillLine()
+        local n = GetNumTradeSkills() or 0
+        if n > 0 or not (C_TradeSkillUI and C_TradeSkillUI.GetAllRecipeIDs) then
+            read_recipes(r, name, n,
+                function(i, raw)
+                    if raw then return GetTradeSkillInfo(i) end
+                    local nm, k = GetTradeSkillInfo(i); return nm, k
+                end, GetTradeSkillItemLink)
+            return
+        end
+    end
+    read_modern_recipes(r)
 end
 
 function readers.craft(r)
     local name = GetCraftDisplaySkillLine and GetCraftDisplaySkillLine()
     if (not name or name == "") and GetCraftName then name = GetCraftName() end
     read_recipes(r, name, GetNumCrafts and GetNumCrafts(),
-        function(i) local n, _, k = GetCraftInfo(i); return n, k end, GetCraftItemLink)
+        function(i, raw)
+            if raw then return GetCraftInfo(i) end
+            local n, _, k = GetCraftInfo(i); return n, k
+        end, GetCraftItemLink)
 end
 
 -- The order matters little; each part is read on its own so one failing read never costs the rest.
@@ -364,12 +420,15 @@ local EVENTS = {
     UPDATE_FACTION = { "reputations" },
     TRADE_SKILL_SHOW = { "tradeskill" },
     TRADE_SKILL_UPDATE = { "tradeskill" },
+    TRADE_SKILL_LIST_UPDATE = { "tradeskill" },
+    TRADE_SKILL_DATA_SOURCE_CHANGED = { "tradeskill" },
     CRAFT_SHOW = { "craft" },
     CRAFT_UPDATE = { "craft" },
 }
 
 -- The windows' update events only count while the window is up.
-local WINDOW_PART = { TRADE_SKILL_UPDATE = "tradeskill", CRAFT_UPDATE = "craft" }
+local WINDOW_PART = { TRADE_SKILL_UPDATE = "tradeskill", TRADE_SKILL_LIST_UPDATE = "tradeskill",
+    TRADE_SKILL_DATA_SOURCE_CHANGED = "tradeskill", CRAFT_UPDATE = "craft" }
 local windowOpen = {}
 
 local frame = CreateFrame("Frame")

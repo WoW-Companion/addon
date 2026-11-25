@@ -112,7 +112,50 @@ local function put(list, rec, cap)
     trim(list, cap)
 end
 
--- Trainer window: every offer with its cost, skill gate and availability.
+-- Raw samples: the first RAW_PER_KIND return tuples of each window kind per session are kept, length-capped, under
+-- observed.raw.<kind>, so the real client's return order can be verified from a saved file.
+local RAW_PER_KIND, RAW_VALUES, RAW_TEXT = 3, 12, 60
+local rawCount = {}
+function WC.SeenRaw(kind, call, ...)
+    if not on() then return end
+    if (rawCount[kind] or 0) >= RAW_PER_KIND then return end
+    local o = store()
+    if not o then return end
+    rawCount[kind] = (rawCount[kind] or 0) + 1
+    if type(o.raw) ~= "table" then o.raw = {} end
+    if type(o.raw[kind]) ~= "table" then o.raw[kind] = {} end
+    local vals = {}
+    for i = 1, math.min(select("#", ...), RAW_VALUES) do
+        local v = select(i, ...)
+        local t = type(v)
+        if t == "string" then v = v:sub(1, RAW_TEXT)
+        elseif t ~= "number" and t ~= "boolean" then v = tostring(v) end
+        vals[i] = v
+    end
+    o.raw[kind][#o.raw[kind] + 1] = { call = call, n = select("#", ...), t = time(), vals = vals }
+    trim(o.raw[kind], RAW_PER_KIND)
+end
+
+local AVAILABILITY = { available = true, unavailable = true, used = true }
+
+-- Sorts one trainer service's returns by type, not by position: a number is an icon, a string that is one of the
+-- availability words is the availability, any other string is the rank text. Whatever order the client gives them in.
+function WC.SeenClassifyService(...)
+    local name, rank, state, icon
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if type(v) == "string" and v ~= "" then
+            if i == 1 then name = v
+            elseif AVAILABILITY[v] then state = state or v
+            else rank = rank or v end
+        elseif type(v) == "number" and not icon then
+            icon = v
+        end
+    end
+    return name, rank, state, icon
+end
+
+-- Trainer window: every offer with its cost, level and skill gate and availability.
 function WC.SeenReadTrainer()
     if not (on() and GetNumTrainerServices) then return false end
     local g = talking_to()
@@ -122,16 +165,29 @@ function WC.SeenReadTrainer()
     local rec = { offers = {} }
     fill_npc(rec, g)
     for i = 1, math.min(GetNumTrainerServices() or 0, WC.SEEN_OFFER_CAP) do
-        local name, sub, state = GetTrainerServiceInfo(i)
-        if type(name) == "string" and name ~= "" then
-            local o = { name = name, state = state }
-            if type(sub) == "string" and sub ~= "" then o.rank = sub end
-            if GetTrainerServiceCost then o.cost = (GetTrainerServiceCost(i)) end
+        WC.SeenRaw("trainer", "GetTrainerServiceInfo", GetTrainerServiceInfo(i))
+        local name, rank, state, icon = WC.SeenClassifyService(GetTrainerServiceInfo(i))
+        if name then
+            local o = { name = name, rank = rank, state = state, icon = icon }
+            if GetTrainerServiceCost then
+                local cost = GetTrainerServiceCost(i)
+                if type(cost) == "number" then o.cost = cost end
+            end
+            if GetTrainerServiceLevelReq then
+                local lvl = GetTrainerServiceLevelReq(i)
+                if type(lvl) == "number" and lvl > 0 then o.level = lvl end
+            end
             if GetTrainerServiceSkillReq then
                 local skill, level = GetTrainerServiceSkillReq(i)
-                if skill then o.skill, o.skillLevel = skill, level end
+                if type(skill) == "string" and skill ~= "" then
+                    o.skill = skill
+                    if type(level) == "number" then o.skillLevel = level end
+                end
             end
-            if GetTrainerServiceItemLink then o.spell = spell_id(GetTrainerServiceItemLink(i)) or item_id(GetTrainerServiceItemLink(i)) end
+            if GetTrainerServiceItemLink then
+                local l = GetTrainerServiceItemLink(i)
+                o.spell = spell_id(l) or item_id(l)
+            end
             rec.offers[#rec.offers + 1] = o
         end
     end
@@ -139,7 +195,8 @@ function WC.SeenReadTrainer()
     return true
 end
 
--- Merchant window: the stock with prices; one record per vendor, overwritten each time.
+-- Merchant window: the stock with prices; one record per vendor, overwritten each time. Values are read by type:
+-- the price and the stack are numbers, the icon is a number too, so only numbers in the expected places count.
 function WC.SeenReadMerchant()
     if not (on() and GetMerchantNumItems) then return false end
     local g = talking_to()
@@ -149,10 +206,13 @@ function WC.SeenReadMerchant()
     local rec = { items = {} }
     fill_npc(rec, g)
     for i = 1, math.min(GetMerchantNumItems() or 0, WC.SEEN_OFFER_CAP) do
+        WC.SeenRaw("merchant", "GetMerchantItemInfo", GetMerchantItemInfo(i))
         local _, _, price, qty, avail, _, ext = GetMerchantItemInfo(i)
         local id = GetMerchantItemLink and item_id(GetMerchantItemLink(i))
         if id then
-            local it = { id = id, price = price, stack = qty }
+            local it = { id = id }
+            if type(price) == "number" then it.price = price end
+            if type(qty) == "number" then it.stack = qty end
             if type(avail) == "number" and avail >= 0 then it.limited = avail end
             if ext then it.ext = true end
             rec.items[#rec.items + 1] = it

@@ -55,13 +55,18 @@ observed.trainers = {  -- at most 300 trainers; opening a trainer again replaces
     t = <unix s>,
     offers = {         -- at most 200 per trainer: class and profession trainers alike
       { name = "<service>", rank = "<subtext>", state = "available" | "unavailable" | "used",
-        cost = <copper>, skill = "<profession>", skillLevel = <n>,   -- the skill gate, when there is one
+        cost = <copper>, level = <required level>, icon = <file id>,
+        skill = "<profession>", skillLevel = <n>,                     -- the skill gate, when there is one
         spell = <spell id> },                                         -- when the client links one
     } },
 }
 observed.vendors = {   -- at most 300 vendors; opening a vendor again overwrites its stock
   { npc, name, map, x, y, reaction, faction, t,
     items = { { id = <item id>, price = <copper>, stack = <n>, limited = <n left, only when limited>, ext = true --[[ also costs tokens or items ]] } } },  -- at most 200
+}
+observed.raw = {      -- the first 3 raw return tuples per window kind per session, to verify the field mapping; temporary
+  trainer = { { call = "GetTrainerServiceInfo", n = <values returned>, t = <unix s>, vals = { ... } } },
+  merchant = { ... }, tradeskill = { ... },   -- strings cut to 60 characters, at most 12 values
 }
 observed.gathering = { -- at most 2000 rows, aggregated; no raw events. The least recently updated row is dropped first
   { kind = "herb" | "mine" | "skin" | "fish", source = "<name>" | nil,  -- skinning: the target's name; nodes and schools: not exposed

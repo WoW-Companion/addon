@@ -27,9 +27,13 @@ for name in ([[
     GetNumFactions GetFactionInfo
     IsTradeSkillLinked GetTradeSkillLine GetNumTradeSkills GetTradeSkillInfo GetTradeSkillItemLink
     GetCraftDisplaySkillLine GetCraftName GetNumCrafts GetCraftInfo GetCraftItemLink
+    C_TradeSkillUI.GetAllRecipeIDs C_TradeSkillUI.GetRecipeInfo C_TradeSkillUI.GetBaseProfessionInfo
+    C_TradeSkillUI.GetTradeSkillLine C_TradeSkillUI.IsTradeSkillLinked C_TradeSkillUI.IsTradeSkillGuild
     CreateFrame
 ]]):gmatch("%S+") do capture_allowed[name] = true end
 
+-- GetTrainerServiceLevelReq only READS the level a trainer offer needs; the C_TradeSkillUI reads (above) only READ
+-- the open modern profession window's recipe ids and descriptions.
 -- The client APIs the observation of what the player sees (Seen.lua) may call, on top of the ones above that
 -- it shares. Each only READS: the trainer, merchant and loot windows' contents, who the player is talking to,
 -- the spell a cast was, and the skill ranks. None is protected, none buys, learns, loots or acts.
@@ -37,6 +41,7 @@ local seen_allowed = {}
 for name in ([[
     UnitGUID UnitExists UnitReaction
     GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceCost GetTrainerServiceSkillReq GetTrainerServiceItemLink
+    GetTrainerServiceLevelReq
     GetMerchantNumItems GetMerchantItemInfo GetMerchantItemLink
     GetNumLootItems GetLootSlotLink GetLootSlotInfo
     GetSpellInfo

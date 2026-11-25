@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.28" and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.29" and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4846,6 +4846,36 @@ cases[#cases + 1] = { "capture: recipes come from the trade skill window, per pr
     capture_clear()
 end }
 
+cases[#cases + 1] = { "capture: recipes through the modern C_TradeSkillUI, with difficulty", function()
+    local WC, run = capture_client()
+    GetNumTradeSkills, GetTradeSkillLine = nil, nil
+    C_TradeSkillUI = {
+        GetBaseProfessionInfo = function() return { professionName = "Blacksmithing" } end,
+        GetAllRecipeIDs = function() return { 2663, 3292, 9 } end,
+        GetRecipeInfo = function(id)
+            if id == 9 then return { name = "Unknown", recipeID = 9, learned = false } end
+            return { name = "R" .. id, recipeID = id, learned = true, relativeDifficulty = id == 2663 and 0 or 3 }
+        end,
+    }
+    run()
+    Stub.fire(frames, "TRADE_SKILL_SHOW"); run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    local e = c.recipes.Blacksmithing.entries
+    assert(#e == 2 and e[1].id == 2663 and e[1].difficulty == "orange" and e[2].difficulty == "grey")
+    assert(#WoWCompanionDB.observed.raw.tradeskill == 3)
+    C_TradeSkillUI = nil
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: classic recipes carry difficulty and the spell id", function()
+    local WC, run = capture_client()
+    run()
+    Stub.fire(frames, "TRADE_SKILL_SHOW"); run()
+    local e = WoWCompanionDB.characters["Testrealm:Thrall"].recipes.Blacksmithing.entries[1]
+    assert(e.id == 2663 and e.difficulty == "orange")
+    capture_clear()
+end }
+
 cases[#cases + 1] = { "capture: combat defers reads until it ends, and events coalesce", function()
     local WC, run = capture_client()
     run()
@@ -4900,7 +4930,9 @@ end
 
 local function seen_trainer(services)
     GetNumTrainerServices = function() return #services end
-    GetTrainerServiceInfo = function(i) local s = services[i]; return s.name, s.rank or "", s.state end
+    -- this client's order: name, availability, icon file id, then the rank text
+    GetTrainerServiceInfo = function(i) local s = services[i]; return s.name, s.state, s.icon or 132277, s.rank or "" end
+    GetTrainerServiceLevelReq = function(i) return services[i].reqLevel or 0 end
     GetTrainerServiceCost = function(i) return services[i].cost end
     GetTrainerServiceSkillReq = function(i) return services[i].skill, services[i].level end
     GetTrainerServiceItemLink = function(i) return "|cff|Hspell:" .. services[i].id .. "|h[x]|h|r" end
@@ -4910,7 +4942,7 @@ cases[#cases + 1] = { "seen: a trainer window is recorded with costs and skill g
     local WC = seen_client()
     seen_trainer({
         { name = "Smelt Bronze", state = "available", cost = 100, skill = "Mining", level = 65, id = 2670 },
-        { name = "Copper Axe", rank = "Rank 2", state = "unavailable", cost = 25000, id = 3292 },
+        { name = "Copper Axe", rank = "Rank 2", state = "unavailable", reqLevel = 20, cost = 25000, id = 3292 },
     })
     Stub.fire(frames, "TRAINER_SHOW")
     Stub.fire(frames, "TRAINER_UPDATE") -- a second read overwrites, never duplicates
@@ -4918,9 +4950,28 @@ cases[#cases + 1] = { "seen: a trainer window is recorded with costs and skill g
     assert(#t == 1 and t[1].npc == 3455 and t[1].name == "Test Trainer" and t[1].map == 1411 and t[1].x == 50 and t[1].y == 25)
     assert(t[1].reaction == 5 and t[1].faction == "Horde" and #t[1].offers == 2)
     local o = t[1].offers[1]
-    assert(o.name == "Smelt Bronze" and o.cost == 100 and o.skill == "Mining" and o.skillLevel == 65 and o.spell == 2670 and o.state == "available")
-    assert(t[1].offers[2].rank == "Rank 2" and t[1].offers[2].skill == nil)
+    assert(o.name == "Smelt Bronze" and o.cost == 100 and o.skill == "Mining" and o.skillLevel == 65 and o.spell == 2670 and o.state == "available" and o.icon == 132277 and o.rank == nil)
+    assert(t[1].offers[2].rank == "Rank 2" and t[1].offers[2].skill == nil and t[1].offers[2].level == 20 and t[1].offers[2].state == "unavailable")
+    local raw = WoWCompanionDB.observed.raw.trainer
+    assert(#raw == 3 and raw[1].call == "GetTrainerServiceInfo" and raw[1].vals[1] == "Smelt Bronze" and raw[1].vals[3] == 132277, "raw sample capped at 3")
     assert(WoWCompanionDB.observed.version == 2)
+end }
+
+cases[#cases + 1] = { "seen: trainer returns are classified by type, whatever their order", function()
+    local name, rank, state, icon = WoWCompanion.SeenClassifyService("Bloodrage", "available", 132277, "Rank 2")
+    assert(name == "Bloodrage" and rank == "Rank 2" and state == "available" and icon == 132277)
+    name, rank, state, icon = WoWCompanion.SeenClassifyService("Bloodrage", "Rank 3", "used", 5)
+    assert(rank == "Rank 3" and state == "used" and icon == 5)
+    name, rank, state, icon = WoWCompanion.SeenClassifyService("Bloodrage", 132277, "available")
+    assert(rank == nil and state == "available" and icon == 132277, "a number is never a rank")
+end }
+
+cases[#cases + 1] = { "seen: raw samples are length-capped", function()
+    local WC = seen_client()
+    WoWCompanionDB.observed = nil
+    WC.SeenRaw("probe", "Fn", string.rep("x", 500), 1, true, {}, nil, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    local r = WoWCompanionDB.observed.raw.probe[1]
+    assert(#r.vals[1] == 60 and r.vals[4]:find("^table") and #r.vals == 12)
 end }
 
 cases[#cases + 1] = { "seen: a vendor's stock is overwritten, not duplicated", function()
