@@ -635,10 +635,11 @@ local function status_text(db, digest, installed_map)
 end
 local NOW0 = 1800000000
 local status_rows = {
-    { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "Questions queued: 0", "WoWCompanion_Digest: installed" } },
+    { "no digest, empty queue", {}, nil, {}, { "Digest: none yet", "WoWCompanion_Digest: installed" } },
     { "digest age and schema", {}, { schema = 1, character = "Thrall", generated = NOW0 - 7200 }, {}, { "(2 h ago), schema 1" } },
     { "digest with unknown schema", {}, { schema = 9, generated = NOW0 }, {}, { "schema 9" } },
-    { "queued count", { asks = { { id = "a", text = "q" }, { id = "b", text = "q" } } }, nil, {}, { "Questions queued: 2" } },
+    { "queued count", { asks = { { id = "a", text = "q", asked_at = NOW0 - 7200 }, { id = "b", text = "q", asked_at = NOW0 - 60 } } }, nil, {}, { "Questions waiting for the app: 2 (oldest 2 h ago)" } },
+    { "one queued ask", { asks = { { id = "a", text = "q", asked_at = NOW0 - 7200 } } }, nil, {}, { "Questions waiting for the app: 1 (oldest" } },
     { "missing slot addon", {}, nil, { WoWCompanion_Digest = true }, { "WoWCompanion_Digest: not installed" } },
 }
 cases[#cases + 1] = { "status lines table", function()
@@ -646,6 +647,21 @@ cases[#cases + 1] = { "status lines table", function()
         local text = status_text(row[2], row[3], row[4])
         for _, want in ipairs(row[5]) do assert(text:find(want, 1, true), "row " .. i .. " (" .. row[1] .. "): " .. want .. "\n" .. text) end
     end
+end }
+cases[#cases + 1] = { "status says nothing about questions when none wait", function()
+    assert(not status_text({}, nil):find("Questions", 1, true))
+    assert(not status_text({ asks = {} }, nil):find("Questions", 1, true))
+end }
+cases[#cases + 1] = { "old asks expire after 24 hours and answered ids are cleared", function()
+    local function mk() return { asks = {
+        { id = "old", asked_at = NOW0 - 86401 }, { id = "day", asked_at = NOW0 - 86400 },
+        { id = "new", asked_at = NOW0 - 60 }, { id = "ans", asked_at = NOW0 - 10 } } } end
+    local db = mk()
+    assert(WoWCompanion.PruneAsks(db, nil, NOW0) == 1 and #db.asks == 3 and db.asks[1].id == "day")
+    db = mk()
+    assert(WoWCompanion.PruneAsks(db, { answered_asks = { "ans" } }, NOW0) == 2 and #db.asks == 2 and db.asks[2].id == "new")
+    db = {}
+    assert(WoWCompanion.PruneAsks(db, nil, NOW0) == 0 and db.asks == nil)
 end }
 cases[#cases + 1] = { "status shows version and build and leaves the panel alone", function()
     local text = status_text({}, nil)
@@ -1945,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.27" and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.28" and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")

@@ -22,6 +22,38 @@ function WC.Unanswered(db)
     return n
 end
 
+-- The age of the oldest unanswered ask in seconds, or nil when there is none (or it has no time).
+function WC.OldestAskAge(db, now)
+    local oldest
+    for _, a in ipairs(type(db.asks) == "table" and db.asks or {}) do
+        local t = tonumber(a.asked_at)
+        if not a.answered and t and (not oldest or t < oldest) then oldest = t end
+    end
+    return oldest and math.max(0, now - oldest) or nil
+end
+
+-- Drops the asks the app has answered (their ids in the digest's `answered_asks`, if it lists any) and the
+-- asks older than 24 hours. Plain data only; returns how many were dropped.
+WC.ASK_MAX_AGE = 24 * 3600
+function WC.PruneAsks(db, file, now)
+    if type(db) ~= "table" or type(db.asks) ~= "table" then return 0 end
+    local done = {}
+    if type(file) == "table" and type(file.answered_asks) == "table" then
+        for _, id in ipairs(file.answered_asks) do done[tostring(id)] = true end
+    end
+    local keep, dropped = {}, 0
+    for _, a in ipairs(db.asks) do
+        local t = type(a) == "table" and tonumber(a.asked_at) or nil
+        if type(a) ~= "table" or done[tostring(a.id)] or (t and now - t > WC.ASK_MAX_AGE) then
+            dropped = dropped + 1
+        else
+            keep[#keep + 1] = a
+        end
+    end
+    if dropped > 0 then db.asks = keep end
+    return dropped
+end
+
 -- Builds the status lines from plain values: info = { version, build, digest, db, player, now, installed }.
 function WC.StatusLines(info)
     local out = { L.STATUS_TITLE }
@@ -36,7 +68,11 @@ function WC.StatusLines(info)
         out[#out + 1] = string.format(L.STATUS_DIGEST, when, tostring(file.schema))
     end
     if d and WC.DigestOutdated(d, info.now, info.captured) then out[#out + 1] = "  " .. L.OUT_OF_DATE_SHORT end
-    out[#out + 1] = string.format(L.STATUS_QUEUED, WC.Unanswered(info.db))
+    local waiting = WC.Unanswered(info.db)
+    if waiting > 0 then
+        local age = WC.OldestAskAge(info.db, info.now)
+        out[#out + 1] = string.format(L.STATUS_QUEUED, waiting, age and WC.FormatAge(age) or L.STATUS_UNKNOWN)
+    end
     for _, name in ipairs(SLOTS) do
         out[#out + 1] = string.format(L.STATUS_SLOT, name, info.installed[name] and L.STATUS_INSTALLED or L.STATUS_MISSING)
     end
