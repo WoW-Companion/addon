@@ -5236,6 +5236,7 @@ end }
 
 cases[#cases + 1] = { "capture: with no talent API there is no talentPoints and the probe says none", function()
     local WC, run = capture_client()
+    capture_nil("GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo")
     run()
     local c = WoWCompanionDB.characters["Testrealm:Thrall"]
     assert(#c.talents == 0 and c.talentPoints == nil and c.apiProbe.talents.used == "none" and c.apiProbe.talents.legacy == -1)
