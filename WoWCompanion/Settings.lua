@@ -102,7 +102,7 @@ local D = {
     { key = "readyColor", visual = true, type = "color", default = { 0.25, 0.9, 0.25 }, page = "panel", box = "colors", label = "READY_COLOR", name = "ReadyColor" },
     { key = "lineSpacing", visual = true, type = "range", default = 1, min = 0, max = 8, step = 1, page = "panel", box = "colors", label = "LINE_SPACING_LABEL", name = "LineSpacing", show = "int" },
     { key = "padding", visual = true, type = "range", default = 10, min = 4, max = 24, step = 1, page = "panel", box = "colors", label = "PADDING_LABEL", name = "Padding", show = "int" },
-    { key = "nextLineColor", visual = true, type = "color", default = { 1, 0.95, 0.6 }, page = "map", box = "route", label = "NEXT_LINE_COLOR", name = "NextLineColor" },
+    { key = "nextLineColor", visual = true, type = "color", default = "auto", page = "map", box = "route", label = "NEXT_LINE_COLOR", name = "NextLineColor" },
     { key = "outlineColor", visual = true, type = "color", default = { 0, 0, 0 }, page = "map", box = "route", label = "OUTLINE_COLOR", name = "OutlineColor" },
     { key = "outlineOpacity", visual = true, type = "range", default = 0.6, min = 0, max = 1, step = 0.05, page = "map", box = "route", label = "OUTLINE_OPACITY_LABEL", name = "OutlineOpacity", show = "pct" },
     { key = "chevronSize", visual = true, type = "range", default = 9, min = 4, max = 20, step = 1, page = "map", box = "route", label = "CHEVRON_SIZE_LABEL", name = "ChevronSize", show = "int" },
@@ -182,11 +182,12 @@ function WC.Repair(def, v)
         end
         return def.default
     elseif t == "color" then
+        if def.default == "auto" and v == "auto" then return "auto" end
         if type(v) ~= "table" then return copy(def.default) end
         local out = {}
         for i = 1, 3 do
             local n = tonumber(v[i])
-            out[i] = n and math.max(0, math.min(1, n)) or def.default[i]
+            out[i] = n and math.max(0, math.min(1, n)) or (type(def.default) == "table" and def.default[i] or 1)
         end
         return out
     elseif t == "limit" then
@@ -204,6 +205,19 @@ function WC.Setting(key)
     local v = s and get_at(s, key)
     if v == nil then return def and copy(def.default) end
     return v
+end
+
+-- A brighter, lighter shade of a route colour: each channel moves part of the way to white.
+function WC.LighterShade(c)
+    local t = 0.45
+    return { c[1] + (1 - c[1]) * t, c[2] + (1 - c[2]) * t, c[3] + (1 - c[3]) * t }
+end
+
+-- The colour of the line to the next stop: the player's own pick, or "auto", a lighter shade of lineColor.
+function WC.NextLineColor()
+    local v = WC.Setting("nextLineColor")
+    if type(v) == "table" then return v end
+    return WC.LighterShade(WC.Setting("lineColor"))
 end
 
 function WC.ClampScale(v)
@@ -232,6 +246,14 @@ function WC.InitSettings(db)
     if not db.migrated.arrowSize8 then
         if s.arrowSize == nil or s.arrowSize == 14 then s.arrowSize = 8 end
         db.migrated.arrowSize8 = true
+    end
+    -- 0.6.45: the next-stop line follows lineColor by default; a save still on the old default yellow moves to "auto".
+    if not db.migrated.nextLineAuto then
+        local c = s.nextLineColor
+        local old = type(c) == "table" and math.abs((tonumber(c[1]) or 0) - 1) < 1e-6 and math.abs((tonumber(c[2]) or 0) - 0.95) < 1e-6
+            and math.abs((tonumber(c[3]) or 0) - 0.6) < 1e-6
+        if c == nil or old then s.nextLineColor = "auto" end
+        db.migrated.nextLineAuto = true
     end
     for _, def in ipairs(D) do set_at(s, def.key, WC.Repair(def, get_at(s, def.key))) end
 end

@@ -1495,6 +1495,79 @@ cases[#cases + 1] = { "plan: our badges sit above a simulated other-addon pin, a
     WorldMapFrame = nil
 end }
 
+-- Draws the map for the plan_full fixture (steps 1 and 3 share a spot) and returns every line made.
+local function draw_route_lines(settings_in)
+    local WC = plan_client("full")
+    for k, v in pairs(settings_in or {}) do WC.SetSetting(k, v) end
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    canvas.CreateLine = function() return {} end
+    local made, create = {}, CreateFrame
+    CreateFrame = function(...)
+        local f = create(...)
+        local old = f.CreateLine
+        f.CreateLine = function(self) local ln = old(self); made[#made + 1] = ln; return ln end
+        return f
+    end
+    local realMap = C_Map
+    C_Map = { GetBestMapForUnit = function() return 7001 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.2, 0.4 end } end }
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end }
+    WC.RefreshMapPins()
+    CreateFrame = create
+    WorldMapFrame = nil
+    C_Map = realMap
+    return WC, made, canvas
+end
+
+local function line_rgb(ln) local c = ln.colorTexture; return { c[1], c[2], c[3] } end
+
+cases[#cases + 1] = { "plan: the highlight is one line from the player to the next stop, never a leg that shares its spot", function()
+    local WC, made, canvas = draw_route_lines({ lineColor = { 0.8, 0.2, 0.5 } })
+    local lc = WC.Setting("lineColor")
+    local auto = WC.LighterShade(lc)
+    local legs, hi = 0, {}
+    for _, ln in ipairs(made) do
+        if ln.shown and ln.colorTexture then
+            local c = line_rgb(ln)
+            if c[1] == lc[1] and c[2] == lc[2] and c[3] == lc[3] and ln.colorTexture[4] == WC.Setting("lineOpacity") then legs = legs + 1
+            elseif c[1] == auto[1] and c[2] == auto[2] and c[3] == auto[3] then hi[#hi + 1] = ln end
+        end
+    end
+    assert(legs == 2, "the two ordinary legs (1 to 2, 2 to 3 share spots) keep the route colour, got " .. legs)
+    assert(#hi == 1, "exactly one highlighted line, got " .. #hi)
+    local sp = hi[1].startPoint
+    assert(sp[1] == "TOPLEFT" and sp[2] == canvas and sp[3] == 200 and sp[4] == -200, "starts at the player's spot")
+    local nextPin
+    for _, f in ipairs(frames) do if f.planGroup and f.planGroup.isNext and f.shown then nextPin = f end end
+    assert(hi[1].endPoint[1] == "CENTER" and nextPin and hi[1].endPoint[2] == nextPin.anchor, "ends on the next stop's badge")
+    assert(hi[1].thickness > WC.Setting("lineWidth"))
+    -- the player moves: the same tick-time call re-anchors without a redraw
+    WC.UpdateNextLine(7001, 50, 50)
+    assert(hi[1].startPoint[3] == 500 and hi[1].startPoint[4] == -250)
+    WC.UpdateNextLine(7002, 50, 50)
+    assert(not hi[1].shown, "hidden when the player is on another map")
+end }
+
+cases[#cases + 1] = { "settings: the next-stop colour is auto by default and follows lineColor; a pick is kept; the old yellow migrates", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    assert(WC.Setting("nextLineColor") == "auto" and WC.IsDefault("nextLineColor"))
+    local base = WC.NextLineColor()
+    WC.SetSetting("lineColor", { 0.2, 0.4, 0.6 })
+    local c = WC.NextLineColor()
+    assert(c[1] > 0.2 and c[2] > 0.4 and c[3] > 0.6 and c[1] ~= base[1], "a lighter shade of the new route colour")
+    WC.SetSetting("nextLineColor", { 0.1, 0.9, 0.3 })
+    assert(same_color(WC.NextLineColor(), { 0.1, 0.9, 0.3 }) and not WC.IsDefault("nextLineColor"))
+    WC.ResetSetting("nextLineColor")
+    assert(WC.Setting("nextLineColor") == "auto")
+    fresh_client({ settings = { nextLineColor = { 1, 0.95, 0.6 } } })
+    assert(WoWCompanion.Setting("nextLineColor") == "auto", "the old default yellow becomes auto")
+    fresh_client({ settings = { nextLineColor = { 0.3, 0.3, 0.3 } } })
+    assert(same_color(WoWCompanion.NextLineColor(), { 0.3, 0.3, 0.3 }), "an explicit pick survives")
+    assert(WoWCompanion.Setting("nextLineColor")[1] == 0.3)
+end }
+
 cases[#cases + 1] = { "plan: /wowc plan debug prints one line per undone step", function()
     local WC = plan_client("full")
     local canvas = CreateFrame("Frame", nil, UIParent)
@@ -1790,7 +1863,7 @@ local function get_path(t, key)
     return t[head] and t[head][rest]
 end
 local function same(a, b)
-    if type(a) == "table" then return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
+    if type(a) == "table" and type(b) == "table" then return a[1] == b[1] and a[2] == b[2] and a[3] == b[3] end
     return a == b
 end
 local function valid(def, v)
@@ -1798,6 +1871,7 @@ local function valid(def, v)
     if t == "bool" then return type(v) == "boolean" end
     if t == "range" then return type(v) == "number" and v >= def.min and v <= def.max end
     if t == "choice" then for _, c in ipairs(def.choices) do if c == v then return true end end return false end
+    if t == "color" and def.default == "auto" and v == "auto" then return true end
     if t == "color" then return type(v) == "table" and #v == 3 and v[1] >= 0 and v[1] <= 1 and v[2] >= 0 and v[3] <= 1 end
     if t == "limit" then return v == "all" or (type(v) == "number" and v >= 1 and v == math.floor(v)) end
     return type(v) == "number"
@@ -1961,7 +2035,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.44" and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.45" and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -2184,10 +2258,11 @@ cases[#cases + 1] = { "visuals: the drawing code reads settings, not constants",
     local function slurp(f) return assert(io.open(f)):read("*a") end
     local plan, panel, digest = slurp("WoWCompanion/PlanUI.lua"), slurp("WoWCompanion/Panel.lua"), slurp("WoWCompanion/Digest.lua")
     for _, key in ipairs({ "ringColor", "nextRingColor", "numberColor", "glowColor", "glowOpacity", "pulseSpeed", "tagFillOpacity", "tagRingOpacity",
-        "nextLineColor", "outlineColor", "outlineOpacity", "chevronSize", "planBgColor", "planBgOpacity", "planTextSize",
+        "outlineColor", "outlineOpacity", "chevronSize", "planBgColor", "planBgOpacity", "planTextSize",
         "minimapBadgeSize", "minimapFill", "minimapFillOpacity", "minimapArrow" }) do
         assert(plan:find('WC.Setting("' .. key .. '")', 1, true) or plan:find('"' .. key .. '"', 1, true), key)
     end
+    assert(plan:find("WC.NextLineColor()", 1, true))
     for _, key in ipairs({ "bgColor", "bgOpacity", "borderShow", "borderColor", "borderOpacity", "headerColor", "lineSpacing", "padding" }) do
         assert(panel:find('WC.Setting("' .. key .. '")', 1, true), key)
     end

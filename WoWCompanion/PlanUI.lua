@@ -69,6 +69,7 @@ local EMPTY = ""
 local pins, lines, arrows = {}, {}, {}
 local stepPin = {} -- step.n -> the badge or tag frame drawn for it in the last refresh
 local lineLayer, arrowLayer
+local nextLine -- the next-stop line pair and what it needs to follow the player: set by drawNextLine
 
 local function mapShown()
     return WC.plan ~= nil and WC.db.settings.planMap
@@ -491,8 +492,57 @@ function WC.DrawGhostLines(ghosts, canvas, layer, n, lineW, outline, spot, where
     end
 end
 
+-- Moves the next-stop line's start to the player and shows it, or hides it when the player is not on the shown
+-- map. Called from the existing tick (about 5 a second); it only re-anchors two lines.
+function WC.UpdateNextLine(mapID, px, py)
+    local nl = nextLine
+    if not nl then return end
+    local on = px ~= nil and mapID == nl.map and mapShown()
+    for _, ln in ipairs({ nl.outline, nl.line }) do
+        if on then
+            ln:SetStartPoint("TOPLEFT", nl.canvas, px / 100 * nl.w, -py / 100 * nl.h)
+            ln:Show()
+        else
+            ln:Hide()
+        end
+    end
+end
+
+-- The one highlighted line, from the player to the next step, when that step is on the shown map. It is a
+-- brighter shade of the route colour (or the player's own pick), a little thicker, and above the other legs.
+-- Returns the new count of pooled lines in use.
+local function drawNextLine(canvas, mapID, w, h, scale, where, n, lineW, lineA, outline)
+    nextLine = nil
+    local step = WC.PlanNext()
+    local target = step and step.map == mapID and where[step.n]
+    if not target then return n end
+    local c = WC.NextLineColor()
+    local pair = {}
+    for k = 1, 2 do
+        n = n + 1
+        local ln = lines[n] or lineLayer:CreateLine()
+        lines[n] = ln
+        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", k == 1 and 3 or 4) end
+        if k == 1 then
+            ln:SetThickness(lineW + OUTLINE_PAD + 2)
+            ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
+        else
+            ln:SetThickness(lineW + 1)
+            ln:SetColorTexture(c[1], c[2], c[3], math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100))
+        end
+        ln:SetEndPoint("CENTER", target)
+        ln:Hide()
+        pair[k] = ln
+    end
+    nextLine = { outline = pair[1], line = pair[2], canvas = canvas, map = mapID, w = w, h = h }
+    local pm, px, py = WC.PlayerPos()
+    WC.UpdateNextLine(pm, px, py)
+    return n
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
+    nextLine = nil
     if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end -- the side panel follows the map shown and the plan
     hideAll(pins)
     hideAll(lines)
@@ -586,30 +636,26 @@ function WC.RefreshMapPins()
     local wantArrows = WC.db.settings.planArrows
     local lineW, lineA, lineC = WC.Setting("lineWidth"), WC.Setting("lineOpacity"), WC.Setting("lineColor")
     local arrowSize, chevronSize = WC.Setting("arrowSize"), WC.Setting("chevronSize")
-    local nextC, outC, outA = WC.Setting("nextLineColor"), WC.Setting("outlineColor"), WC.Setting("outlineOpacity")
+    local outC, outA = WC.Setting("outlineColor"), WC.Setting("outlineOpacity")
     local outline = { outC[1], outC[2], outC[3], outA }
-    local nextAnchor = WC.PlanNext() and where[WC.PlanNext().n]
     -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
     -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
     local prev, n, na = nil, 0, 0
     for _, s in ipairs(shown) do
         if not (WC.plan.done and WC.plan.done[s.n]) then
             if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then
-                local isNext = nextAnchor ~= nil and where[s.n] == nextAnchor
-                local glow = isNext and 1 or 0
                 for k = 1, 2 do
                     n = n + 1
                     local ln = lines[n] or lineLayer:CreateLine()
                     lines[n] = ln
                     if k == 1 then
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
-                        ln:SetThickness(lineW + OUTLINE_PAD + glow * 2)
+                        ln:SetThickness(lineW + OUTLINE_PAD)
                         ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
                     else
                         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
                         ln:SetThickness(lineW)
-                        local c = isNext and nextC or lineC
-                        ln:SetColorTexture(c[1], c[2], c[3], isNext and math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100) or lineA)
+                        ln:SetColorTexture(lineC[1], lineC[2], lineC[3], lineA)
                     end
                     ln:SetStartPoint("CENTER", where[prev.n])
                     ln:SetEndPoint("CENTER", where[s.n])
@@ -620,7 +666,7 @@ function WC.RefreshMapPins()
                     -- spots are offsets from the canvas's top left (y up, so negative below it): the maths' own frame
                     local ang, tx, ty, len = WC.ArrowPlace(a[1], a[2], b[1], b[2], rad[s.n], ARROW_GAP + arrowSize / 2)
                     if ang then
-                        local headC = isNext and { nextC[1], nextC[2], nextC[3], 1 } or { lineC[1], lineC[2], lineC[3], 1 }
+                        local headC = { lineC[1], lineC[2], lineC[3], 1 }
                         local function put(cx, cy, size, sub)
                             placeArrow(arrowLayer, arrows, na + 1, cx, cy, size * scale, ang, outline, sub, (lineW + OUTLINE_PAD + 1) * scale)
                             placeArrow(arrowLayer, arrows, na + 3, cx, cy, size * scale, ang, headC, sub + 1, (lineW + 1) * scale)
@@ -637,6 +683,7 @@ function WC.RefreshMapPins()
             prev = s
         end
     end
+    n = drawNextLine(canvas, mapID, w, h, scale, where, n, lineW, lineA, outline)
     WC.DrawGhostLines(ghosts, canvas, lineLayer, n, lineW, outline, spot, where)
 end
 
@@ -706,7 +753,9 @@ local function placeMinimap(m, mapID, px, py, step)
         local ax, ay = WC.MinimapArrow(angle)
         local tx, ty, x1, y1, x2, y2 = WC.ArrowheadPoints(ax, ay, (math.atan2 or math.atan)(ay, ax), MM_ARROW_SIZE)
         local ends = { { x1, y1 }, { x2, y2 } }
+        local nc2 = WC.NextLineColor()
         for k, ln in ipairs(m.arrow) do
+            ln:SetColorTexture(nc2[1], nc2[2], nc2[3], 1)
             ln:SetStartPoint("CENTER", b, tx, ty)
             ln:SetEndPoint("CENTER", b, ends[k][1], ends[k][2])
         end
@@ -736,6 +785,7 @@ local function tick()
     if f and f:IsShown() then f.label:SetText(WC.SafeText(WC.PlanText(step, mapID, px, py))) end
     if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
     if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
+    WC.UpdateNextLine(mapID, px, py)
     local m = WC.planMinimap
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
