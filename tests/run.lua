@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.42" and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.43" and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4898,10 +4898,15 @@ local function capture_client()
     C_Map = { GetBestMapForUnit = function() return 1411 end, GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.25 end } end }
     GetInventoryItemID = function(_, slot) return slot == 16 and 1234 or nil end
     GetInventoryItemLink = function(_, slot) return slot == 16 and "|cff|Hitem:1234:77:0:0:0:0:-5:0|h[Sword]|h|r" or nil end
-    BAGS = { [0] = { [1] = { 2001, 5 } }, [-1] = { [3] = { 3001, 1 } } }
+    ITEM_INFO = {
+        [1234] = { "Sword", "l", 3, 20, 15, "Weapon", "Swords", 1, "INVTYPE_WEAPON" },
+        [2001] = { "Vest", "l", 2, 12, 8, "Armor", "Leather", 1, "INVTYPE_CHEST" },
+    }
+    C_Item = { GetItemInfo = function(x) local i = ITEM_INFO[type(x) == "number" and x or tonumber(tostring(x):match("item:(%d+)"))]; if i then return unpack(i) end end }
+    BAGS = { [0] = { [1] = { 2001, 5, "|cff|Hitem:2001::::::-7:0|h[Vest of the Bear]|h|r" } }, [-1] = { [3] = { 3001, 1 } } }
     C_Container = {
         GetContainerNumSlots = function(b) return BAGS[b] and 4 or 0 end,
-        GetContainerItemInfo = function(b, slot) local i = BAGS[b] and BAGS[b][slot]; return i and { itemID = i[1], stackCount = i[2] } end,
+        GetContainerItemInfo = function(b, slot) local i = BAGS[b] and BAGS[b][slot]; return i and { itemID = i[1], stackCount = i[2], hyperlink = i[3] } end,
     }
     GetNumQuestLogEntries = function() return 2 end
     GetQuestLogTitle = function(i)
@@ -4939,8 +4944,47 @@ local function capture_client()
     return WC, run_timers
 end
 local function capture_clear()
-    for _, n in ipairs({ "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "GetMoney", "UnitXP", "UnitXPMax", "GetXPExhaustion", "GetBindLocation", "C_Map", "GetInventoryItemID", "GetInventoryItemLink", "BAGS", "C_Container", "GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard", "GetQuestsCompleted", "GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetNumSkillLines", "GetSkillLineInfo", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellLink", "GetNumFactions", "GetFactionInfo", "TRADE_NAME", "TRADE_OPEN", "GetTradeSkillLine", "GetNumTradeSkills", "GetTradeSkillInfo", "GetTradeSkillItemLink" }) do _G[n] = nil end
+    for _, n in ipairs({ "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "GetMoney", "UnitXP", "UnitXPMax", "GetXPExhaustion", "GetBindLocation", "C_Map", "GetInventoryItemID", "GetInventoryItemLink", "ITEM_INFO", "C_Item", "BAGS", "C_Container", "GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard", "GetQuestsCompleted", "GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetNumSkillLines", "GetSkillLineInfo", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellLink", "GetNumFactions", "GetFactionInfo", "TRADE_NAME", "TRADE_OPEN", "GetTradeSkillLine", "GetNumTradeSkills", "GetTradeSkillInfo", "GetTradeSkillItemLink" }) do _G[n] = nil end
 end
+
+cases[#cases + 1] = { "capture: item links parse by field position, empty fields kept", function()
+    local WC, run = capture_client()
+    GetInventoryItemID = function(_, slot) return slot <= 3 and 1234 or nil end
+    local links = {
+        "|cff|Hitem:1234::::::::10:0|h[x]|h|r",        -- nothing set: no enchant, no suffix, link level 10 ignored
+        "|cff|Hitem:1234:2564:0:0:0:0:-12:99:10|h[x]|h|r", -- enchant and suffix
+        "|cff|Hitem:1234::::::-5:99:10|h[x]|h|r",      -- suffix only, empty fields before it
+    }
+    GetInventoryItemLink = function(_, slot) return links[slot] end
+    run()
+    WC.CaptureMark("equipment"); run()
+    local eq = WoWCompanionDB.characters["Testrealm:Thrall"].equipment
+    assert(eq[1].enchant == nil and eq[1].suffix == nil)
+    assert(eq[2].enchant == 2564 and eq[2].suffix == -12)
+    assert(eq[3].enchant == nil and eq[3].suffix == -5)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: uncached item info is left out, then filled on GET_ITEM_INFO_RECEIVED", function()
+    local WC, run = capture_client()
+    local late = ITEM_INFO[2001]
+    ITEM_INFO[2001] = nil
+    local calls = 0
+    local real = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(...) calls = calls + 1; return real(...) end
+    WC.CaptureMark("bags"); run()
+    local it = WoWCompanionDB.characters["Testrealm:Thrall"].bags[0].items[1]
+    assert(it.id == 2001 and it.count == 5 and it.quality == nil and it.ilvl == nil and it.reqLevel == nil and it.equipLoc == nil)
+    local n = calls
+    run()
+    assert(calls == n, "no re-read without an event")
+    ITEM_INFO[2001] = late
+    Stub.fire(frames, "GET_ITEM_INFO_RECEIVED", 2001, true)
+    run()
+    it = WoWCompanionDB.characters["Testrealm:Thrall"].bags[0].items[1]
+    assert(it.quality == 2 and it.ilvl == 12 and it.reqLevel == 8 and it.equipLoc == "INVTYPE_CHEST")
+    capture_clear()
+end }
 
 cases[#cases + 1] = { "capture: every part lands in the schema under realm:name", function()
     local WC, run = capture_client()
@@ -4954,6 +4998,9 @@ cases[#cases + 1] = { "capture: every part lands in the schema under realm:name"
     assert(c.location.map == 1411 and c.location.x == 50 and c.location.y == 25 and c.hearth == "Testtown")
     assert(c.equipment[16].id == 1234 and c.equipment[16].enchant == 77 and c.equipment[16].suffix == -5)
     assert(c.bags[0].size == 4 and c.bags[0].items[1].id == 2001 and c.bags[0].items[1].count == 5)
+    local bi, ei = c.bags[0].items[1], c.equipment[16]
+    assert(bi.quality == 2 and bi.ilvl == 12 and bi.reqLevel == 8 and bi.equipLoc == "INVTYPE_CHEST" and bi.suffix == -7 and bi.enchant == nil)
+    assert(ei.quality == 3 and ei.ilvl == 20 and ei.reqLevel == 15 and ei.equipLoc == "INVTYPE_WEAPON")
     assert(c.bank == nil and c.bankSeenAt == nil, "bank only while open")
     local q = c.quests.entries[1]
     assert(c.quests.captured and #c.quests.entries == 1 and q.id == 777 and q.title == "Test Quest" and q.level == 12 and q.complete)

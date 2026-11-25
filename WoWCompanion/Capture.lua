@@ -33,8 +33,37 @@ local function link_fields(link, kind)
     local rest = link:match(kind .. ":([%-%d:]*)")
     if not rest then return end
     local out = {}
-    for f in (rest .. ":"):gmatch("([^:]*):") do out[#out + 1] = tonumber(f) end
+    -- Empty fields ("item:2092:::::::10") keep their place: out[i] is the i-th field, nil when empty.
+    local i = 0
+    for f in (rest .. ":"):gmatch("([^:]*):") do
+        i = i + 1
+        out[i] = tonumber(f)
+    end
     return out
+end
+
+local pendingInfo = false -- an item the client had not cached yet; filled when GET_ITEM_INFO_RECEIVED fires
+
+-- What the client says about an item, added to entry e: quality, ilvl, reqLevel, equipLoc from the item info,
+-- enchant and suffix from the link's fields (item:id:enchant:gem1:gem2:gem3:gem4:suffix:...).
+local function describe(e, link)
+    link = WC.Clean(link)
+    local f = link_fields(link, "item")
+    if f then
+        if f[2] and f[2] > 0 then e.enchant = f[2] end
+        if f[7] and f[7] ~= 0 then e.suffix = f[7] end
+    end
+    local getter = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if not getter then return end
+    local _, _, quality, ilvl, reqLevel, _, _, _, equipLoc = getter(link or e.id)
+    if quality == nil and ilvl == nil then
+        pendingInfo = true
+        return
+    end
+    e.quality = WC.Clean(quality)
+    e.ilvl = WC.Clean(ilvl)
+    e.reqLevel = WC.Clean(reqLevel)
+    if type(equipLoc) == "string" and equipLoc ~= "" then e.equipLoc = WC.Clean(equipLoc) end
 end
 
 local function item_id(link)
@@ -100,11 +129,7 @@ function readers.equipment(r)
         local id = GetInventoryItemID and GetInventoryItemID("player", slot)
         if id then
             local e = { id = id }
-            local f = link_fields(GetInventoryItemLink and GetInventoryItemLink("player", slot), "item")
-            if f then
-                if f[2] and f[2] > 0 then e.enchant = f[2] end
-                if f[7] and f[7] ~= 0 then e.suffix = f[7] end
-            end
+            describe(e, GetInventoryItemLink and GetInventoryItemLink("player", slot))
             eq[slot] = e
         end
     end
@@ -119,15 +144,22 @@ local function read_bag(bag)
     if not size or size <= 0 then return nil end
     local items = {}
     for slot = 1, size do
-        local id, count
+        local id, count, link
         if C_Container and C_Container.GetContainerItemInfo then
             local info = C_Container.GetContainerItemInfo(bag, slot)
-            if info then id, count = info.itemID, info.stackCount end
+            if info then id, count, link = info.itemID, info.stackCount, info.hyperlink end
         elseif GetContainerItemID then
             id = GetContainerItemID(bag, slot)
-            if id and GetContainerItemInfo then count = select(2, GetContainerItemInfo(bag, slot)) end
+            if id and GetContainerItemInfo then
+                local _, n, _, _, _, _, l = GetContainerItemInfo(bag, slot) -- icon, count, locked, quality, readable, lootable, link
+                count, link = n, l
+            end
         end
-        if id then items[slot] = { id = id, count = count or 1 } end
+        if id then
+            local e = { id = id, count = count or 1 }
+            describe(e, link)
+            items[slot] = e
+        end
     end
     return { size = size, items = items }
 end
@@ -625,7 +657,7 @@ local windowOpen = {}
 local frame = CreateFrame("Frame")
 for ev in pairs(EVENTS) do pcall(frame.RegisterEvent, frame, ev) end -- a client without an event just skips it
 for _, ev in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "TRADE_SKILL_CLOSE", "CRAFT_CLOSE", "PLAYER_REGEN_ENABLED",
-    "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }) do
+    "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", "GET_ITEM_INFO_RECEIVED" }) do
     pcall(frame.RegisterEvent, frame, ev)
 end
 local RECIPE_DELAY = 1 -- seconds after TRADE_SKILL_SHOW that the recipes are read again (the list can arrive late)
@@ -640,6 +672,13 @@ frame:SetScript("OnEvent", function(_, event, a)
         WC.CaptureMark("bank")
     elseif event == "BANKFRAME_CLOSED" then
         bankOpen = false
+    elseif event == "GET_ITEM_INFO_RECEIVED" then
+        -- Only when an earlier read found an item uncached; that read set the flag, this one may set it again.
+        if pendingInfo then
+            pendingInfo = false
+            WC.CaptureMark("equipment", "bags")
+            if bankOpen then WC.CaptureMark("bank") end
+        end
     elseif event == "TRADE_SKILL_CLOSE" then
         windowOpen.tradeskill = false
     elseif event == "CRAFT_CLOSE" then

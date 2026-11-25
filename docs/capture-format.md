@@ -15,8 +15,8 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   client = { version = "<x.y.z>", build = "<n>" },
   money = <copper>, xp, xpMax, rested,
   location = { map = <uiMapID>, x = <pct 0-100>, y = <pct> }, hearth = "<bind location name>",
-  equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id> } },
-  bags = { [bag 0-4] = { size = <n>, items = { [slot] = { id = <itemID>, count = <n> } } } },
+  equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id>, quality? = <0-8>, ilvl? = <n>, reqLevel? = <n>, equipLoc? = "INVTYPE_…" } },
+  bags = { [bag 0-4] = { size = <n>, items = { [slot] = { id = <itemID>, count = <n>, enchant? , suffix? , quality? , ilvl? , reqLevel? , equipLoc? } } } },   -- item info fields are left out until the client has cached the item
   bank = { [-1, 5-10] = same shape as bags }, bankSeenAt = <unix s>,   -- only written while the bank is open
   quests = { captured = true, entries = { { id, title, level, complete?, failed?,
              objectives? = { { text, done, have?, need? } } } } },
