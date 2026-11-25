@@ -530,7 +530,11 @@ function WC.Refresh()
     WC.StyleText(f.step)
     WC.SetChips(f, meta and meta.chips)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
-    f.header:SetText(WC.SafeText(meta and meta.advice or header))
+    local advice = meta and meta.advice or header
+    if meta and WC.PlanFollowing() and WC.plan.generated > 0 then
+        advice = string.format(L.ADVICE_FOLLOWING, WC.FormatClock(WC.plan.generated))
+    end
+    f.header:SetText(WC.SafeText(advice))
     f.stale = meta and meta.stale or false
     local hc = f.stale and WC.COLORS.amber or WC.COLORS.dim
     f.header:SetTextColor(hc[1], hc[2], hc[3])
