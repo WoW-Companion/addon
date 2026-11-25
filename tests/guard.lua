@@ -41,6 +41,8 @@ for name in ([[
 -- client's counterpart of GetMerchantNumItems/GetMerchantItemInfo); they buy nothing.
 -- GetTrainerServiceLevelReq only READS the level a trainer offer needs; the C_TradeSkillUI reads (above) only READ
 -- the open modern profession window's recipe ids and descriptions.
+-- C_TaxiMap.GetAllTaxiNodes and the classic NumTaxiNodes/TaxiNodeName/TaxiNodeGetType/TaxiNodePosition only READ
+-- the open flight map's nodes (name, position, whether the character knows them); TakeTaxiNode is never called.
 -- The client APIs the observation of what the player sees (Seen.lua) may call, on top of the ones above that
 -- it shares. Each only READS: the trainer, merchant and loot windows' contents, who the player is talking to,
 -- the spell a cast was, and the skill ranks. None is protected, none buys, learns, loots or acts.
@@ -54,6 +56,7 @@ for name in ([[
     GetNumLootItems GetLootSlotLink GetLootSlotInfo
     GetSpellInfo
     GetMerchantItemID GetMerchantItemCostInfo GetMerchantItemCostItem C_Timer.After
+    C_TaxiMap.GetAllTaxiNodes NumTaxiNodes TaxiNodeName TaxiNodeGetType TaxiNodePosition
 ]]):gmatch("%S+") do seen_allowed[name] = true end
 for name in pairs(capture_allowed) do seen_allowed[name] = true end
 
