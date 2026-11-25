@@ -233,18 +233,147 @@ function readers.completed(r)
     r.completedQuests = ids
 end
 
-function readers.talents(r)
+-- Which API paths were tried and what each gave, for the "apiProbe" block: a count per path, -1 when the client
+-- lacks the API, never a value. Rebuilt by each talents/spells read, so one /reload shows which path works.
+local function probe_of(r)
+    r.apiProbe = r.apiProbe or {}
+    r.apiProbe.seenAt = time()
+    return r.apiProbe
+end
+
+local MAX_NODES = 200
+
+-- Calls fn; its results when it worked, nil when it is missing or failed.
+local function try(fn, ...)
+    if type(fn) ~= "function" then return nil end
+    local out = { pcall(fn, ...) }
+    if not table.remove(out, 1) then return nil end
+    return unpack(out, 1, 6)
+end
+
+-- Legacy tabs: GetTalentTabInfo is (name, icon, pointsSpent, ...) here; a client that leads with an id gives
+-- (id, name, description, icon, pointsSpent, ...), which is told apart by the type of the first return.
+local function talents_legacy()
+    if not (GetNumTalentTabs and GetTalentTabInfo and GetNumTalents and GetTalentInfo) then return nil end
     local trees = {}
-    local tabs = GetNumTalentTabs and GetNumTalentTabs() or 0
-    for t = 1, tabs do
-        local tree = { tree = GetTalentTabInfo(t), nodes = {} }
-        for i = 1, GetNumTalents(t) or 0 do
-            local name, _, _, _, rank, max = GetTalentInfo(t, i)
-            if name then tree.nodes[#tree.nodes + 1] = { name = name, rank = rank or 0, max = max or 0 } end
+    for t = 1, try(GetNumTalentTabs) or 0 do
+        local a, b, c, d, e = try(GetTalentTabInfo, t)
+        local name, spent
+        if type(a) == "number" then name, spent = b, e else name, spent = a, c end
+        local tree = { tree = WC.Clean(name), points = tonumber(WC.Clean(spent)), nodes = {} }
+        for i = 1, math.min(try(GetNumTalents, t) or 0, MAX_NODES) do
+            local nname, _, _, _, rank, max = try(GetTalentInfo, t, i)
+            if nname then tree.nodes[#tree.nodes + 1] = { name = nname, rank = rank or 0, max = max or 0 } end
         end
         trees[#trees + 1] = tree
     end
-    r.talents = trees
+    return trees
+end
+
+-- The talent tree system (C_ClassTalents for the active config, C_Traits for trees, nodes and entries).
+local function active_config()
+    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID) then return nil end
+    return try(C_ClassTalents.GetActiveConfigID)
+end
+
+local function talents_traits()
+    local T = C_Traits
+    if not (T and T.GetConfigInfo and T.GetTreeNodes and T.GetNodeInfo) then return nil end
+    local config = active_config()
+    if not config then return {} end
+    local info = try(T.GetConfigInfo, config)
+    local trees = {}
+    for _, treeID in ipairs(type(info) == "table" and info.treeIDs or {}) do
+        local tinfo = T.GetTreeInfo and try(T.GetTreeInfo, config, treeID)
+        local tree = { tree = type(tinfo) == "table" and WC.Clean(tinfo.name or tinfo.treeName) or nil, points = 0, nodes = {} }
+        for _, nodeID in ipairs(try(T.GetTreeNodes, treeID) or {}) do
+            if #tree.nodes >= MAX_NODES then break end
+            local node = try(T.GetNodeInfo, config, nodeID)
+            if type(node) == "table" and (node.maxRanks or 0) > 0 then
+                local entry = node.activeEntry and node.activeEntry.entryID or (node.entryIDs and node.entryIDs[1])
+                local name
+                local einfo = entry and T.GetEntryInfo and try(T.GetEntryInfo, config, entry)
+                local def = type(einfo) == "table" and einfo.definitionID and T.GetDefinitionInfo and try(T.GetDefinitionInfo, einfo.definitionID)
+                if type(def) == "table" then
+                    name = def.overrideName or (def.spellID and GetSpellInfo and (try(GetSpellInfo, def.spellID)))
+                end
+                local rank = tonumber(WC.Clean(node.activeRank)) or 0
+                tree.points = tree.points + rank
+                tree.nodes[#tree.nodes + 1] = { name = WC.Clean(name) or ("node " .. tostring(nodeID)), rank = rank,
+                    max = tonumber(WC.Clean(node.maxRanks)) or 0 }
+            end
+        end
+        trees[#trees + 1] = tree
+    end
+    return trees
+end
+
+-- Another talent API the client may carry: the specialization list (a count only, nothing recorded from it).
+local function talents_spec()
+    local S = C_SpecializationInfo
+    if not (S and S.GetNumSpecializations) then return nil end
+    return { n = try(S.GetNumSpecializations) or 0 }
+end
+
+-- Unspent talent points: UnitCharacterPoints first, then GetUnspentTalentPoints, then the trait currencies.
+local function unspent_points(probe)
+    local counts = {}
+    probe.points = counts
+    local v
+    if UnitCharacterPoints then
+        v = tonumber(WC.Clean((try(UnitCharacterPoints, "player"))))
+        counts.unitCharacterPoints = v and 1 or 0
+    else
+        counts.unitCharacterPoints = -1
+    end
+    if v == nil and GetUnspentTalentPoints then
+        v = tonumber(WC.Clean((try(GetUnspentTalentPoints))))
+        counts.getUnspentTalentPoints = v and 1 or 0
+    elseif v == nil then
+        counts.getUnspentTalentPoints = -1
+    end
+    if v == nil then
+        local T, config = C_Traits, active_config()
+        if T and T.GetTreeCurrencyInfo and T.GetConfigInfo and config then
+            local info = try(T.GetConfigInfo, config)
+            local total, found = 0, false
+            for _, treeID in ipairs(type(info) == "table" and info.treeIDs or {}) do
+                for _, cur in ipairs(try(T.GetTreeCurrencyInfo, config, treeID, false) or {}) do
+                    local q = tonumber(WC.Clean(cur.quantity))
+                    if q then total, found = total + q, true end
+                end
+            end
+            if found then v = total end
+            counts.traitCurrency = found and 1 or 0
+        else
+            counts.traitCurrency = -1
+        end
+    end
+    return v
+end
+
+function readers.talents(r)
+    local probe = probe_of(r)
+    local counts = {}
+    probe.talents = counts
+    local legacy, traits, spec = talents_legacy(), talents_traits(), talents_spec()
+    counts.legacy = legacy and #legacy or -1
+    counts.traits = traits and #traits or -1
+    counts.specialization = spec and spec.n or -1
+    local function nodecount(trees)
+        local n = 0
+        for _, t in ipairs(trees or {}) do n = n + #t.nodes end
+        return n
+    end
+    counts.legacyNodes = legacy and nodecount(legacy) or -1
+    counts.traitsNodes = traits and nodecount(traits) or -1
+    local picked = {}
+    if legacy and #legacy > 0 and counts.legacyNodes > 0 then picked = legacy
+    elseif traits and #traits > 0 and counts.traitsNodes > 0 then picked = traits end
+    counts.used = picked == legacy and #picked > 0 and "legacy" or (#picked > 0 and "traits" or "none")
+    r.talents = picked
+    local pts = unspent_points(probe)
+    if pts then r.talentPoints = pts end
 end
 
 -- What the client reports about the character's stats, as it reports it (the numbers its own tooltips use).
@@ -406,28 +535,66 @@ local function spellbook_modern(ids, seen)
     end
 end
 
-function readers.spells(r)
-    local ids, seen = {}, {}
-    if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
-        and C_SpellBook.GetSpellBookItemInfo then
-        spellbook_modern(ids, seen)
-    end
-    if #ids == 0 then -- legacy path
-        for tab = 1, GetNumSpellTabs and GetNumSpellTabs() or 0 do
-            local _, _, offset, count = GetSpellTabInfo(tab)
-            for index = (offset or 0) + 1, (offset or 0) + (count or 0) do
-                if #ids >= MAX_SPELLS then break end
-                local id
-                if GetSpellLink then
-                    local f = link_fields(GetSpellLink(index, "spell"), "spell")
-                    id = f and f[1]
-                end
-                if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
+-- The classic spell book: GetSpellBookItemInfo(i, "spell") gives ("SPELL", id), a table on newer builds.
+local function spellbook_classic(ids, seen)
+    for tab = 1, try(GetNumSpellTabs) or 0 do
+        local _, _, offset, count = try(GetSpellTabInfo, tab)
+        for index = (offset or 0) + 1, (offset or 0) + (count or 0) do
+            if #ids >= MAX_SPELLS then return end
+            local a, b = try(GetSpellBookItemInfo, index, "spell")
+            local id
+            if type(a) == "table" then
+                if a.itemType == 1 then id = a.spellID end
+            elseif a == "SPELL" then
+                id = b
             end
+            id = tonumber(WC.Clean(id))
+            if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
         end
     end
-    table.sort(ids)
-    r.spells = ids
+end
+
+-- The oldest path: the link of each spell book slot.
+local function spellbook_links(ids, seen)
+    for tab = 1, try(GetNumSpellTabs) or 0 do
+        local _, _, offset, count = try(GetSpellTabInfo, tab)
+        for index = (offset or 0) + 1, (offset or 0) + (count or 0) do
+            if #ids >= MAX_SPELLS then return end
+            local f = link_fields(try(GetSpellLink, index, "spell"), "spell")
+            local id = f and f[1]
+            if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
+        end
+    end
+end
+
+function readers.spells(r)
+    local probe = probe_of(r)
+    local counts = {}
+    probe.spells = counts
+    local paths = {
+        { "modern", C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
+            and C_SpellBook.GetSpellBookItemInfo and function(ids, seen) return pcall(spellbook_modern, ids, seen) end },
+        { "classic", GetNumSpellTabs and GetSpellTabInfo and GetSpellBookItemInfo
+            and function(ids, seen) return pcall(spellbook_classic, ids, seen) end },
+        { "links", GetNumSpellTabs and GetSpellTabInfo and GetSpellLink
+            and function(ids, seen) return pcall(spellbook_links, ids, seen) end },
+    }
+    local picked
+    for _, p in ipairs(paths) do
+        if p[2] then
+            local ids = {}
+            p[2](ids, {})
+            counts[p[1]] = #ids
+            if not picked and #ids > 0 then picked = ids; counts.used = p[1] end
+        else
+            counts[p[1]] = -1
+        end
+    end
+    counts.used = counts.used or "none"
+    counts.isSpellKnown = (IsSpellKnown or IsPlayerSpell) and 1 or -1 -- present or not; no class id list to try yet
+    picked = picked or {}
+    table.sort(picked)
+    r.spells = picked
 end
 
 function readers.reputations(r)
@@ -661,6 +828,7 @@ local EVENTS = {
     QUEST_TURNED_IN = { "quests", "completed" },
     SKILL_LINES_CHANGED = { "skills" },
     CHARACTER_POINTS_CHANGED = { "talents", "stats" },
+    PLAYER_TALENT_UPDATE = { "talents" },
     SPELLS_CHANGED = { "spells" },
     LEARNED_SPELL_IN_TAB = { "spells" },
     LEARNED_SPELL_IN_SKILL_LINE = { "spells" },
