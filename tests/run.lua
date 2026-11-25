@@ -4953,7 +4953,7 @@ cases[#cases + 1] = { "capture: item links parse by field position, empty fields
     local links = {
         "|cff|Hitem:1234::::::::10:0|h[x]|h|r",        -- nothing set: no enchant, no suffix, link level 10 ignored
         "|cff|Hitem:1234:2564:0:0:0:0:-12:99:10|h[x]|h|r", -- enchant and suffix
-        "|cff|Hitem:1234:::::::-5:99:10|h[x]|h|r",      -- suffix only, empty fields before it
+        "|cff|Hitem:1234::::::-5:99:10|h[x]|h|r",      -- suffix only, empty fields before it
     }
     GetInventoryItemLink = function(_, slot) return links[slot] end
     run()
