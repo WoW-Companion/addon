@@ -36,6 +36,7 @@ end)
 local late = CreateFrame("Frame")
 late:RegisterEvent("PLAYER_LOGIN")
 late:SetScript("OnEvent", function()
+    if WC.db then WC.PruneAsks(WC.db, WoWCompanionDigest, time()) end
     WC.Refresh()
     if WC.db and WC.db.settings.openOnLogin then WC.ShowPanel() end
 end)

@@ -30,3 +30,9 @@ both print: "Queued for WoW Companion. The overlay answers it after the game's n
 ## Detail card
 
 Left-clicking a non-quest entry, or right-clicking any entry, opens a card beside the panel. Under the plain label "Ask the companion" (hidden when the entry has no questions) it shows the entry's `asks` (digest schema 1.5: 1-3 questions of at most 90 characters) as clickable chips; an older digest gets up to 2 questions built from the entry's own fields ("What's <title> for?", "Where should my talent point go?"...), never a digest line verbatim and never a question built from a section summary (the upgrade set and the Stats card ask only what the digest gave). Clicking a chip opens a copy box directly under it, with the question selected and focused and a "Ctrl+C" hint. Addons cannot write the clipboard, so the player's own Ctrl+C copies it; the key handler changes nothing, and on a following frame the card says "Copied. Paste it into the overlay with Ctrl+V." Nothing is queued or written. A dim line reads "Or ask anything in the overlay."
+
+## Clearing old questions (0.6.28)
+
+On login the addon drops entries of `WoWCompanionDB.asks` that are older than 24 hours, and any whose `id` is
+listed in the digest's optional top-level `answered_asks` (a list of id strings; no digest writer emits it yet).
+`/wowc status` then reads "Questions waiting for the app: N (oldest <age>)", and prints nothing when N is 0.
