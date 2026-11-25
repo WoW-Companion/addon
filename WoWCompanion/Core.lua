@@ -52,6 +52,20 @@ local function safe_char(ch)
     return ch
 end
 
+-- Every tooltip the addon builds adds its lines through here: wrapped (the game's own detail lines wrap), in one
+-- colour (a { r, g, b } table or three numbers). Two-column lines stay AddDoubleLine.
+WC.TIP_WIDTH = 320
+function WC.TipLine(tooltip, text, r, g, b)
+    if type(r) == "table" then r, g, b = r[1], r[2], r[3] end
+    tooltip:AddLine(WC.SafeText(text), r or 1, g or 1, b or 1, true)
+end
+
+-- SetOwner plus the normal tooltip width, so wrapped lines break at about 320 px (scaled with the tooltip).
+function WC.TipOpen(tooltip, owner, anchor)
+    tooltip:SetOwner(owner, anchor)
+    if tooltip.SetMinimumWidth then tooltip:SetMinimumWidth(WC.TIP_WIDTH) end
+end
+
 function WC.SafeText(s)
     if type(s) ~= "string" or not s:find("[\128-\255]") then return s end -- glyph-ok: byte-range patterns
     local hit = safe_cache[s]

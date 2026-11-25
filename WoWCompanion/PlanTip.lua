@@ -109,14 +109,14 @@ end
 -- Fills GameTooltip (already owned by the badge) from lines and shows it.
 function WC.ShowPlanTip(owner, anchor, group, opts)
     if not WC.BadgeTipsAllowed() then return false end
-    GameTooltip:SetOwner(owner, anchor)
+    WC.TipOpen(GameTooltip, owner, anchor)
     for _, line in ipairs(WC.PlanTipLines(group, opts)) do
         local c = line.color
         if line.right then
             local r = line.rightColor
             GameTooltip:AddDoubleLine(WC.SafeText(line.text), WC.SafeText(line.right), c[1], c[2], c[3], r[1], r[2], r[3])
         else
-            GameTooltip:AddLine(WC.SafeText(line.text), c[1], c[2], c[3])
+            WC.TipLine(GameTooltip, line.text, c)
         end
     end
     GameTooltip:Show()

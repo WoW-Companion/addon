@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.40" and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.41" and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -3651,6 +3651,46 @@ cases[#cases + 1] = { "upgrades: tooltip lines, path icons, the +N more cap, no 
     assert(t[3]:find("^|TInterface\\Icons\\INV_Misc_Bone_HumanSkull_01:12|t Dropped by Gnoll Boss"), t[3])
     no_ilvl_anywhere(p, WC)
     UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "upgrades: the slot list appears once, in the grouped and the older digest form", function()
+    local grouped = { title = "Green cloth gear, level 20\226\128\14924, 'of the Owl': helm, cloak, chest, gloves, legs, boots",
+        slot = "Helm, cloak, chest, gloves, legs, boots", gain = "Big upgrade" }
+    local main = WoWCompanion.UpgradeMain(grouped)
+    local _, n = main:lower():gsub("helm, cloak, chest, gloves, legs, boots", "")
+    assert(n == 1, main)
+    local older = WoWCompanion.UpgradeMain({ title = "Traveler's Shawl", slot = "Cloak", gain = "Big upgrade" })
+    assert(older == "Cloak: Traveler's Shawl \226\128\148 Big upgrade", older)
+    -- an item whose name merely contains the slot word still gets its prefix
+    assert(WoWCompanion.UpgradeMain({ title = "Chest Guard of Bears", slot = "Chest" }) == "Chest: Chest Guard of Bears")
+end }
+
+cases[#cases + 1] = { "tooltips: every line wraps; no long line goes without the flag (double lines excepted)", function()
+    UnitLevel = function() return 10 end
+    local p, WC = card_client(upgrade_digest(), { [10] = "active" })
+    GameTooltip.calls = {}
+    local chip = chip_of(p, "upgrade")
+    chip.scripts.OnEnter(chip)
+    local grip = p.grip
+    if grip then grip.scripts.OnEnter(grip) end
+    WC.ShowPlanTip(p, "ANCHOR_LEFT", { steps = { { text = string.rep("a long step ", 20) } } })
+    local added = 0
+    for _, c in ipairs(GameTooltip.calls) do
+        if c[1] == "AddLine" then
+            added = added + 1
+            assert(c[6] == true, "unwrapped tooltip line: " .. tostring(c[2]))
+        end
+    end
+    assert(added > 3)
+    UnitLevel = nil
+end }
+
+cases[#cases + 1] = { "tooltips: source adds lines only through WC.TipLine", function()
+    for _, f in ipairs({ "Button", "Panel", "MapPanel", "PlanTip", "Tooltips", "Chips" }) do
+        local fh = assert(io.open(root .. "/" .. f .. ".lua"))
+        local src = fh:read("*a"); fh:close()
+        assert(not src:find(":AddLine(", 1, true), f .. " adds a tooltip line without WC.TipLine")
+    end
 end }
 
 cases[#cases + 1] = { "upgrades: the panel shows the same two lines under each item", function()
