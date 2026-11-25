@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.32" and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.33" and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -3946,6 +3946,67 @@ cases[#cases + 1] = { "chips: the row wraps at a narrow width and the next-step 
     assert(p.scrollTop < top + 1 - 0, "no chips: no room kept")
 end }
 
+
+-- The resize grip: drag sets Manual, right-click is Auto, bounds, lock, combat, slider sync, reflow.
+cases[#cases + 1] = { "panel grip: drag sets manual and saves, right-click resets, bounds, lock, combat, slider, reflow", function()
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    local grip = WoWCompanionPanelGrip
+    assert(grip and grip.shown and WC.Setting("panelSizeMode") == "auto" and p.h == 320)
+    -- drag: the client sizes the frame; the release saves both sizes and the mode
+    grip.scripts.OnMouseDown(grip, "LeftButton")
+    assert(p.sizingFrom == "BOTTOMRIGHT" and p.resizable and p.bounds[1] == 280 and p.bounds[3] == 520)
+    p.w, p.h = 453, 410
+    p.scripts.OnSizeChanged(p, 453, 410)
+    assert(WC.Setting("panelWidth") == 450 and p.content.w == 402, "text reflows at the new width while dragging")
+    assert(p.h == 410, "a redraw does not fight the drag")
+    grip.scripts.OnMouseUp(grip, "LeftButton")
+    assert(p.sizingFrom == nil and WC.Setting("panelSizeMode") == "manual" and WC.Setting("panelHeight") == 410)
+    assert(WC.Setting("panelWidth") == 450 and p.w == 450 and p.h == 410)
+    WC.Refresh()
+    assert(p.h == 410, "manual keeps the saved height across redraws")
+    -- slider moves the width in manual mode too
+    WC.SetSetting("panelWidth", 300)
+    assert(p.w == 300 and p.h == 410 and p.content.w == 252)
+    -- right-click: auto again, width kept
+    grip.scripts.OnMouseUp(grip, "RightButton")
+    assert(WC.Setting("panelSizeMode") == "auto" and WC.Setting("panelWidth") == 300 and p.w == 300 and p.h == 320)
+    -- the settings choice does the same without the grip
+    WC.SetSetting("panelSizeMode", "manual")
+    assert(p.h == 410)
+    WC.SetSetting("panelSizeMode", "auto")
+    -- bounds
+    local lo, hi = WC.PanelHeightBounds()
+    local w, h = WC.ClampPanelSize(9999, 1)
+    assert(w == 520 and h == lo and lo >= 44 + 2 * WC.LINE_HEIGHT)
+    w, h = WC.ClampPanelSize(10, 99999)
+    assert(w == 280 and h == hi and hi == math.floor(UIParent:GetHeight() > 0 and UIParent:GetHeight() * 0.9 or 900))
+    WC.SetSetting("panelSizeMode", "manual"); WC.SetSetting("panelHeight", 4000)
+    assert(p.h == hi)
+    WC.SetSetting("panelSizeMode", "auto")
+    -- combat: refused, and a drag in progress stops and saves
+    COMBAT = true
+    grip.scripts.OnMouseDown(grip, "LeftButton")
+    assert(p.sizingFrom == nil)
+    COMBAT = false
+    grip.scripts.OnMouseDown(grip, "LeftButton")
+    assert(p.sizingFrom == "BOTTOMRIGHT")
+    p.w, p.h = 360, 380
+    WC.StopPanelSizing()
+    assert(p.sizingFrom == nil and not p.sizing and WC.Setting("panelHeight") == 380 and WC.Setting("panelSizeMode") == "manual")
+    -- tooltip
+    local lines = WC.GripTipLines()
+    assert(lines[1][1] == "Size: Manual" and lines[2][1] == "Drag: resize" and lines[3][1] == "Right-click: automatic size")
+    -- locked: hidden, refuses, tooltip says why
+    WC.SetSetting("locked", true)
+    assert(not grip.shown)
+    grip.scripts.OnMouseDown(grip, "LeftButton")
+    assert(p.sizingFrom == nil)
+    lines = WC.GripTipLines()
+    assert(#lines == 2 and lines[2][1] == "Unlock the panel in Settings to resize")
+    WC.SetSetting("locked", false)
+    assert(grip.shown)
+end }
 
 -- Quest chains (Plan.lua 1.1): ghosts, "then:" lines, live activation, "New", the unplanned entry, the observation log.
 local TIME_NOW = 1000

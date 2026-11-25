@@ -48,6 +48,7 @@ events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_REGEN_DISABLED" then
+        if WC.StopPanelSizing then WC.StopPanelSizing() end
         WC.EnterCombat()
     elseif event == "PLAYER_REGEN_ENABLED" then
         WC.LeaveCombat()

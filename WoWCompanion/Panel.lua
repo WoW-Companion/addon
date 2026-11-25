@@ -7,6 +7,95 @@ local FULL_HEIGHT, COMPACT_MIN = 320, 150
 local WIDTH_MARGIN = 48 -- the panel is this much wider than its text column; the width is the panelWidth setting (340)
 local function panel_width() return WC.Setting("panelWidth") end
 local function content_width() return panel_width() - WIDTH_MARGIN end
+
+-- Manual size: the grip sets panelSizeMode to "manual" and saves panelWidth and panelHeight; right-click is Auto again.
+-- Bounds: width is the slider's range; height runs from the title, step line and two rows up to 90% of the screen.
+local WIDTH_MIN, WIDTH_MAX, SCREEN_FRACTION = 280, 520, 0.9
+
+function WC.PanelHeightBounds()
+    local f = WC.panel
+    local pad = WC.Setting("padding")
+    local lo = math.ceil(((f and f.scrollTop) or SCROLL_TOP) + pad + 2 * WC.LINE_HEIGHT)
+    local screen = (UIParent and UIParent.GetHeight and UIParent:GetHeight()) or 0
+    if not screen or screen <= 0 then screen = (GetScreenHeight and GetScreenHeight()) or 1000 end
+    local scale = (f and f.GetScale and f:GetScale()) or 1
+    if not scale or scale <= 0 then scale = 1 end
+    return lo, math.max(lo, math.floor(screen * SCREEN_FRACTION / scale))
+end
+
+-- The width and height inside the bounds.
+function WC.ClampPanelSize(w, h)
+    local lo, hi = WC.PanelHeightBounds()
+    return math.max(WIDTH_MIN, math.min(WIDTH_MAX, w)), math.max(lo, math.min(hi, h))
+end
+
+-- The size the panel takes: the saved size in Manual; in Auto the width setting, the full height or (compact) the fit.
+function WC.PanelSize(fit)
+    local w = panel_width()
+    if WC.Setting("panelSizeMode") == "manual" then
+        local _, h = WC.ClampPanelSize(w, WC.Setting("panelHeight"))
+        return w, h
+    end
+    return w, fit or FULL_HEIGHT
+end
+
+-- The grip's tooltip: { text, gold } lines.
+function WC.GripTipLines()
+    local out = { { L["GRIP_TIP_" .. WC.Setting("panelSizeMode")], true } }
+    if WC.Setting("locked") then
+        out[#out + 1] = { L.GRIP_TIP_LOCKED, false }
+    else
+        out[#out + 1] = { L.GRIP_TIP_DRAG, false }
+        out[#out + 1] = { L.GRIP_TIP_RESET, false }
+    end
+    return out
+end
+
+-- Starts a drag-resize from the bottom-right corner. Refused while locked or in combat.
+function WC.StartPanelSizing()
+    local f = WC.panel
+    if not f or f.sizing or WC.Setting("locked") or WC.inCombat or (InCombatLockdown and InCombatLockdown()) then return false end
+    local lo, hi = WC.PanelHeightBounds()
+    if f.SetResizable then f:SetResizable(true) end
+    if f.SetResizeBounds then f:SetResizeBounds(WIDTH_MIN, lo, WIDTH_MAX, hi)
+    else
+        if f.SetMinResize then f:SetMinResize(WIDTH_MIN, lo) end
+        if f.SetMaxResize then f:SetMaxResize(WIDTH_MAX, hi) end
+    end
+    f.sizing = true
+    f:StartSizing("BOTTOMRIGHT")
+    return true
+end
+
+-- Ends a drag-resize (also on combat) and saves the size: Manual, with the width in the panelWidth setting.
+function WC.StopPanelSizing()
+    local f = WC.panel
+    if not f or not f.sizing then return end
+    f.sizing = false
+    f:StopMovingOrSizing()
+    local w, h = WC.ClampPanelSize(f:GetWidth(), f:GetHeight())
+    local point, _, relPoint, x, y = f:GetPoint()
+    if point then WC.db.position = { point = point, relPoint = relPoint, x = x, y = y } end
+    WC.db.settings.panelSizeMode = "manual"
+    WC.db.settings.panelHeight = WC.Repair(WC.DEF_OF.panelHeight, h)
+    WC.SetSetting("panelWidth", w)
+end
+
+-- Right-click on the grip: Automatic size again; the width stays.
+function WC.ResetPanelSize()
+    WC.SetSetting("panelSizeMode", "auto")
+end
+
+-- While dragging, the width follows the cursor live: the text wraps at the new width as it moves.
+local function sizing_changed(f, w)
+    if not f.sizing then return end
+    w = math.max(WIDTH_MIN, math.min(WIDTH_MAX, math.floor((w or 0) / 10 + 0.5) * 10))
+    if w ~= WC.db.settings.panelWidth then
+        WC.db.settings.panelWidth = w
+        if WC.SyncOptions then WC.SyncOptions() end
+        WC.Refresh()
+    end
+end
 local SCROLL_TOP = 44 -- the scroll area's offset from the frame's top; the other edges follow the padding setting
 local STEP, TITLE_X, RIGHT_W = 16, 32, 64 -- indent step; where a quest title starts; width kept for a right-aligned note
 
@@ -27,6 +116,7 @@ function WC.ApplyPanelLook()
         local bc = WC.Setting("borderColor")
         f:SetBackdropBorderColor(bc[1], bc[2], bc[3], WC.Setting("borderShow") and WC.Setting("borderOpacity") or 0)
     end
+    if f.grip then f.grip:SetShown(not WC.Setting("locked")) end
     local hc = WC.Setting("headerColor")
     f.title:SetTextColor(hc[1], hc[2], hc[3])
     f.title:ClearAllPoints()
@@ -184,7 +274,7 @@ WC.view = { expanded = {} }
 function WC.CreatePanel()
     -- A light, translucent frame: a thin border and a dark wash instead of the dialog template.
     local f = CreateFrame("Frame", "WoWCompanionPanel", UIParent, "BackdropTemplate")
-    f:SetSize(panel_width(), FULL_HEIGHT)
+    f:SetSize(WC.PanelSize())
     if f.SetBackdrop then
         f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     end
@@ -242,6 +332,32 @@ function WC.CreatePanel()
     f.scroll:SetScrollChild(f.content)
 
     f.rows = {}
+
+    -- The resize grip: the chat frame's size-grabber in the bottom-right corner.
+    local grip = CreateFrame("Button", "WoWCompanionPanelGrip", f)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+    grip:SetFrameLevel(f:GetFrameLevel() + 5)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    grip:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then WC.StartPanelSizing() end
+    end)
+    grip:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" then WC.StopPanelSizing() elseif button == "RightButton" then WC.ResetPanelSize() end
+    end)
+    grip:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        for _, l in ipairs(WC.GripTipLines()) do
+            if l[2] then GameTooltip:AddLine(l[1], 1, 0.82, 0) else GameTooltip:AddLine(l[1], 1, 1, 1) end
+        end
+        GameTooltip:Show()
+    end)
+    grip:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.grip = grip
+    f:SetScript("OnSizeChanged", function(self, w) sizing_changed(self, w) end)
 
     -- The compact toggle: a small text button beside the close button.
     local c = CreateFrame("Button", "WoWCompanionCompactButton", f)
@@ -486,7 +602,9 @@ function WC.Refresh()
     WC.HoverCheck()
     if WC.RefreshCard then WC.RefreshCard() end
     f.content:SetHeight(y)
-    f:SetSize(panel_width(), compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT)
+    if not f.sizing then -- the client sizes the frame itself while the grip is held
+        f:SetSize(WC.PanelSize(compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT))
+    end
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end
