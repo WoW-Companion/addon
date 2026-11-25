@@ -2113,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.48" and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.49" and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -6070,6 +6070,55 @@ cases[#cases + 1] = { "plan guidance: a route quest advances its objective, then
     assert(WC.plan.done[3] and s.label == "Pick up Quest 20" and not s.live, "advanced to the next undone step")
     assert(WC.StepNumber(s) == 4 and select(2, WC.PlanCounts()) == 4, "Step 4/4")
     assert(#WC.plan.live == 0)
+end }
+
+cases[#cases + 1] = { "current step: header, row and ring agree; an unready turn-in is skipped until its quest completes", function()
+    local WC = guided_client()
+    QUESTS[10] = "active"
+    OBJ[10] = { { text = "Test Wolf slain: 3/3", finished = true }, { text = "Test Shield: 0/1", finished = false } }
+    WC.plan.done[1], WC.plan.done[2] = true, true
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    -- the quest's turn-in (step 3) is not ready: the current step is never it
+    assert(WC.StepUnready(WC.plan.steps[3]) and WC.RouteNext().n == 4, "route skips the unready turn-in")
+    local cur = WC.PlanNext()
+    assert(cur.n ~= 3 and cur.kind ~= "turnin", "an unready turn-in is not current")
+    assert(WC.PanelHeader().step == string.format("Step %d/4", cur.n), WC.PanelHeader().step)
+    local model = WC.PanelModel({ steps = WC.plan.steps, done = WC.plan.done, nextStep = cur, allZones = true })
+    local marked, row3
+    for _, r in ipairs(model.rows) do
+        if r.isNext then marked = r.n end
+        if r.n == 3 then row3 = r end
+    end
+    assert(marked == cur.n, "the highlighted row is the header's step")
+    assert(row3 and row3.unready and row3.sub == "after: 1 of 2 done", "dimmed, with its progress")
+    local g = WC.PinGroups(WC.plan.steps, 7001, WC.plan.done, cur)
+    local ringed
+    for _, grp in ipairs(g) do
+        if grp.isNext then ringed = grp.next.n end
+    end
+    assert(ringed == cur.n, "the ringed pin is the same step")
+    -- the quest completes: its turn-in is current at once
+    OBJ[10][2].finished = true; QUESTS[10] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(not WC.StepUnready(WC.plan.steps[3]) and WC.PlanNext().kind == "turnin" and WC.PlanNext().n == 3)
+    assert(WC.PanelHeader().step == "Step 3/4")
+end }
+
+cases[#cases + 1] = { "map labels: stacked steps join with a dot and no label shows an id", function()
+    local WC = guided_client()
+    local mid = "\194\183"
+    assert(WC.PinLabel({ { n = 10 }, { n = 11 } }) == "10" .. mid .. "11")
+    assert(WC.PinLabel({ { n = 10 }, { n = 10, live = true }, { n = 11 } }) == "10" .. mid .. "11", "no repeats")
+    assert(WC.PinLabel({ { n = 3 }, { n = 100529, synthetic = true, live = true } }) == "3", "an id never joins a label")
+    assert(WC.PinLabel({ { n = 100529, synthetic = true, quest = "Quest 30", label = "x" } }) == "Quest 30")
+    assert(WC.PinLabel({ { n = 100529, synthetic = true, quest = "", label = "Kill" } }) == "Kill")
+    -- a followed quest the route does not list gets a pin: its label is not "100030"
+    QUESTS[30] = "active"
+    OBJ[30] = { { text = "Test Drake: 0/1", finished = false } }
+    WC.LiveUpdate("QUEST_ACCEPTED", 30)
+    local live = WC.plan.live[1]
+    assert(live and live.questID == 30 and live.synthetic, "synthetic live step")
+    assert(not WC.PinLabel({ live }):find("%d%d%d%d%d"), WC.PinLabel({ live }))
 end }
 
 cases[#cases + 1] = { "plan guidance: a quest the plan does not list is ignored", function()
