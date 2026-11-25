@@ -2,13 +2,13 @@
 -- happened, kept in WoWCompanionDB.observed. Plain data in our own SavedVariables: it leaves the game only when the
 -- client saves (a /reload, logout or quit), and the addon never asks for one. The overlay reads it at each natural
 -- save to route quests the plan did not know and to learn which turn-ins unlock which quests.
--- Format: { version = 1, events = { { t, ev, questID, character, map, x, y, npc?, offPlan? }, ... } }, oldest first.
+-- Format: { version = 2, events = { { t, ev, questID, character, map, x, y, npc?, offPlan? }, ... } }, oldest first.
 
 local WC = WoWCompanion
 local L = WC.L
 
 WC.OBSERVED_CAP = 400 -- events kept; the oldest are dropped first
-WC.OBSERVED_VERSION = 1
+WC.OBSERVED_VERSION = 2
 local REMOVED_WAIT = 1 -- seconds a removed quest waits to tell a turn-in from an abandon
 
 local turned = {}      -- quest id -> true for turn-ins seen this session (a removal right after one is not an abandon)
@@ -44,6 +44,7 @@ function WC.ObservedAdd(ev, questID, offPlan, where)
             local name = UnitName("npc")
             if type(name) == "string" and name ~= "" then e.npc = name end
         end
+        if WC.SeenGiverFor then WC.SeenGiverFor(e) end
         if offPlan then e.offPlan = true end
     end
     o.events[#o.events + 1] = e
