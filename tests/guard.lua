@@ -67,6 +67,16 @@ for name in ([[
 ]]):gmatch("%S+") do seen_allowed[name] = true end
 for name in pairs(capture_allowed) do seen_allowed[name] = true end
 
+-- The map display APIs the world-map side panel (MapPanel.lua) may call on the client's map frame and its scroll
+-- container. Each only READS the view (scale, scroll, scale limits, shown map) or asks the map to show something
+-- (SetMapID, SetPanTarget, SetZoomTarget); none is protected, none acts for the player, none sends anything.
+local map_allowed = {}
+for name in ([[
+    GetMapID SetMapID ScrollContainer SetPanTarget SetZoomTarget GetScaleForMinZoom GetCanvasScale
+    GetNormalizedHorizontalScroll GetNormalizedVerticalScroll C_Map.GetMapInfo C_Map.GetMapWorldSize
+    isMaximized IsMaximized HandleUserActionToggleSidePanel SidePanelToggle
+]]):gmatch("%S+") do map_allowed[name] = true end
+
 local handle = assert(io.popen('find "' .. root .. '" -name "*.lua" | sort'))
 local files = {}
 for f in handle:lines() do files[#files + 1] = f end
@@ -76,6 +86,20 @@ local bad = 0
 local function report(file, n, msg, line)
     bad = bad + 1
     print(string.format("%s:%d: %s: %s", file, n, msg, (line:gsub("^%s+", ""))))
+end
+
+local function check_map(file, n, code, line)
+    if not file:find("MapPanel%.lua$") then return end
+    for _, obj in ipairs({ "WorldMapFrame", "map", "sc" }) do
+        for name in code:gmatch("%f[%w_]" .. obj .. "[%.:]([%w_]+)") do
+            if not map_allowed[name] and not ({ SetMapID = 1, HookScript = 1, IsShown = 1 })[name] then
+                report(file, n, "map API not on the read-only allowlist: " .. name, line)
+            end
+        end
+    end
+    for name in code:gmatch("(C_Map%.[%a_]+)") do
+        if not map_allowed[name] then report(file, n, "map API not on the read-only allowlist: " .. name, line) end
+    end
 end
 
 local function check_capture(file, n, code, line)
@@ -99,6 +123,7 @@ for _, file in ipairs(files) do
         n = n + 1
         local code = line:gsub("%-%-.*$", "")
         check_capture(file, n, code, line)
+        check_map(file, n, code, line)
         if code:find("SlashCmdList%s*%[.-%]%s*=%s*function") then in_slash = true end
         for _, name in ipairs(denied) do
             if code:find("%f[%w_]" .. name .. "%f[^%w_]") then report(file, n, "forbidden call " .. name, line) end

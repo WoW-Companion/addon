@@ -157,16 +157,80 @@ end
 
 -- ---------------------------------------------------------------- row clicks
 
--- Centres the world map on a step and pings its badge. Only the map's public SetMapID and the scroll container's
--- SetPanTarget are used, each guarded.
+-- Where the map's view is, as fractions of the whole canvas: the visible fraction f (1 = the whole zone shows), and the
+-- view's centre cx, cy. Nil when the client's scroll container cannot tell (then the map is never moved).
+function WC.MapView(sc)
+    if not sc then return nil end
+    local fn = { "GetCanvasScale", "GetScaleForMinZoom", "GetNormalizedHorizontalScroll", "GetNormalizedVerticalScroll" }
+    local v = {}
+    for i, name in ipairs(fn) do
+        if type(sc[name]) ~= "function" then return nil end
+        local ok, r = pcall(sc[name], sc)
+        if not (ok and tonumber(r)) then return nil end
+        v[i] = tonumber(r)
+    end
+    if v[1] <= 0 or v[2] <= 0 then return nil end
+    local f = math.min(1, v[2] / v[1])
+    return { f = f, cx = f / 2 + v[3] * (1 - f), cy = f / 2 + v[4] * (1 - f) }
+end
+
+-- Where to pan so a step at (x, y) (0..1) is in view and the view stays inside the canvas; nil when it already is in
+-- view (or the view is unknown, or the whole zone shows).
+function WC.PanTargetFor(view, x, y)
+    if not view or view.f >= 1 then return nil end
+    local half = view.f / 2
+    if math.abs(x - view.cx) <= half * 0.9 and math.abs(y - view.cy) <= half * 0.9 then return nil end
+    local function clamp(v) return math.max(half, math.min(1 - half, v)) end
+    return clamp(x), clamp(y)
+end
+
+-- Brings a step into view on the world map and pings its badge. The shown map is switched with SetMapID when the step
+-- is on another one; on the same map the map moves only when the step is off-screen, and never past its own edges. Only
+-- the map's public SetMapID and the scroll container's reads and SetPanTarget are used, each guarded.
 function WC.CenterOnStep(step)
     local map = WorldMapFrame
     if map then
-        if map.SetMapID and shown_map() ~= step.map then pcall(map.SetMapID, map, step.map) end
-        local sc = map.ScrollContainer
-        if sc and type(sc.SetPanTarget) == "function" then pcall(sc.SetPanTarget, sc, step.x / 100, step.y / 100) end
+        if shown_map() ~= step.map then
+            if map.SetMapID then pcall(map.SetMapID, map, step.map) end
+        else
+            local sc = map.ScrollContainer
+            local tx, ty = WC.PanTargetFor(WC.MapView(sc), step.x / 100, step.y / 100)
+            if tx and type(sc.SetPanTarget) == "function" then pcall(sc.SetPanTarget, sc, tx, ty) end
+        end
     end
     if (step.questID or 0) > 0 then WC.PulseQuests({ [step.questID] = true }, 3) end
+end
+
+-- The way back: the map's default view (whole zone, centred).
+function WC.ResetMapView()
+    local map = WorldMapFrame
+    local sc = map and map.ScrollContainer
+    if not sc then return false end
+    if type(sc.GetScaleForMinZoom) == "function" and type(sc.SetZoomTarget) == "function" then
+        local ok, minz = pcall(sc.GetScaleForMinZoom, sc)
+        if ok and tonumber(minz) then pcall(sc.SetZoomTarget, sc, minz) end
+    end
+    if type(sc.SetPanTarget) == "function" then pcall(sc.SetPanTarget, sc, 0.5, 0.5) end
+    return true
+end
+
+-- True when every step of the plan that the list shows is on the shown map, so the zone switch would change nothing.
+function WC.PanelSingleMap(steps, mapID)
+    if not mapID then return false end
+    local n = 0
+    for _, s in ipairs(steps or {}) do
+        if not WC.StepLocked(s) then
+            n = n + 1
+            if s.map ~= mapID then return false end
+        end
+    end
+    return n > 0
+end
+
+local function zone_name(id)
+    local ok, info = pcall(function() return C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id) end)
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
+    return "#" .. tostring(id)
 end
 
 -- The selected step (its row and map badge stay highlighted until another is clicked, the same one again, or the map
@@ -343,8 +407,10 @@ function WC.RefreshMapPanel()
     if not (f and st.selected and f:IsShown()) then return end
     WC.UpdateMapPanelHeader()
     local p = WC.plan
-    local all = WC.PanelAllZones()
+    local single = WC.ZoneButtonDisabled()
+    local all = WC.PanelAllZones() and not single
     f.zoneBtn:SetText(all and L.PANEL_ALL_ZONES or L.PANEL_THIS_MAP)
+    if f.zoneBtn.SetEnabled then f.zoneBtn:SetEnabled(not single) end
     local fs = f.zoneBtn.GetFontString and f.zoneBtn:GetFontString()
     local tw = fs and fs.GetStringWidth and fs:GetStringWidth()
     f.zoneBtn:SetSize((type(tw) == "number" and tw > 0) and (tw + 24) or 90, 22) -- sized to its text, like the client's small buttons
@@ -353,14 +419,31 @@ function WC.RefreshMapPanel()
     f.child:SetWidth(f.rowWidth)
     local used = 0
     local y = HEADER_H
-    local function put(m)
+    local heads, lastMap = 0, nil
+    f.zoneHeads = f.zoneHeads or {}
+    local function put(m, grouped)
+        if grouped and m.step.map ~= lastMap then
+            lastMap = m.step.map
+            heads = heads + 1
+            local h = f.zoneHeads[heads]
+            if not h then
+                h = f.child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                f.zoneHeads[heads] = h
+            end
+            h:ClearAllPoints()
+            h:SetPoint("TOPLEFT", f.child, "TOPLEFT", PAD + 4, -(y + 4))
+            h:SetText(WC.SafeText(zone_name(lastMap)))
+            h:SetTextColor(SEL[1], SEL[2], SEL[3])
+            h:Show()
+            y = y + 22
+        end
         used = used + 1
         y = y + fill_row(f, used, m, y).hh
     end
     if p then
         local model = WC.PanelModel({ steps = p.steps, done = p.done, nextStep = WC.PlanNext(), mapID = shown_map(),
             allZones = all, showDone = WC.Setting("panelShowDone") })
-        for _, m in ipairs(model.rows) do put(m) end
+        for _, m in ipairs(model.rows) do put(m, all) end
         f.empty:SetShown(#model.rows == 0 and #model.done == 0)
         f.empty:SetText(L.PANEL_EMPTY)
         f.doneHead:SetShown(#model.done > 0)
@@ -369,7 +452,7 @@ function WC.RefreshMapPanel()
             f.doneHead:ClearAllPoints()
             f.doneHead:SetPoint("TOPLEFT", f.child, "TOPLEFT", 4, -y - 4)
             y = y + 26
-            if st.doneOpen then for _, m in ipairs(model.done) do put(m) end end
+            if st.doneOpen then for _, m in ipairs(model.done) do put(m, false) end end
         end
         f.footer:SetText(WC.PanelFooter(p.steps))
     else
@@ -379,6 +462,7 @@ function WC.RefreshMapPanel()
         f.footer:SetText("")
     end
     for i = used + 1, #f.rows do f.rows[i]:Hide() end
+    for i = heads + 1, #f.zoneHeads do f.zoneHeads[i]:Hide() end
     f.footer:ClearAllPoints()
     f.footer:SetPoint("TOPLEFT", f.child, "TOPLEFT", PAD + 4, -(y + 6))
     y = y + 24
@@ -526,6 +610,23 @@ local function create_frame()
     f.zoneBtn:SetSize(90, 22)
     f.zoneBtn:SetPoint("TOPLEFT", f.advice, "BOTTOMLEFT", 0, -6)
     f.zoneBtn:SetScript("OnClick", function() WC.ToggleMapPanelZones() end)
+    f.zoneBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(WC.ZoneButtonTip(), 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.zoneBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.wholeBtn = CreateFrame("Button", "WoWCompanionMapPanelWhole", f.child, "UIPanelButtonTemplate")
+    f.wholeBtn:SetSize(90, 22)
+    f.wholeBtn:SetText(L.PANEL_WHOLE_ZONE)
+    f.wholeBtn:SetPoint("LEFT", f.zoneBtn, "RIGHT", 6, 0)
+    f.wholeBtn:SetScript("OnClick", function() WC.ResetMapView() end)
+    f.wholeBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L.TIP_PANEL_WHOLE_ZONE, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    f.wholeBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.empty = f.child:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     f.empty:SetPoint("TOPLEFT", f.child, "TOPLEFT", 4, -HEADER_H - 8)
     f.empty:SetWidth(f.rowWidth - 8)
@@ -544,7 +645,7 @@ end
 -- showing over the client's quest list); showing it brings the fixed ones back (rows and the list's own pieces are
 -- shown by the redraw).
 local function panel_parts(f)
-    local t = { f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.empty, f.doneHead, f.footer }
+    local t = { f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.wholeBtn, f.empty, f.doneHead, f.footer }
     for _, r in ipairs(f.rows or {}) do t[#t + 1] = r end
     return t
 end
@@ -559,14 +660,26 @@ end
 function WC.ShowMapPanelParts(f)
     f = f or WC.mapPanel
     if not f then return end
-    for _, p in ipairs({ f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.footer }) do
+    for _, p in ipairs({ f.bg, f.scroll, f.child, f.title, f.stepText, f.advice, f.eye, f.zoneBtn, f.wholeBtn, f.footer }) do
         if p.Show then p:Show() end
     end
+end
+
+-- True when the zone switch has nothing to switch: every step of the plan is on the shown map.
+function WC.ZoneButtonDisabled()
+    return WC.plan ~= nil and WC.PanelSingleMap(WC.plan.steps, shown_map())
+end
+
+-- What the zone button's tooltip says for its current state.
+function WC.ZoneButtonTip()
+    if WC.ZoneButtonDisabled() then return L.TIP_PANEL_ZONE_SINGLE end
+    return WC.PanelAllZones() and L.TIP_PANEL_ZONE_ALL or L.TIP_PANEL_ZONE_THIS
 end
 
 -- Flips the zone filter for the session (the setting itself is the starting point).
 function WC.ToggleMapPanelZones()
     local st = WC.panelState
+    if WC.ZoneButtonDisabled() then return end
     st.allZones = not WC.PanelAllZones()
     WC.RefreshMapPanel()
 end

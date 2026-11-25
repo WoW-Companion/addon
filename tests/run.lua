@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.37" and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.38" and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -2471,7 +2471,13 @@ local function side_panel_client(opts)
     WorldMapFrame.mapID = 7001
     WorldMapFrame.GetMapID = function(self) return self.mapID end
     WorldMapFrame.SetMapID = function(self, id) self.setCalls = (self.setCalls or 0) + 1; self.mapID = id end
-    WorldMapFrame.ScrollContainer = { SetPanTarget = function(self, x, y) self.pan = { x, y } end }
+    WorldMapFrame.ScrollContainer = { scale = 1, minScale = 1, hs = 0.5, vs = 0.5,
+        SetPanTarget = function(self, x, y) self.pan = { x, y } end,
+        SetZoomTarget = function(self, z) self.zoom = z end,
+        GetScaleForMinZoom = function(self) return self.minScale end,
+        GetCanvasScale = function(self) return self.scale end,
+        GetNormalizedHorizontalScroll = function(self) return self.hs end,
+        GetNormalizedVerticalScroll = function(self) return self.vs end }
     QuestMapFrame = fake_column({ { top = 800, left = 990 }, { top = 753, left = 990 } })
     if opts.native then
         QuestMapFrame.added, QuestMapFrame.modes = {}, {}
@@ -2530,10 +2536,51 @@ cases[#cases + 1] = { "side panel (native): the client's public content-frame pa
     side_panel_done()
 end }
 
+cases[#cases + 1] = { "map view: visible steps do not pan, off-screen steps pan clamped, another map switches, reset, toggle states", function()
+    local WC, tab = side_panel_client()
+    tab.scripts.OnClick(tab, "LeftButton")
+    local sc, map = WorldMapFrame.ScrollContainer, WorldMapFrame
+    sc.scale, sc.minScale, sc.hs, sc.vs = 2, 1, 0, 0 -- zoomed in on the top-left quarter
+    local inview = { n = 1, map = 7001, x = 20, y = 20 }
+    WC.CenterOnStep(inview)
+    assert(sc.pan == nil and map.setCalls == nil, "a visible step causes no pan")
+    WC.CenterOnStep({ n = 2, map = 7001, x = 100, y = 100 })
+    assert(sc.pan and sc.pan[1] == 0.75 and sc.pan[2] == 0.75, "clamped so the view stays inside the canvas")
+    sc.pan = nil
+    WC.CenterOnStep({ n = 3, map = 7001, x = 0, y = 90 })
+    assert(sc.pan[1] == 0.25 and sc.pan[2] == 0.75)
+    sc.pan = nil
+    WC.CenterOnStep({ n = 4, map = 7002, x = 50, y = 50 })
+    assert(map.mapID == 7002 and map.setCalls == 1 and sc.pan == nil, "another map is switched to")
+    assert(WC.ResetMapView() and sc.zoom == 1 and sc.pan[1] == 0.5 and sc.pan[2] == 0.5, "the way back")
+    sc.GetCanvasScale = nil
+    sc.pan = nil
+    WC.CenterOnStep({ n = 5, map = 7002, x = 99, y = 99 })
+    assert(sc.pan == nil, "a view the client cannot report is never moved")
+    -- the toggle: both states, and disabled when every step shares the map
+    local f = WC.mapPanel
+    map.mapID = 7001
+    WC.RefreshMapPanel()
+    assert(not WC.ZoneButtonDisabled() and WC.ZoneButtonTip():find("only the steps on the map", 1, true))
+    f.zoneBtn.scripts.OnClick(f.zoneBtn)
+    assert(f.zoneBtn.text == "All zones" and WC.ZoneButtonTip():find("grouped by zone", 1, true))
+    assert(f.zoneHeads and f.zoneHeads[1]:IsShown(), "all zones groups steps under zone headers")
+    local one = {}
+    for i, s in ipairs(WC.plan.steps) do one[i] = s; if s.map ~= 7001 then one[i] = setmetatable({ map = 7001 }, { __index = s }) end end
+    WC.plan.steps = one
+    WC.RefreshMapPanel()
+    assert(WC.ZoneButtonDisabled() and WC.ZoneButtonTip() == "All your steps are on this map")
+    assert(f.zoneBtn.enabled == false, "the button is disabled")
+    local before = WC.PanelAllZones()
+    WC.ToggleMapPanelZones()
+    assert(WC.PanelAllZones() == before, "a disabled toggle changes nothing")
+    side_panel_done()
+end }
+
 cases[#cases + 1] = { "side panel: map calls are only the guarded public ones (static check)", function()
-    local allowed = { isMaximized = true, IsMaximized = true, Hide = true, GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, AddContentFrame = true,
+    local allowed = { isMaximized = true, IsMaximized = true, Hide = true, GetMapID = true, SetMapID = true, ScrollContainer = true, SetPanTarget = true, SetZoomTarget = true, GetScaleForMinZoom = true, GetCanvasScale = true, GetNormalizedHorizontalScroll = true, GetNormalizedVerticalScroll = true, AddContentFrame = true,
         SetDisplayMode = true, displayMode = true, SidePanelToggle = true, GetFrameLevel = true, ContentsAnchor = true, QuestsFrame = true, GetChildren = true, HookScript = true, IsShown = true, Show = true, HandleUserActionToggleSidePanel = true, GetWidth = true }
-    local guarded = { SetMapID = true, SetPanTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
+    local guarded = { SetMapID = true, SetPanTarget = true, SetZoomTarget = true, AddContentFrame = true, SetDisplayMode = true, GetMapID = true }
     local n = 0
     for _, file in ipairs({ "MapPanel" }) do
         local ln = 0
@@ -2651,6 +2698,7 @@ cases[#cases + 1] = { "side panel rows: height grows with a wrapped sub-line, ro
     assert(y > 0, "the header rows come first")
     for i = 1, 20 do
         local r = f.rows[i]
+        if r.top ~= y then y = y + 22 end -- a zone header sits above the first row of each zone
         assert(r.top == y, "row " .. i .. " starts where the last ended")
         y = y + r.hh
     end
@@ -2711,9 +2759,9 @@ cases[#cases + 1] = { "side panel: hover links the row and its badge, a left cli
     -- left click: switches map when needed, centres, pings
     local far = f.rows[19]
     far.scripts.OnClick(far, "LeftButton")
-    assert(WorldMapFrame.mapID == 7002 and WorldMapFrame.ScrollContainer.pan[1] == 0.8 and WorldMapFrame.ScrollContainer.pan[2] == 0.8)
+    assert(WorldMapFrame.mapID == 7002 and WorldMapFrame.ScrollContainer.pan == nil, "another map: switch, do not pan")
     row.scripts.OnClick(row, "LeftButton")
-    assert(WorldMapFrame.mapID == 7001 and WorldMapFrame.ScrollContainer.pan[1] == 0.1)
+    assert(WorldMapFrame.mapID == 7001 and WorldMapFrame.ScrollContainer.pan == nil, "a whole-zone view needs no pan")
     assert(WC.hover.source == "card" and WC.hover.quests[1] == true, "the badge pings")
     -- right click opens the detail card; a travel step has none
     row.scripts.OnClick(row, "RightButton")
