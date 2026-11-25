@@ -45,6 +45,7 @@ local D = {
     { key = "showThen", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_THEN", name = "ShowThen" },
     { key = "showNew", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_NEW", name = "ShowNew" },
     { key = "keepObserved", type = "bool", default = true, page = "panel", box = "content", label = "KEEP_OBSERVED", name = "KeepObserved" },
+    { key = "recordCharacter", type = "bool", default = true, page = "panel", box = "content", label = "RECORD_CHARACTER", name = "RecordCharacter" },
     { key = "hoverHighlight", type = "bool", default = true, page = "panel", box = "interact", label = "HOVER_HIGHLIGHT", name = "HoverHighlight" },
     { key = "hoverDim", type = "bool", default = false, page = "panel", box = "interact", label = "HOVER_DIM", name = "HoverDim" },
     { key = "clickAction", type = "choice", default = "questlog", choices = { "questlog", "card" }, page = "panel", box = "interact", label = "CLICK_ACTION_LABEL", name = "ClickAction", choiceKey = "CLICK_", widget = "dropdown" },
