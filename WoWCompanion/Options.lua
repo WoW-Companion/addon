@@ -179,7 +179,7 @@ end
 -- Opens the client's colour picker on the current colour; each change is saved and drawn at once, and
 -- cancelling puts the old colour back.
 function WC.PickColor(def, onChange)
-    local c = WC.Setting(def.key)
+    local c = def.key == "nextLineColor" and WC.NextLineColor() or WC.Setting(def.key)
     local r, g, b = c[1], c[2], c[3]
     local picker = ColorPickerFrame
     if not picker then return end
@@ -217,7 +217,7 @@ local function make_color(f, parent, def, y)
         WC.PickColor(def, function(c) WC.SetSetting(def.key, c) end)
     end)
     b.sync = function()
-        local c = WC.Setting(def.key)
+        local c = def.key == "nextLineColor" and WC.NextLineColor() or WC.Setting(def.key)
         b.swatch:SetColorTexture(c[1], c[2], c[3], 1)
     end
     f.widgets[#f.widgets + 1] = b
