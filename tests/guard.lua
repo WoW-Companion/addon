@@ -27,11 +27,16 @@ for name in ([[
     GetNumFactions GetFactionInfo
     IsTradeSkillLinked GetTradeSkillLine GetNumTradeSkills GetTradeSkillInfo GetTradeSkillItemLink
     GetCraftDisplaySkillLine GetCraftName GetNumCrafts GetCraftInfo GetCraftItemLink
-    C_TradeSkillUI.GetAllRecipeIDs C_TradeSkillUI.GetRecipeInfo C_TradeSkillUI.GetBaseProfessionInfo
+    C_TradeSkillUI.GetAllRecipeIDs C_TradeSkillUI.GetRecipeInfo C_TradeSkillUI.GetRecipeSchematic
+    GetTradeSkillNumReagents GetTradeSkillReagentInfo GetTradeSkillReagentItemLink
+    GetCraftNumReagents GetCraftReagentInfo GetCraftReagentItemLink C_Timer.After C_TradeSkillUI.GetBaseProfessionInfo
     C_TradeSkillUI.GetTradeSkillLine C_TradeSkillUI.IsTradeSkillLinked C_TradeSkillUI.IsTradeSkillGuild
     CreateFrame
 ]]):gmatch("%S+") do capture_allowed[name] = true end
 
+-- GetTradeSkill/GetCraft...Reagent* and C_TradeSkillUI.GetRecipeSchematic only READ a recipe's
+-- reagents and what it makes; GetMerchantItemID/CostInfo/CostItem only READ one merchant item's id and extra costs;
+-- C_Timer.After only delays our own read; issecretvalue (called through WC.Clean) only tests a value.
 -- C_MerchantFrame.GetNumItems/GetItemInfo/GetItemLink only READ the open merchant window's stock (the modern
 -- client's counterpart of GetMerchantNumItems/GetMerchantItemInfo); they buy nothing.
 -- GetTrainerServiceLevelReq only READS the level a trainer offer needs; the C_TradeSkillUI reads (above) only READ
@@ -48,6 +53,7 @@ for name in ([[
     C_MerchantFrame.GetNumItems C_MerchantFrame.GetItemInfo C_MerchantFrame.GetItemLink
     GetNumLootItems GetLootSlotLink GetLootSlotInfo
     GetSpellInfo
+    GetMerchantItemID GetMerchantItemCostInfo GetMerchantItemCostItem C_Timer.After
 ]]):gmatch("%S+") do seen_allowed[name] = true end
 for name in pairs(capture_allowed) do seen_allowed[name] = true end
 

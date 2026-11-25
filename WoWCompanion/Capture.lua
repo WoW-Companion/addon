@@ -38,7 +38,7 @@ local function link_fields(link, kind)
 end
 
 local function item_id(link)
-    local f = link_fields(link, "item")
+    local f = link_fields(WC.Clean(link), "item")
     return f and f[1]
 end
 
@@ -272,11 +272,26 @@ end
 local DIFFICULTY = { optimal = "orange", medium = "yellow", easy = "green", trivial = "grey",
     [0] = "orange", [1] = "yellow", [2] = "green", [3] = "grey" }
 
+local MAX_REAGENTS = 8
+
 local function recipe_entry(name, kind, l)
+    l = WC.Clean(l)
     local spell = link_fields(l, "enchant") or link_fields(l, "spell")
     local item = link_fields(l, "item")
-    return { name = name, id = spell and spell[1] or (item and item[1]), item = item and item[1] or nil,
-        difficulty = DIFFICULTY[kind] }
+    return { name = WC.Clean(name), id = spell and spell[1] or (item and item[1]), item = item and item[1] or nil,
+        difficulty = DIFFICULTY[WC.Clean(kind)] }
+end
+
+-- Classic path: the reagents of one recipe by index, { { item = id, count = n } }, at most MAX_REAGENTS.
+local function classic_reagents(i, numFn, infoFn, linkFn)
+    if not (numFn and infoFn and linkFn) then return nil end
+    local out = {}
+    for j = 1, math.min(tonumber(WC.Clean(numFn(i))) or 0, MAX_REAGENTS) do
+        local count = WC.Clean(select(3, infoFn(i, j)))
+        local id = item_id(WC.Clean(linkFn(i, j)))
+        if id then out[#out + 1] = { item = id, count = type(count) == "number" and count or 1 } end
+    end
+    if #out > 0 then return out end
 end
 
 local function store_recipes(r, profession, out)
@@ -285,14 +300,21 @@ local function store_recipes(r, profession, out)
     r.recipes[profession] = { seenAt = time(), entries = out }
 end
 
-local function read_recipes(r, profession, count, info, link)
+local function read_recipes(r, profession, count, info, link, reagents)
     local out = {}
     for i = 1, count or 0 do
         if #out >= MAX_RECIPES then break end
         if WC.SeenRaw and i <= 3 then WC.SeenRaw("tradeskill", "GetTradeSkillInfo", info(i, true)) end
         local name, kind = info(i)
         if type(name) == "string" and kind ~= "header" and kind ~= "subheader" then
-            out[#out + 1] = recipe_entry(name, kind, link and link(i))
+            local e = recipe_entry(name, kind, link and link(i))
+            if reagents then
+                local ok, list = pcall(reagents, i)
+                if ok then e.reagents = list
+                elseif WC.SeenError then WC.SeenError("tradeskill", list) end
+            end
+            if e.item then e.makes = { item = e.item, count = 1 } end
+            out[#out + 1] = e
         end
     end
     store_recipes(r, profession, out)
@@ -317,10 +339,37 @@ local function read_modern_recipes(r)
         if WC.SeenRaw and #out < 3 and type(info) == "table" then
             WC.SeenRaw("tradeskill", "C_TradeSkillUI.GetRecipeInfo", id, info.name, info.learned, info.relativeDifficulty, info.difficulty)
         end
-        if type(info) == "table" and info.learned ~= false and type(info.name) == "string" then
-            local item = info.itemID
-            out[#out + 1] = { name = info.name, id = info.recipeID or id, item = item,
-                difficulty = DIFFICULTY[info.relativeDifficulty] or DIFFICULTY[info.difficulty] }
+        if type(info) == "table" and info.learned ~= false and type(WC.Clean(info.name)) == "string" then
+            local item = WC.Clean(info.itemID)
+            local e = { name = WC.Clean(info.name), id = WC.Clean(info.recipeID) or id, item = item,
+                difficulty = DIFFICULTY[WC.Clean(info.relativeDifficulty)] or DIFFICULTY[WC.Clean(info.difficulty)] }
+            local learnAt = WC.Clean(info.learnedAt or info.skillLineCurrentLevel)
+            if type(learnAt) == "number" and learnAt > 0 then e.learnSkill = learnAt end
+            if T.GetRecipeSchematic then
+                local okS, schem = pcall(T.GetRecipeSchematic, id, false)
+                if not okS then
+                    if WC.SeenError then WC.SeenError("tradeskill", schem) end
+                elseif type(schem) == "table" then
+                    local made = schem.outputItemID
+                    made = WC.Clean(made)
+                    if type(made) == "number" and made > 0 then
+                        e.item = e.item or made
+                        e.makes = { item = made, count = WC.Clean(schem.quantityMin) or 1 }
+                    end
+                    local reag = {}
+                    for _, slot in ipairs(type(schem.reagentSlotSchematics) == "table" and schem.reagentSlotSchematics or {}) do
+                        if #reag >= MAX_REAGENTS then break end
+                        local first = type(slot) == "table" and type(slot.reagents) == "table" and slot.reagents[1]
+                        local rid = type(first) == "table" and WC.Clean(first.itemID)
+                        local cnt = type(slot) == "table" and WC.Clean(slot.quantityRequired)
+                        if type(rid) == "number" and rid > 0 then
+                            reag[#reag + 1] = { item = rid, count = type(cnt) == "number" and cnt or 1 }
+                        end
+                    end
+                    if #reag > 0 then e.reagents = reag end
+                end
+            end
+            out[#out + 1] = e
         end
     end
     store_recipes(r, profession, out)
@@ -337,7 +386,8 @@ function readers.tradeskill(r)
                 function(i, raw)
                     if raw then return GetTradeSkillInfo(i) end
                     local nm, k = GetTradeSkillInfo(i); return nm, k
-                end, GetTradeSkillItemLink)
+                end, GetTradeSkillItemLink,
+                function(i) return classic_reagents(i, GetTradeSkillNumReagents, GetTradeSkillReagentInfo, GetTradeSkillReagentItemLink) end)
             return
         end
     end
@@ -351,7 +401,8 @@ function readers.craft(r)
         function(i, raw)
             if raw then return GetCraftInfo(i) end
             local n, _, k = GetCraftInfo(i); return n, k
-        end, GetCraftItemLink)
+        end, GetCraftItemLink,
+        function(i) return classic_reagents(i, GetCraftNumReagents, GetCraftReagentInfo, GetCraftReagentItemLink) end)
 end
 
 -- The order matters little; each part is read on its own so one failing read never costs the rest.
@@ -375,7 +426,10 @@ function WC.CaptureFlush()
             any = true
         end
     end
-    if any then r.capturedAt = time() end
+    if any then
+        WC.CleanTree(r) -- nothing secret is ever saved, whatever a read returned
+        r.capturedAt = time()
+    end
     return any
 end
 
@@ -434,11 +488,18 @@ local windowOpen = {}
 
 local frame = CreateFrame("Frame")
 for ev in pairs(EVENTS) do pcall(frame.RegisterEvent, frame, ev) end -- a client without an event just skips it
-for _, ev in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "TRADE_SKILL_CLOSE", "CRAFT_CLOSE", "PLAYER_REGEN_ENABLED" }) do
+for _, ev in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "TRADE_SKILL_CLOSE", "CRAFT_CLOSE", "PLAYER_REGEN_ENABLED",
+    "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }) do
     pcall(frame.RegisterEvent, frame, ev)
 end
-frame:SetScript("OnEvent", function(_, event)
-    if event == "BANKFRAME_OPENED" then
+local RECIPE_DELAY = 1 -- seconds after TRADE_SKILL_SHOW that the recipes are read again (the list can arrive late)
+frame:SetScript("OnEvent", function(_, event, a)
+    if event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" or event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
+        if WC.SeenWindowOfType and WC.SeenWindowOfType(a) == "bank" then
+            bankOpen = event:find("SHOW") ~= nil
+            if bankOpen then WC.CaptureMark("bank") end
+        end
+    elseif event == "BANKFRAME_OPENED" then
         bankOpen = true
         WC.CaptureMark("bank")
     elseif event == "BANKFRAME_CLOSED" then
@@ -452,7 +513,12 @@ frame:SetScript("OnEvent", function(_, event)
     else
         local part = WINDOW_PART[event]
         if part and not windowOpen[part] then return end
-        if event == "TRADE_SKILL_SHOW" then windowOpen.tradeskill = true end
+        if event == "TRADE_SKILL_SHOW" then
+            windowOpen.tradeskill = true
+            if C_Timer and C_Timer.After then
+                C_Timer.After(RECIPE_DELAY, function() if windowOpen.tradeskill then WC.CaptureMark("tradeskill") end end)
+            end
+        end
         if event == "CRAFT_SHOW" then windowOpen.craft = true end
         WC.CaptureMark(unpack(EVENTS[event]))
         if event == "BAG_UPDATE_DELAYED" and bankOpen then WC.CaptureMark("bank") end

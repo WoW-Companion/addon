@@ -7,6 +7,32 @@ local L = WC.L
 
 WC.NO_ADVICE = L.NO_ADVICE
 
+-- A value that may be written to SavedVariables: nil for a secret value (the client's issecretvalue, when it
+-- exists), otherwise only a string, number or boolean.
+function WC.Clean(v)
+    if issecretvalue then
+        local ok, secret = pcall(issecretvalue, v)
+        if not ok or secret then return nil end
+    end
+    local t = type(v)
+    if t == "string" or t == "number" or t == "boolean" then return v end
+    return nil
+end
+
+-- Removes, in place, every value in a table tree that WC.Clean refuses (secret values, functions, userdata).
+function WC.CleanTree(t, depth)
+    if type(t) ~= "table" then return t end
+    depth = depth or 0
+    if depth > 8 then return t end
+    for k, v in pairs(t) do
+        if type(v) == "table" and not (issecretvalue and select(2, pcall(issecretvalue, v)) ~= false) then
+            WC.CleanTree(v, depth + 1)
+        elseif type(v) == "table" then t[k] = nil
+        elseif WC.Clean(v) == nil then t[k] = nil end
+    end
+    return t
+end
+
 -- The release zip leaves out the data file so an update never overwrites a player's data;
 -- until the companion writes it the global is an empty table. The slot addon loads after this
 -- file, so a real data file replaces it.

@@ -35,18 +35,19 @@ function WC.ObservedAdd(ev, questID, offPlan, where)
     if not WC.Setting("keepObserved") then return nil end
     local o = store()
     if not o or not questID or questID <= 0 then return nil end
-    local e = { t = time(), ev = ev, questID = questID, character = UnitName and UnitName("player") or "" }
+    local e = { t = time(), ev = ev, questID = questID, character = WC.Clean(UnitName and UnitName("player")) or "" }
     local map, x, y
     if where then map, x, y = where.map, where.x, where.y elseif WC.PlayerPos then map, x, y = WC.PlayerPos() end
     if map and x and y then e.map, e.x, e.y = map, round1(x), round1(y) end
     if ev == "accepted" then
         if UnitName and UnitExists and UnitExists("npc") then
-            local name = UnitName("npc")
+            local name = WC.Clean(UnitName("npc"))
             if type(name) == "string" and name ~= "" then e.npc = name end
         end
         if WC.SeenGiverFor then WC.SeenGiverFor(e) end
         if offPlan then e.offPlan = true end
     end
+    WC.CleanTree(e)
     o.events[#o.events + 1] = e
     while #o.events > WC.OBSERVED_CAP do table.remove(o.events, 1) end
     return e
