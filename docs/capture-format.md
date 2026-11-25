@@ -21,7 +21,10 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   quests = { captured = true, entries = { { id, title, level, complete?, failed?,
              objectives? = { { text, done, have?, need? } } } } },
   completedQuests = { <questID>, ... },                      -- sorted; absent when the client offers none
-  talents = { { tree = "<name>", nodes = { { name, rank, max } } } },
+  talents = { { tree = "<name>", points = <spent>, nodes = { { name, rank, max } } } },
+  talentPoints = <unspent talent points>,                    -- absent when no API gave a number
+  apiProbe = { seenAt, talents = { legacy, traits, specialization, legacyNodes, traitsNodes, used }, points = { ... },
+    spells = { modern, classic, links, used, isSpellKnown } },  -- per path: item count, -1 = API missing; no values
   skills = { { name, rank, max, group = "<header>", profession? = true } },
   stats = { seenAt, level,                                     -- what the client reports; a missing API leaves its key out
     stats = { str|agi|sta|int|spi = { base, total, pos, neg } },  -- UnitStat: "Intellect 90 (50+40)" is base 50, pos 40, total 90

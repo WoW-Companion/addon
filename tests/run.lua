@@ -2113,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.49" and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.50" and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -5189,6 +5189,94 @@ cases[#cases + 1] = { "capture: spells come from the modern C_SpellBook skill li
     capture_clear()
 end }
 
+local function capture_nil(...) for _, n in ipairs({ ... }) do _G[n] = nil end end
+
+cases[#cases + 1] = { "capture: talents use the legacy API first, record unspent points and the probe counts", function()
+    local WC, run = capture_client()
+    GetNumTalentTabs = function() return 1 end
+    GetTalentTabInfo = function() return "Discipline", "icon", 3 end
+    GetNumTalents = function() return 2 end
+    GetTalentInfo = function(_, i) return "T" .. i, "i", 1, 1, i, 5 end
+    UnitCharacterPoints = function() return 4, 0 end
+    C_Traits = { GetConfigInfo = function() error("must not be needed") end }
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    capture_nil("GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "UnitCharacterPoints", "C_Traits")
+    assert(#c.talents == 1 and c.talents[1].tree == "Discipline" and c.talents[1].points == 3 and #c.talents[1].nodes == 2)
+    assert(c.talents[1].nodes[2].rank == 2 and c.talents[1].nodes[2].max == 5)
+    assert(c.talentPoints == 4)
+    assert(c.apiProbe.talents.used == "legacy" and c.apiProbe.talents.legacyNodes == 2 and c.apiProbe.talents.traits == -1)
+    assert(c.apiProbe.points.unitCharacterPoints == 1)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: an empty legacy talent API falls through to the trait tree; points fall back to GetUnspentTalentPoints", function()
+    local WC, run = capture_client()
+    GetNumTalentTabs = function() return 0 end
+    GetTalentTabInfo, GetNumTalents, GetTalentInfo = function() end, function() return 0 end, function() end
+    GetUnspentTalentPoints = function() return 2 end
+    C_ClassTalents = { GetActiveConfigID = function() return 9 end }
+    C_Traits = {
+        GetConfigInfo = function() return { treeIDs = { 70 } } end,
+        GetTreeInfo = function() return { name = "Holy" } end,
+        GetTreeNodes = function() return { 1, 2 } end,
+        GetNodeInfo = function(_, id) return { activeRank = id, maxRanks = 3, activeEntry = { entryID = id } } end,
+        GetEntryInfo = function(_, e) return { definitionID = e } end,
+        GetDefinitionInfo = function(d) return { overrideName = "Node" .. d } end,
+    }
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    capture_nil("GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetUnspentTalentPoints", "C_ClassTalents", "C_Traits")
+    assert(#c.talents == 1 and c.talents[1].tree == "Holy" and c.talents[1].points == 3)
+    assert(c.talents[1].nodes[2].name == "Node2" and c.talents[1].nodes[2].rank == 2 and c.talents[1].nodes[2].max == 3)
+    assert(c.talentPoints == 2 and c.apiProbe.talents.used == "traits" and c.apiProbe.talents.legacy == 0)
+    assert(c.apiProbe.points.unitCharacterPoints == -1 and c.apiProbe.points.getUnspentTalentPoints == 1)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: with no talent API there is no talentPoints and the probe says none", function()
+    local WC, run = capture_client()
+    capture_nil("GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo")
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(#c.talents == 0 and c.talentPoints == nil and c.apiProbe.talents.used == "none" and c.apiProbe.talents.legacy == -1)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: an empty modern spell book falls through to the classic one; the probe counts each path", function()
+    local WC, run = capture_client()
+    C_SpellBook = { GetNumSpellBookSkillLines = function() return 0 end, GetSpellBookSkillLineInfo = function() end,
+        GetSpellBookItemInfo = function() end }
+    GetNumSpellTabs = function() return 1 end
+    GetSpellTabInfo = function() return "General", "i", 0, 3 end
+    GetSpellBookItemInfo = function(i) if i == 3 then return "FUTURESPELL", 99 end return "SPELL", 100 + i end
+    GetSpellLink = function() return nil end
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    capture_nil("C_SpellBook", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellBookItemInfo", "GetSpellLink")
+    assert(#c.spells == 2 and c.spells[1] == 101 and c.spells[2] == 102)
+    local p = c.apiProbe.spells
+    assert(p.modern == 0 and p.classic == 2 and p.links == 0 and p.used == "classic")
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: the API probe is small and holds only numbers and path names", function()
+    local WC, run = capture_client()
+    run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    local function walk(t, n)
+        for k, v in pairs(t) do
+            n = n + #tostring(k)
+            if type(v) == "table" then n = walk(v, n) else
+                assert(type(v) == "number" or (type(v) == "string" and #v < 12)); n = n + #tostring(v)
+            end
+        end
+        return n
+    end
+    assert(walk(c.apiProbe, 0) < 1024)
+    capture_clear()
+end }
+
 local function capture_stat_stubs()
     UnitLevel = function() return 24 end
     UnitStat = function(_, i) return 10 * i, 10 * i + 5, 4, -1 end
@@ -5460,10 +5548,11 @@ end }
 
 cases[#cases + 1] = { "capture: a failing read costs only its own part", function()
     local WC, run = capture_client()
-    GetNumTalentTabs = function() error("boom") end
+    GetNumFactions = function() error("boom") end
     Stub.fire(frames, "PLAYER_ENTERING_WORLD"); run()
     local c = WoWCompanionDB.characters["Testrealm:Thrall"]
-    assert(c.level == 23 and c.bags and c.talents == nil)
+    GetNumFactions = nil
+    assert(c.level == 23 and c.bags and c.reputations == nil)
     capture_clear()
 end }
 
