@@ -6,6 +6,8 @@ verify:
 	$(LUA) tests/guard.lua WoWCompanion_Digest
 	$(LUA) tests/glyphs.lua WoWCompanion WoWCompanion_Digest
 	$(LUA) tests/slotcheck.lua WoWCompanion_Digest/Digest.lua tests/fixtures/digest_*.lua
+	$(LUA) tests/globals.lua WoWCompanion WoWCompanion_Digest
+	$(LUA) tests/coldstart.lua WoWCompanion
 	$(LUA) tests/layout.lua
 	scripts/package.sh | xargs $(LUA) tests/layout.lua
 	$(LUA) tests/run.lua WoWCompanion

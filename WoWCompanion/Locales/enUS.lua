@@ -333,6 +333,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_36_1 = "Fixed an error at login after resizing the panel.",
     WHATS_NEW_0_6_35_1 = "Flight points are placed correctly on the map.",
     WHATS_NEW_0_6_34_1 = "Fixed odd boxes in some text; symbols the game can't show are replaced.",
     WHATS_NEW_0_6_33_1 = "Resize the panel by dragging its bottom-right corner; right-click the corner to go back to automatic size.",

@@ -4,6 +4,7 @@ local WC = WoWCompanion
 local L = WC.L
 
 local FULL_HEIGHT, COMPACT_MIN = 320, 150
+local SCROLL_TOP = 44 -- the scroll area's offset from the frame's top; the other edges follow the padding setting
 local WIDTH_MARGIN = 48 -- the panel is this much wider than its text column; the width is the panelWidth setting (340)
 local function panel_width() return WC.Setting("panelWidth") end
 local function content_width() return panel_width() - WIDTH_MARGIN end
@@ -96,7 +97,6 @@ local function sizing_changed(f, w)
         WC.Refresh()
     end
 end
-local SCROLL_TOP = 44 -- the scroll area's offset from the frame's top; the other edges follow the padding setting
 local STEP, TITLE_X, RIGHT_W = 16, 32, 64 -- indent step; where a quest title starts; width kept for a right-aligned note
 
 -- Text shadow so lines read over the world.
