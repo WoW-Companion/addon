@@ -2113,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.50" and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.51" and WC.CHANGELOG["0.6.51"] and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -5274,6 +5274,71 @@ cases[#cases + 1] = { "capture: the API probe is small and holds only numbers an
         return n
     end
     assert(walk(c.apiProbe, 0) < 1024)
+    capture_clear()
+end }
+
+local function quests_of()
+    return WoWCompanionDB.characters["Testrealm:Thrall"]
+end
+
+cases[#cases + 1] = { "capture: the quest log reads with C_QuestLog alone, ready, objectives and the probe", function()
+    local WC, run = capture_client()
+    capture_nil("GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard")
+    local rows = { { title = "Zone", isHeader = true }, { title = "Wand", level = 20, questID = 11 }, { title = "Weaver", level = 21, questID = 12 }, { title = "Lost", level = 5, questID = 13 } }
+    C_QuestLog = {
+        GetNumQuestLogEntries = function() return #rows, 3 end,
+        GetInfo = function(i) return rows[i] end,
+        ReadyForTurnIn = function(id) return id == 11 end,
+        IsComplete = function(id) return id == 12 end,
+        IsFailed = function(id) return id == 13 end,
+        GetQuestObjectives = function(id)
+            if id == 11 then return { { text = "Wand: 1/1", finished = true, numFulfilled = 1, numRequired = 1 } } end
+            if id == 12 then return { { text = "Boars slain: 3/8", finished = false, numFulfilled = 3, numRequired = 8 }, { text = "Gather 2/5", finished = false } } end
+            return {}
+        end,
+    }
+    run()
+    local c = quests_of()
+    capture_nil("C_QuestLog")
+    local e = c.quests.entries
+    assert(c.quests.captured and #e == 3)
+    assert(e[1].id == 11 and e[1].complete and not e[1].failed and e[1].objectives[1].done)
+    assert(e[2].id == 12 and e[2].complete and e[2].objectives[1].have == 3 and e[2].objectives[1].need == 8 and e[2].objectives[1].done == false)
+    assert(e[2].objectives[2].have == 2 and e[2].objectives[2].need == 5)
+    assert(e[3].failed and not e[3].complete and e[3].objectives == nil)
+    local p = c.apiProbe.quests
+    assert(p.count == "modern" and p.entries == 3 and p.ready == 2 and p.objectives == "modern")
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: the quest log falls back to the legacy globals and records it", function()
+    local WC, run = capture_client()
+    GetQuestLogTitle = function(i)
+        if i == 1 then return "Zone", 0, nil, true end
+        if i == 2 then return "Done", 9, nil, false, false, 1, nil, 21 end
+        return "Failed", 9, nil, false, false, -1, nil, 22
+    end
+    GetNumQuestLogEntries = function() return 3 end
+    run()
+    local c = quests_of()
+    local e = c.quests.entries
+    assert(#e == 2 and e[1].complete and e[2].failed and not e[2].complete)
+    assert(e[1].objectives[1].have == 3 and e[1].objectives[1].need == 8)
+    local p = c.apiProbe.quests
+    assert(p.count == "legacy" and p.entries == 2 and p.ready == 1 and p.objectives == "legacy")
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: no quest count API leaves quests untouched", function()
+    local WC, run = capture_client()
+    capture_nil("GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard")
+    C_QuestLog = { GetInfo = function() error("must not be needed") end }
+    run()
+    local c = quests_of()
+    capture_nil("C_QuestLog")
+    assert(c.quests == nil, "nothing read is not 'no quests'")
+    local p = c.apiProbe.quests
+    assert(p.count == "none" and p.entries == -1 and p.objectives == -1)
     capture_clear()
 end }
 

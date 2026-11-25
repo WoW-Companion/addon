@@ -353,6 +353,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_51_1 = "The quest log is now read with the quest API this client offers, so the plan sees the quests you hold and which are ready to turn in.",
     WHATS_NEW_0_6_50_1 = "Talents, unspent talent points and known spells are now read with every API this client offers, and the capture records which one worked.",
     WHATS_NEW_0_6_49_1 = "The panel header, the highlighted row and the map ring now name the same step. A turn-in you cannot make yet is dimmed with its progress and skipped, and map labels never show raw numbers.",
     WHATS_NEW_0_6_48_1 = "Near a quest NPC from your plan, a Here card lists what you can do there and what's still missing. The step line now points to the next open objective, and quests outside the plan show under Also doing.",
