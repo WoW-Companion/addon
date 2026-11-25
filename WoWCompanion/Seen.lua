@@ -85,15 +85,21 @@ end
 
 -- Who the player is talking to (the "npc" unit): { id, name, map, x, y, reaction, faction } or nil.
 local function talking_to()
-    if not (UnitGUID and UnitExists and UnitExists("npc")) then return nil end
-    local id = npc_id(UnitGUID("npc"))
+    if not (UnitGUID and UnitExists) then return nil end
+    local unit, id
+    for _, u in ipairs({ "npc", "target" }) do -- some clients leave "npc" empty while a window is open
+        if UnitExists(u) then
+            id = npc_id(UnitGUID(u))
+            if id then unit = u break end
+        end
+    end
     if not id then return nil end
     local g = { id = id }
-    local name = UnitName and UnitName("npc")
+    local name = UnitName and UnitName(unit)
     if type(name) == "string" and name ~= "" then g.name = name end
     g.map, g.x, g.y = here()
-    if UnitReaction then g.reaction = UnitReaction("player", "npc") end
-    if UnitFactionGroup then g.faction = UnitFactionGroup("npc") end
+    if UnitReaction then g.reaction = UnitReaction("player", unit) end
+    if UnitFactionGroup then g.faction = UnitFactionGroup(unit) end
     return g
 end
 
@@ -114,8 +120,35 @@ end
 
 -- Raw samples: the first RAW_PER_KIND return tuples of each window kind per session are kept, length-capped, under
 -- observed.raw.<kind>, so the real client's return order can be verified from a saved file.
-local RAW_PER_KIND, RAW_VALUES, RAW_TEXT = 3, 12, 60
+local RAW_PER_KIND, RAW_VALUES, RAW_TEXT, RAW_TABLE = 3, 12, 60, 200
+local ERR_KEEP, ERR_TEXT = 5, 120
 local rawCount = {}
+
+-- A table return as sorted "key=value" text.
+local function table_text(t)
+    local keys = {}
+    for k in pairs(t) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    local out = {}
+    for _, k in ipairs(keys) do
+        local v = t[k]
+        if v == nil then v = t[tonumber(k)] end
+        out[#out + 1] = k .. "=" .. tostring(v)
+    end
+    return table.concat(out, " "):sub(1, RAW_TABLE)
+end
+
+-- A window read that raised an error: kind, time and the message (capped); the last ERR_KEEP are kept under
+-- observed.raw.errors, so a read that fails silently can be seen in the saved file.
+function WC.SeenError(kind, msg)
+    if not on() then return end
+    local o = store()
+    if not o then return end
+    if type(o.raw) ~= "table" then o.raw = {} end
+    if type(o.raw.errors) ~= "table" then o.raw.errors = {} end
+    o.raw.errors[#o.raw.errors + 1] = { kind = kind, t = time(), msg = tostring(msg):sub(1, ERR_TEXT) }
+    trim(o.raw.errors, ERR_KEEP)
+end
 function WC.SeenRaw(kind, call, ...)
     if not on() then return end
     if (rawCount[kind] or 0) >= RAW_PER_KIND then return end
@@ -129,6 +162,7 @@ function WC.SeenRaw(kind, call, ...)
         local v = select(i, ...)
         local t = type(v)
         if t == "string" then v = v:sub(1, RAW_TEXT)
+        elseif t == "table" then v = table_text(v)
         elseif t ~= "number" and t ~= "boolean" then v = tostring(v) end
         vals[i] = v
     end
@@ -185,8 +219,10 @@ function WC.SeenReadTrainer()
                 end
             end
             if GetTrainerServiceItemLink then
-                local l = GetTrainerServiceItemLink(i)
-                o.spell = spell_id(l) or item_id(l)
+                local ok, l = pcall(GetTrainerServiceItemLink, i)
+                if not ok then WC.SeenError("trainer", l) l = nil end
+                WC.SeenRaw("trainerlink", "GetTrainerServiceItemLink", l)
+                if type(l) == "number" then o.spell = l else o.spell = spell_id(l) or item_id(l) end
             end
             rec.offers[#rec.offers + 1] = o
         end
@@ -195,28 +231,65 @@ function WC.SeenReadTrainer()
     return true
 end
 
--- Merchant window: the stock with prices; one record per vendor, overwritten each time. Values are read by type:
--- the price and the stack are numbers, the icon is a number too, so only numbers in the expected places count.
+-- Merchant window: the stock with prices; one record per vendor, overwritten each time. This client's merchant
+-- frame is the modern one, so C_MerchantFrame.GetNumItems/GetItemInfo are used when present (GetItemInfo returns a
+-- table: name, texture, price, stackCount, numAvailable, hasExtendedCost, ...); otherwise the global tuple
+-- GetMerchantItemInfo (name, texture, price, quantity, numAvailable, isUsable, extendedCost). The vendor is always
+-- saved, whatever fails; every item is read on its own, and every page (the API is index-based).
+local function merchant_count()
+    if C_MerchantFrame and C_MerchantFrame.GetNumItems then return C_MerchantFrame.GetNumItems() end
+    if GetMerchantNumItems then return GetMerchantNumItems() end
+    error("no merchant item count API")
+end
+
+local function merchant_item(i)
+    local price, qty, avail, ext, id
+    local info
+    if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+        info = C_MerchantFrame.GetItemInfo(i)
+        WC.SeenRaw("merchant", "C_MerchantFrame.GetItemInfo", info)
+    elseif GetMerchantItemInfo then
+        info = { GetMerchantItemInfo(i) }
+        WC.SeenRaw("merchant", "GetMerchantItemInfo", (table.unpack or unpack)(info, 1, 12))
+    else
+        error("no merchant item info API")
+    end
+    if type(info) ~= "table" then error("merchant item info is " .. type(info)) end
+    if info.price ~= nil or info.name ~= nil or info.stackCount ~= nil then
+        price, qty, avail, ext = info.price, info.stackCount, info.numAvailable, info.hasExtendedCost
+        id = tonumber(info.itemID) or item_id(info.itemLink)
+    else
+        price, qty, avail, ext = info[3], info[4], info[5], info[7]
+    end
+    if not id then
+        local link
+        if GetMerchantItemLink then link = GetMerchantItemLink(i)
+        elseif C_MerchantFrame and C_MerchantFrame.GetItemLink then link = C_MerchantFrame.GetItemLink(i) end
+        id = item_id(link)
+    end
+    if not id then return nil end
+    local it = { id = id }
+    if type(price) == "number" then it.price = price end
+    if type(qty) == "number" then it.stack = qty end
+    if type(avail) == "number" and avail >= 0 then it.limited = avail end
+    if ext then it.ext = true end
+    return it
+end
+
 function WC.SeenReadMerchant()
-    if not (on() and GetMerchantNumItems) then return false end
+    if not on() then return false end
     local g = talking_to()
-    if not g then return false end
+    if not g then WC.SeenError("merchant", "no npc to attribute the vendor to") return false end
     local list = section("vendors")
     if not list then return false end
     local rec = { items = {} }
     fill_npc(rec, g)
-    for i = 1, math.min(GetMerchantNumItems() or 0, WC.SEEN_OFFER_CAP) do
-        WC.SeenRaw("merchant", "GetMerchantItemInfo", GetMerchantItemInfo(i))
-        local _, _, price, qty, avail, _, ext = GetMerchantItemInfo(i)
-        local id = GetMerchantItemLink and item_id(GetMerchantItemLink(i))
-        if id then
-            local it = { id = id }
-            if type(price) == "number" then it.price = price end
-            if type(qty) == "number" then it.stack = qty end
-            if type(avail) == "number" and avail >= 0 then it.limited = avail end
-            if ext then it.ext = true end
-            rec.items[#rec.items + 1] = it
-        end
+    local okN, n = pcall(merchant_count)
+    if not okN then WC.SeenError("merchant", n) n = 0 end
+    for i = 1, math.min(tonumber(n) or 0, WC.SEEN_OFFER_CAP) do
+        local ok, it = pcall(merchant_item, i)
+        if not ok then WC.SeenError("merchant", it)
+        elseif it then rec.items[#rec.items + 1] = it end
     end
     put(list, rec, WC.SEEN_VENDOR_CAP)
     return true
@@ -336,7 +409,8 @@ local function read(win)
     if not open[win] then return end
     if InCombatLockdown and InCombatLockdown() then pending[win] = true; return end
     pending[win] = nil
-    pcall(WC[READ[win]])
+    local ok, err = pcall(WC[READ[win]])
+    if not ok then WC.SeenError(win, err) end
 end
 
 local frame = CreateFrame("Frame")
@@ -344,6 +418,11 @@ for _, ev in ipairs({ "TRAINER_SHOW", "TRAINER_UPDATE", "TRAINER_CLOSED", "MERCH
     "MERCHANT_CLOSED", "LOOT_OPENED", "QUEST_DETAIL", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START",
     "PLAYER_REGEN_ENABLED" }) do
     pcall(frame.RegisterEvent, frame, ev) -- a client without an event just skips it
+end
+-- A client with no MERCHANT_SHOW event: read when the merchant frame is shown instead (a read-only hook).
+if not pcall(frame.RegisterEvent, frame, "MERCHANT_SHOW") and MerchantFrame and MerchantFrame.HookScript then
+    pcall(MerchantFrame.HookScript, MerchantFrame, "OnShow", function() open.merchant = true; read("merchant") end)
+    pcall(MerchantFrame.HookScript, MerchantFrame, "OnHide", function() open.merchant, pending.merchant = nil, nil end)
 end
 frame:SetScript("OnEvent", function(_, event, a, ...)
     if event == "TRAINER_SHOW" then open.trainer = true; read("trainer")

@@ -370,7 +370,8 @@ function WC.CaptureFlush()
     for _, part in ipairs(ORDER) do
         if dirty[part] then
             dirty[part] = nil
-            pcall(readers[part], r)
+            local ok, err = pcall(readers[part], r)
+            if not ok and WC.SeenError then WC.SeenError(part, err) end
             any = true
         end
     end
