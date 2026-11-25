@@ -124,11 +124,24 @@ function WC.UpgradeParts(u)
     return { slot = slot, look = look, gain = gain, worn = WC.UpgradeWorn({ replaces = replaces }), wear = wear }
 end
 
+-- Whether the grouped digest text already ends with its slot list ("...: helm, cloak, chest"): every word of the
+-- slot (or each slot of a list) shows up after the last colon.
+function WC.NamesSlots(text, slot)
+    local tail = text:lower():match(":%s*([^:]*)$")
+    if not tail then return false end
+    for name in slot:lower():gmatch("[^,]+") do
+        name = name:gsub("^%s+", ""):gsub("%s+$", "")
+        if name ~= "" and not tail:find("%f[%a]" .. name:gsub("%p", "%%%0") .. "%f[%A]") then return false end
+    end
+    return true
+end
+
 -- "<Slot>: <Item> - <gain>"; an older digest has no gain, and a line with no slot is the item alone.
 function WC.UpgradeMain(u)
     local p = WC.UpgradeParts(u)
     local out = p.look
-    if p.slot then out = p.slot .. ": " .. out end
+    -- ADV-147's grouped text already names its slots ("...: helm, cloak, chest"); the slot prefix then says them twice.
+    if p.slot and not WC.NamesSlots(out, p.slot) then out = p.slot .. ": " .. out end
     if p.gain then out = out .. " \226\128\148 " .. p.gain end
     return out
 end

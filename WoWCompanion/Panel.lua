@@ -195,8 +195,8 @@ local function get_chip(f, i)
     b:SetScript("OnEnter", function(self)
         WC.ChipHovered(self.chip.kind)
         WC.StyleChip(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        for _, l in ipairs(WC.ChipTipLines(self.chip)) do GameTooltip:AddLine(WC.SafeText(l.text), l.color[1], l.color[2], l.color[3]) end
+        WC.TipOpen(GameTooltip, self, "ANCHOR_BOTTOM")
+        for _, l in ipairs(WC.ChipTipLines(self.chip)) do WC.TipLine(GameTooltip, l.text, l.color) end
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -316,8 +316,8 @@ function WC.CreatePanel()
     f.headerTip:EnableMouse(true)
     f.headerTip:SetScript("OnEnter", function(self)
         if not f.stale then return end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine(WC.SafeText(L.STALE_TIP), 1, 1, 1, true)
+        WC.TipOpen(GameTooltip, self, "ANCHOR_BOTTOM")
+        WC.TipLine(GameTooltip, L.STALE_TIP, 1, 1, 1)
         GameTooltip:Show()
     end)
     f.headerTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -349,9 +349,9 @@ function WC.CreatePanel()
         if button == "LeftButton" then WC.StopPanelSizing() elseif button == "RightButton" then WC.ResetPanelSize() end
     end)
     grip:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        WC.TipOpen(GameTooltip, self, "ANCHOR_TOP")
         for _, l in ipairs(WC.GripTipLines()) do
-            if l[2] then GameTooltip:AddLine(WC.SafeText(l[1]), 1, 0.82, 0) else GameTooltip:AddLine(WC.SafeText(l[1]), 1, 1, 1) end
+            if l[2] then WC.TipLine(GameTooltip, l[1], 1, 0.82, 0) else WC.TipLine(GameTooltip, l[1], 1, 1, 1) end
         end
         GameTooltip:Show()
     end)
@@ -369,9 +369,9 @@ function WC.CreatePanel()
     shadow(c.label)
     c:SetScript("OnClick", function() WC.SetSetting("view", WC.NextView(WC.ViewMode())) end)
     c:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        WC.TipOpen(GameTooltip, self, "ANCHOR_BOTTOM")
         for _, l in ipairs(WC.ViewTipLines(WC.ViewMode())) do
-            if l[2] then GameTooltip:AddLine(WC.SafeText(l[1]), 1, 0.82, 0) else GameTooltip:AddLine(WC.SafeText(l[1]), 1, 1, 1) end
+            if l[2] then WC.TipLine(GameTooltip, l[1], 1, 0.82, 0) else WC.TipLine(GameTooltip, l[1], 1, 1, 1) end
         end
         GameTooltip:Show()
     end)
@@ -391,8 +391,8 @@ function WC.CreatePanel()
     g.icon:SetTexture("Interface\\Buttons\\UI-OptionsButton")
     g:SetScript("OnClick", function() WC.OpenOptions() end)
     g:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine(L.OPEN_GEAR_TIP)
+        WC.TipOpen(GameTooltip, self, "ANCHOR_BOTTOM")
+        WC.TipLine(GameTooltip, L.OPEN_GEAR_TIP, 1, 1, 1)
         GameTooltip:Show()
     end)
     g:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -486,7 +486,7 @@ end
 
 -- Display only: shows the item's or spell's tooltip while the mouse is over the row.
 local function show_tooltip(row)
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    WC.TipOpen(GameTooltip, row, "ANCHOR_RIGHT")
     GameTooltip:SetHyperlink(row.link)
     GameTooltip:Show()
 end

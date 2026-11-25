@@ -51,7 +51,7 @@ end
 local function add(tooltip, kind, id)
     local text = WC.TooltipLine(kind, id)
     if not text then return end
-    tooltip:AddLine(WC.SafeText(text), GOLD[1], GOLD[2], GOLD[3])
+    WC.TipLine(tooltip, text, GOLD)
     if tooltip.Show then tooltip:Show() end -- resizes the tooltip around the new line
 end
 
