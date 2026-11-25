@@ -5463,6 +5463,7 @@ cases[#cases + 1] = { "seen: flight points are queried on the continent with eac
     assert(fp.nodes[2].zoneMap == 1420 and fp.nodes[2].zoneX == 20 and fp.nodes[2].zoneY == 45)
     CreateVector2D = nil
     C_Map.GetMapPosFromWorldPos = nil
+    Stub.fire(frames, "TAXIMAP_CLOSED")
     Stub.fire(frames, "TAXIMAP_OPENED")
     fire()
     fp = flight_points()
