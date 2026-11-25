@@ -61,9 +61,10 @@ called in `Capture.lua`.
 Written when the flight map opens (read-only, never travels): the character's known flight points.
 
 ```
-flightPoints = { seenAt = <unix s>,
-  nodes = { { id = <node id>, name = "<flight point>", map = <uiMapID of the taxi map>,
-              x = <0-100>, y = <0-100>, state = "current" | "reachable" }, ... } }   -- at most 80
+flightPoints = { seenAt = <unix s>, relative = true | nil,
+  nodes = { { id = <node id>, name = "<flight point>", map = <uiMapID of the continent>,
+              x = <0-100>, y = <0-100>, state = "current" | "reachable",
+              zoneMap = <uiMapID of the node's own zone>, zoneX = <0-100>, zoneY = <0-100> }, ... } }   -- at most 80
 ```
 
-Unknown and "distant" (unreachable) nodes are skipped. Opening the map again replaces the list. Source: `C_TaxiMap.GetAllTaxiNodes(uiMapID)` where the client has it, else `NumTaxiNodes`, `TaxiNodeName`, `TaxiNodeGetType`, `TaxiNodePosition`.
+Unknown and "distant" (unreachable) nodes are skipped. Opening the map again replaces the list. `map`, `x`, `y` are on the continent map (the player's zone's `C_Map.GetMapInfo(id).parentMapID` chain up to `Enum.UIMapType.Continent`); `zoneMap/zoneX/zoneY` come from `C_Map.GetMapInfoAtPosition`, `GetWorldPosFromMapPos`, `GetMapPosFromWorldPos` and are absent when the client lacks them. `relative = true` means no continent was found (or a position fell outside 0-100), so positions are relative to the zone the map was queried with; the classic `TaxiNodePosition` is relative to the map the flight window shows, so classic records are marked this way unless a continent is found. Source: `C_TaxiMap.GetAllTaxiNodes(uiMapID)` where the client has it, else `NumTaxiNodes`, `TaxiNodeName`, `TaxiNodeGetType`, `TaxiNodePosition`.
