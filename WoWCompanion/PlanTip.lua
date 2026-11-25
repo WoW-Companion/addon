@@ -114,7 +114,7 @@ function WC.ShowPlanTip(owner, anchor, group, opts)
         local c = line.color
         if line.right then
             local r = line.rightColor
-            GameTooltip:AddDoubleLine(WC.SafeText(line.text), WC.SafeText(line.right), c[1], c[2], c[3], r[1], r[2], r[3])
+            GameTooltip:AddDoubleLine(WC.TipText(line.text), WC.TipText(line.right), c[1], c[2], c[3], r[1], r[2], r[3])
         else
             WC.TipLine(GameTooltip, line.text, c)
         end
