@@ -222,12 +222,41 @@ function WC.PlanInit()
     WC.PlanLiveRefresh()
 end
 
--- The first route step not yet done, or nil when the route is finished.
+-- True for a turn-in whose quest is in the log but not complete yet: it is not a place to go.
+function WC.StepUnready(step)
+    if not step or step.kind ~= "turnin" then return false end
+    local ids = step.questIDs and #step.questIDs > 0 and step.questIDs or { step.questID }
+    for _, id in ipairs(ids) do
+        if (id or 0) > 0 and WC.PlanQuestState(id) == "active" then return true end
+    end
+    return false
+end
+
+-- "n of m done" for the quest's objectives (a merged stop: the first unready quest), or nil when unknown.
+function WC.StepAfterText(step)
+    local ids = step.questIDs and #step.questIDs > 0 and step.questIDs or { step.questID }
+    for _, id in ipairs(ids) do
+        if (id or 0) > 0 and WC.PlanQuestState(id) == "active" then
+            local objs = WC.QuestObjectives(id)
+            if objs then
+                local d = 0
+                for _, o in ipairs(objs) do
+                    if o.finished then d = d + 1 end
+                end
+                return string.format(L.AFTER_DONE, d, #objs)
+            end
+            return string.format(L.AFTER_PENDING)
+        end
+    end
+end
+
+-- The first route step not yet done whose quest state allows it, or nil when none is left. A locked
+-- follow-up and a turn-in whose quest is not complete yet are skipped.
 local function route_next()
     local p = WC.plan
     if not p then return end
     for _, s in ipairs(p.steps) do
-        if not p.done[s.n] and not WC.StepLocked(s) then return s end
+        if not p.done[s.n] and not WC.StepLocked(s) and not WC.StepUnready(s) then return s end
     end
 end
 WC.RouteNext = route_next
@@ -401,7 +430,7 @@ end
 -- agrees on it), else the count of done steps plus one.
 function WC.StepNumber(step)
     local done, total = WC.PlanCounts()
-    if WC.plan and WC.plan.hasLocked and step then return step.n end
+    if step and step.n and step.n < 100000 then return step.n end
     return math.min(done + 1, total)
 end
 
@@ -501,9 +530,10 @@ local function live_step(p, g, state)
     if not spot then return nil end
     local n
     for _, sn in ipairs(g.steps) do
-        if p.steps[sn] and not p.done[sn] then n = sn break end
+        local rs = p.steps[sn]
+        if rs and not p.done[sn] and (rs.kind == "turnin") == (kind == "turnin") then n = sn break end
     end
-    return { n = n or (100000 + g.questID), kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
+    return { n = n or (100000 + g.questID), synthetic = n == nil or nil, kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
         approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true }
 end
 

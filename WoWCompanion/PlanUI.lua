@@ -121,8 +121,21 @@ end
 
 -- Pure badge helpers. A group is { steps = {...}, isNext = bool }.
 -- The text in a badge: "4", or "4·5" when steps share a spot (first and last of the group).
+-- Only real step numbers are shown: a live step with no route number, or an id-sized number, never is.
 function WC.PinLabel(steps)
-    local first, last = steps[1].n, steps[#steps].n
+    local first, last
+    for _, s in ipairs(steps) do
+        local n = tonumber(s.n)
+        if n and not s.synthetic and n >= 1 and n < 100000 and n == math.floor(n) then
+            first = first or n
+            last = n
+        end
+    end
+    if not first then
+        local s = steps[1]
+        local name = s and ((s.quest ~= "" and s.quest) or s.label) or ""
+        return type(name) == "string" and name:sub(1, 12) or ""
+    end
     if first == last then return tostring(first) end
     return first .. "\194\183" .. last
 end
@@ -268,7 +281,7 @@ function WC.PinGroups(steps, mapID, done, nextStep)
                 groups[#groups + 1] = home
             end
             home.steps[#home.steps + 1] = s
-            if s == nextStep then home.next = s end
+            if s == nextStep or (nextStep and nextStep.live and not s.live and s.n == nextStep.n) then home.next = s end
         end
     end
     for _, g in ipairs(groups) do g.isNext = g.next ~= nil end

@@ -69,7 +69,12 @@ function WC.PanelModel(opts)
         if not WC.StepLocked(s) and (opts.allZones or not opts.mapID or s.map == opts.mapID) then
             local isDone = opts.done and opts.done[s.n] == true
             local row = { step = s, n = s.n, kind = s.kind, icon = KIND_ICON[s.kind] and WC.ICONS[KIND_ICON[s.kind]] or nil,
-                title = WC.StepTitle(s), sub = WC.StepSubLine(s), isNext = opts.nextStep == s, done = isDone }
+                title = WC.StepTitle(s), sub = WC.StepSubLine(s), isNext = opts.nextStep == s or (opts.nextStep ~= nil and opts.nextStep.live == true and opts.nextStep.n == s.n),
+                done = isDone }
+            if s.kind == "turnin" and not isDone and WC.StepUnready(s) then
+                row.unready = true
+                row.sub = WC.StepAfterText(s) or row.sub
+            end
             if s.kind == "turnin" and not isDone then
                 row.thenText = WC.ThenLine(s.questID)
                 local info = row.thenText and WC.ThenInfo(s.questID)
@@ -392,9 +397,10 @@ local function fill_row(f, i, m, y)
     r.thenLine:SetPoint("TOPLEFT", (m.sub or "") ~= "" and r.sub or r.label, "BOTTOMLEFT", 0, -ROW_GAP)
     r.nextBg:SetShown(m.isNext)
     r.check:SetShown(m.done)
-    r.baseColor = m.done and DIM or (m.isNext and { 1, 0.95, 0.6 } or GOLD)
+    r.baseColor = (m.done or m.unready) and DIM or (m.isNext and { 1, 0.95, 0.6 } or GOLD)
     r.label:SetTextColor(r.baseColor[1], r.baseColor[2], r.baseColor[3])
-    r.sub:SetTextColor(m.done and DIM[1] or 0.85, m.done and DIM[2] or 0.85, m.done and DIM[3] or 0.85)
+    local dim = m.done or m.unready
+    r.sub:SetTextColor(dim and DIM[1] or 0.85, dim and DIM[2] or 0.85, dim and DIM[3] or 0.85)
     r:Show()
     WC.ApplyRowHover(r)
     WC.ApplyRowSelection(r)
