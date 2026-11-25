@@ -73,7 +73,8 @@ for name in pairs(capture_allowed) do seen_allowed[name] = true end
 local map_allowed = {}
 for name in ([[
     GetMapID SetMapID ScrollContainer SetPanTarget SetZoomTarget GetScaleForMinZoom GetCanvasScale
-    GetNormalizedHorizontalScroll GetNormalizedVerticalScroll C_Map.GetMapInfo
+    GetNormalizedHorizontalScroll GetNormalizedVerticalScroll C_Map.GetMapInfo C_Map.GetMapWorldSize
+    isMaximized IsMaximized HandleUserActionToggleSidePanel SidePanelToggle
 ]]):gmatch("%S+") do map_allowed[name] = true end
 
 local handle = assert(io.popen('find "' .. root .. '" -name "*.lua" | sort'))
