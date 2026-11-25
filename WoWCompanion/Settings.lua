@@ -36,6 +36,8 @@ local D = {
     { key = "fontSize", visual = true, type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "panel", box = "window", label = "FONT_LABEL", name = "Font", choiceKey = "FONT_" },
     { key = "bgOpacity", visual = true, type = "range", default = 0.45, min = 0, max = 1, step = 0.05, page = "panel", box = "window", label = "BG_OPACITY_LABEL", name = "BgOpacity", show = "pct" },
     { key = "panelWidth", visual = true, type = "range", default = 340, min = 280, max = 520, step = 10, page = "panel", box = "window", label = "PANEL_WIDTH_LABEL", name = "Width", show = "int" },
+    { key = "panelSizeMode", visual = true, type = "choice", default = "auto", choices = { "auto", "manual" }, page = "panel", box = "window", label = "SIZE_MODE_LABEL", name = "SizeMode", choiceKey = "SIZE_MODE_", widget = "dropdown" },
+    { key = "panelHeight", visual = true, hidden = true, type = "range", default = 320, min = 100, max = 4000, step = 1, page = "panel", box = "window", label = "PANEL_HEIGHT_LABEL", name = "Height", show = "int" },
     { key = "showLevels", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_LEVELS", name = "Levels" },
     { key = "colorByDifficulty", type = "bool", default = true, page = "panel", box = "content", label = "COLOR_DIFFICULTY", name = "Difficulty" },
     { key = "showOptional", type = "bool", default = true, page = "panel", box = "content", label = "SHOW_OPTIONAL", name = "Optional" },

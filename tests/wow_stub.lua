@@ -38,7 +38,12 @@ local function new_region(kind)
     function r:GetObjectType() return self.kind end
     function r:ClearAllPoints() self.points = {} end
     function r:StartMoving() self.moving = true end
-    function r:StopMovingOrSizing() self.moving = false end
+    function r:StopMovingOrSizing() self.moving = false; self.sizingFrom = nil end
+    function r:SetNormalTexture(t) self.normalTexture = t end
+    function r:SetPushedTexture(t) self.pushedTexture = t end
+    function r:SetResizable(v) self.resizable = v end
+    function r:SetResizeBounds(a, b, c, d) self.bounds = { a, b, c, d } end
+    function r:StartSizing(from) self.sizingFrom = from end
     function r:Show()
         local was = self.shown
         self.shown = true
