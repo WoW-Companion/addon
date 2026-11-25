@@ -23,7 +23,7 @@ for name in ([[
     GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard
     C_QuestLog.GetInfo C_QuestLog.IsComplete C_QuestLog.GetAllCompletedQuestIDs GetQuestsCompleted
     GetNumTalentTabs GetTalentTabInfo GetNumTalents GetTalentInfo
-    GetNumSkillLines GetSkillLineInfo GetNumSpellTabs GetSpellTabInfo GetSpellLink C_SpellBook.GetSpellBookItemInfo
+    GetNumSkillLines GetSkillLineInfo C_SkillInfo.GetNumSkillLines C_SkillInfo.GetSkillLineInfo GetNumSpellTabs GetSpellTabInfo GetSpellLink C_SpellBook.GetSpellBookItemInfo
     GetNumFactions GetFactionInfo
     IsTradeSkillLinked GetTradeSkillLine GetNumTradeSkills GetTradeSkillInfo GetTradeSkillItemLink
     GetCraftDisplaySkillLine GetCraftName GetNumCrafts GetCraftInfo GetCraftItemLink

@@ -13,7 +13,7 @@ for name in ([[
     date time GetTime
     CreateFrame UIParent GameTooltip WorldMapFrame QuestMapFrame QuestScrollFrame QuestLogFrame MerchantFrame Minimap
     ColorPickerFrame AddonCompartmentFrame InterfaceOptionsFrame UISpecialFrames SlashCmdList STANDARD_TEXT_FONT
-    C_Timer C_Map C_QuestLog C_Container C_AddOns C_SpellBook C_TradeSkillUI C_TaxiMap C_MerchantFrame C_SpecializationInfo
+    C_Timer C_Map C_QuestLog C_Container C_AddOns C_SpellBook C_TradeSkillUI C_SkillInfo C_TaxiMap C_MerchantFrame C_SpecializationInfo
     Enum Settings TooltipDataProcessor WorldMapTrackingPinButtonMixin
     hooksecurefunc issecretvalue CreateVector2D ShowUIPanel
     UIDropDownMenu_SetWidth UIDropDownMenu_SetText UIDropDownMenu_Initialize UIDropDownMenu_CreateInfo UIDropDownMenu_AddButton
