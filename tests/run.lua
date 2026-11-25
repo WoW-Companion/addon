@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.43" and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.44" and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -5010,6 +5010,29 @@ cases[#cases + 1] = { "capture: every part lands in the schema under realm:name"
     assert(#c.skills == 1 and c.skills[1].name == "Mining" and c.skills[1].rank == 150 and c.skills[1].max == 225 and c.skills[1].profession)
     assert(#c.spells == 2 and c.spells[1] == 101)
     assert(#c.reputations == 1 and c.reputations[1].faction == "Testfolk" and c.reputations[1].standing == 5 and c.reputations[1].value == 4000)
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: spells come from the modern C_SpellBook skill lines, skipping off-spec, future and flyout", function()
+    local WC, run = capture_client()
+    local items = {
+        [1] = { spellID = 30, itemType = 1 }, [2] = { spellID = 10, itemType = 1 }, [3] = { spellID = 99, itemType = 2 },
+        [4] = { spellID = 98, itemType = 4 }, [5] = { spellID = 97, itemType = 1, isOffSpec = true },
+        [6] = { spellID = 10, itemType = 1 }, [7] = { spellID = 20, itemType = 1 }, [8] = { spellID = 96, itemType = 1 },
+    }
+    C_SpellBook = {
+        GetNumSpellBookSkillLines = function() return 3 end,
+        GetSpellBookSkillLineInfo = function(i)
+            if i == 1 then return { itemIndexOffset = 0, numSpellBookItems = 5 } end
+            if i == 2 then return { itemIndexOffset = 5, numSpellBookItems = 2 } end
+            return { itemIndexOffset = 7, numSpellBookItems = 1, offSpecID = 5 }
+        end,
+        GetSpellBookItemInfo = function(i) return items[i] end,
+    }
+    run()
+    local sp = WoWCompanionDB.characters["Testrealm:Thrall"].spells
+    C_SpellBook = nil
+    assert(#sp == 3 and sp[1] == 10 and sp[2] == 20 and sp[3] == 30)
     capture_clear()
 end }
 

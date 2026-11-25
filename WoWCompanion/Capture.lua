@@ -386,21 +386,44 @@ function readers.skills(r)
     r.skills = list
 end
 
+-- Spell book item types: Spell 1 is a known spell; future (2), pet action (3) and flyout (4) entries are skipped.
+local function spellbook_modern(ids, seen)
+    local SC = C_SpellBook
+    local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+    for line = 1, SC.GetNumSpellBookSkillLines() or 0 do
+        local li = SC.GetSpellBookSkillLineInfo(line)
+        if li and not li.offSpecID then
+            local first = li.itemIndexOffset or 0
+            for index = first + 1, first + (li.numSpellBookItems or 0) do
+                if #ids >= MAX_SPELLS then return end
+                local info = SC.GetSpellBookItemInfo(index, bank)
+                if info and not info.isOffSpec and info.itemType == 1 then
+                    local id = tonumber(WC.Clean(info.spellID))
+                    if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
+                end
+            end
+        end
+    end
+end
+
 function readers.spells(r)
     local ids, seen = {}, {}
-    for tab = 1, GetNumSpellTabs and GetNumSpellTabs() or 0 do
-        local _, _, offset, count = GetSpellTabInfo(tab)
-        for index = (offset or 0) + 1, (offset or 0) + (count or 0) do
-            if #ids >= MAX_SPELLS then break end
-            local id
-            if C_SpellBook and C_SpellBook.GetSpellBookItemInfo then
-                local info = C_SpellBook.GetSpellBookItemInfo(index, 0)
-                if info and not info.isOffSpec and info.spellID and info.itemType ~= 4 then id = info.spellID end
-            elseif GetSpellLink then
-                local f = link_fields(GetSpellLink(index, "spell"), "spell")
-                id = f and f[1]
+    if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
+        and C_SpellBook.GetSpellBookItemInfo then
+        spellbook_modern(ids, seen)
+    end
+    if #ids == 0 then -- legacy path
+        for tab = 1, GetNumSpellTabs and GetNumSpellTabs() or 0 do
+            local _, _, offset, count = GetSpellTabInfo(tab)
+            for index = (offset or 0) + 1, (offset or 0) + (count or 0) do
+                if #ids >= MAX_SPELLS then break end
+                local id
+                if GetSpellLink then
+                    local f = link_fields(GetSpellLink(index, "spell"), "spell")
+                    id = f and f[1]
+                end
+                if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
             end
-            if id and not seen[id] then seen[id] = true; ids[#ids + 1] = id end
         end
     end
     table.sort(ids)
@@ -640,6 +663,7 @@ local EVENTS = {
     CHARACTER_POINTS_CHANGED = { "talents", "stats" },
     SPELLS_CHANGED = { "spells" },
     LEARNED_SPELL_IN_TAB = { "spells" },
+    LEARNED_SPELL_IN_SKILL_LINE = { "spells" },
     UPDATE_FACTION = { "reputations" },
     TRADE_SKILL_SHOW = { "tradeskill" },
     TRADE_SKILL_UPDATE = { "tradeskill" },
