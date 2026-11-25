@@ -1495,6 +1495,82 @@ cases[#cases + 1] = { "plan: our badges sit above a simulated other-addon pin, a
     WorldMapFrame = nil
 end }
 
+cases[#cases + 1] = { "plan: our layers sit below the client's player arrow, and near pins shrink and fade", function()
+    local WC = plan_client("full")
+    -- the pure level: unchanged below the arrow, shifted down together (order kept) when it would reach it
+    assert(WC.LayerLevel(0, 3010, nil) == 3010 and WC.LayerLevel(0, 3010, 9000) == 3010)
+    local pin, tag = WC.LayerLevel(100, 3010, 2500), WC.LayerLevel(100, 3500 + 50, 2500)
+    assert(tag < 2500 and pin < tag and WC.LayerLevel(100, 3001, 2500) < pin)
+    -- drawn: every layer ends below a simulated arrow pin at level 2500
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    canvas.CreateLine = function() return {} end
+    local arrow = CreateFrame("Frame", nil, canvas)
+    arrow:SetFrameLevel(2500)
+    local realMap = C_Map
+    C_Map = { GetBestMapForUnit = function() return 7001 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.2, 0.4 end } end }
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return 7001 end,
+        EnumeratePinsByTemplate = function() return function(_, i) if not i then return 1, arrow end end end }
+    WC.RefreshMapPins()
+    local drawn = 0
+    for _, f in ipairs(frames) do
+        if f.planGroup and f:IsShown() then drawn = drawn + 1; assert(f:GetFrameLevel() < 2500) end
+    end
+    assert(drawn >= 1 and WC.PlayerArrowLevel() == 2500)
+    WorldMapFrame, C_Map = nil, realMap
+    -- near look: within 15 yards at 1x, less when zoomed in
+    local s, a = WC.NearPlayerLook(10, 1)
+    assert(s == 0.6 and a == 0.5)
+    s, a = WC.NearPlayerLook(16, 1)
+    assert(s == 1 and a == 1)
+    s = WC.NearPlayerLook(10, 2)
+    assert(s == 1)
+    s = WC.NearPlayerLook(7, 2)
+    assert(s == 0.6)
+    -- the route line starts short of the player
+    assert(WC.LineStartShort(0, 0, 10, 0, 14) == nil)
+    local x, y = WC.LineStartShort(0, 0, 100, 0, 14)
+    assert(x == 14 and y == 0)
+end }
+
+cases[#cases + 1] = { "plan: the minimap badge moves to the rim when its target is on top of the player", function()
+    local WC = plan_client("full")
+    local near = function(a, b) return math.abs(a - b) < 1e-6 end
+    -- a target 2 px from the centre: the lifted badge would cover the arrow, so it goes to the rim (half 70 - 14)
+    local x, y, edge = WC.MinimapKeepClear(2, 0, math.pi / 2, 70, 18, false)
+    assert(edge and near(x, 56) and near(y, 0))
+    -- a target well away is left alone; an edge pin too
+    x, y, edge = WC.MinimapKeepClear(40, 0, math.pi / 2, 70, 18, false)
+    assert(not edge and x == 40 and y == 0)
+    x, y, edge = WC.MinimapKeepClear(56, 0, math.pi / 2, 70, 18, true)
+    assert(edge and x == 56)
+end }
+
+cases[#cases + 1] = { "tooltips: opaque over a low panel opacity, restored on hide, spaces collapsed", function()
+    local WC = plan_client("full")
+    WC.SetSetting("bgOpacity", 0.1)
+    local log, hooks = {}, {}
+    local tip = { strata = "DIALOG", bg = { 0.2, 0.2, 0.3, 0.6 }, border = { 1, 1, 1, 1 } }
+    function tip:SetOwner() end
+    function tip:GetFrameStrata() return self.strata end
+    function tip:SetFrameStrata(v) self.strata = v end
+    function tip:GetBackdropColor() return unpack(self.bg) end
+    function tip:SetBackdropColor(r, g, b, a) self.bg = { r, g, b, a } end
+    function tip:GetBackdropBorderColor() return unpack(self.border) end
+    function tip:SetBackdropBorderColor(r, g, b, a) self.border = { r, g, b, a } end
+    function tip:HookScript(name, fn) hooks[name] = fn end
+    function tip:AddLine(text) log[#log + 1] = text end
+    WC.TipOpen(tip, UIParent, "ANCHOR_RIGHT")
+    assert(tip.bg[4] >= 0.95 and tip.border[4] >= 0.95 and tip.strata == "TOOLTIP")
+    hooks.OnHide(tip)
+    assert(tip.bg[4] == 0.6 and tip.bg[1] == 0.2 and tip.strata == "DIALOG" and tip.border[1] == 1)
+    WC.TipOpen(tip, UIParent, "ANCHOR_RIGHT") -- styled again on the next open, hooked once
+    assert(tip.bg[4] >= 0.95)
+    WC.TipLine(tip, "Green  gear   upgrade", 1, 1, 1)
+    assert(log[1] == "Green gear upgrade")
+end }
+
 -- Draws the map for the plan_full fixture (steps 1 and 3 share a spot) and returns every line made.
 local function draw_route_lines(settings_in)
     local WC = plan_client("full")
@@ -1537,14 +1613,16 @@ cases[#cases + 1] = { "plan: the highlight is one line from the player to the ne
     assert(legs == 2, "the two ordinary legs (1 to 2, 2 to 3 share spots) keep the route colour, got " .. legs)
     assert(#hi == 1, "exactly one highlighted line, got " .. #hi)
     local sp = hi[1].startPoint
-    assert(sp[1] == "TOPLEFT" and sp[2] == canvas and sp[3] == 200 and sp[4] == -200, "starts at the player's spot")
+    assert(sp[1] == "TOPLEFT" and sp[2] == canvas and math.abs(math.sqrt((sp[3] - 200) ^ 2 + (sp[4] + 200) ^ 2) - 14) < 1e-6, "starts a small gap short of the player's spot")
     local nextPin
     for _, f in ipairs(frames) do if f.planGroup and f.planGroup.isNext and f.shown then nextPin = f end end
     assert(hi[1].endPoint[1] == "CENTER" and nextPin and hi[1].endPoint[2] == nextPin.anchor, "ends on the next stop's badge")
     assert(hi[1].thickness > WC.Setting("lineWidth"))
     -- the player moves: the same tick-time call re-anchors without a redraw
-    WC.UpdateNextLine(7001, 50, 50)
-    assert(hi[1].startPoint[3] == 500 and hi[1].startPoint[4] == -250)
+    WC.UpdateNextLine(7001, 70, 50)
+    assert(math.abs(math.sqrt((hi[1].startPoint[3] - 700) ^ 2 + (hi[1].startPoint[4] + 250) ^ 2) - 14) < 1e-6)
+    WC.UpdateNextLine(7001, 50, 50) -- standing on the stop: no line at all
+    assert(not hi[1].shown)
     WC.UpdateNextLine(7002, 50, 50)
     assert(not hi[1].shown, "hidden when the player is on another map")
 end }
@@ -2035,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.46" and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.47" and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
