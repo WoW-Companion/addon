@@ -32,6 +32,8 @@ for name in ([[
     CreateFrame
 ]]):gmatch("%S+") do capture_allowed[name] = true end
 
+-- C_MerchantFrame.GetNumItems/GetItemInfo/GetItemLink only READ the open merchant window's stock (the modern
+-- client's counterpart of GetMerchantNumItems/GetMerchantItemInfo); they buy nothing.
 -- GetTrainerServiceLevelReq only READS the level a trainer offer needs; the C_TradeSkillUI reads (above) only READ
 -- the open modern profession window's recipe ids and descriptions.
 -- The client APIs the observation of what the player sees (Seen.lua) may call, on top of the ones above that
@@ -43,6 +45,7 @@ for name in ([[
     GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceCost GetTrainerServiceSkillReq GetTrainerServiceItemLink
     GetTrainerServiceLevelReq
     GetMerchantNumItems GetMerchantItemInfo GetMerchantItemLink
+    C_MerchantFrame.GetNumItems C_MerchantFrame.GetItemInfo C_MerchantFrame.GetItemLink
     GetNumLootItems GetLootSlotLink GetLootSlotInfo
     GetSpellInfo
 ]]):gmatch("%S+") do seen_allowed[name] = true end

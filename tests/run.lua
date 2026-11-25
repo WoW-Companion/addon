@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.29" and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.30" and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4971,7 +4971,7 @@ cases[#cases + 1] = { "seen: raw samples are length-capped", function()
     WoWCompanionDB.observed = nil
     WC.SeenRaw("probe", "Fn", string.rep("x", 500), 1, true, {}, nil, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     local r = WoWCompanionDB.observed.raw.probe[1]
-    assert(#r.vals[1] == 60 and r.vals[4]:find("^table") and #r.vals == 12)
+    assert(#r.vals[1] == 60 and r.vals[4] == "" and #r.vals == 12)
 end }
 
 cases[#cases + 1] = { "seen: a vendor's stock is overwritten, not duplicated", function()
@@ -5076,6 +5076,106 @@ cases[#cases + 1] = { "seen: the option off records nothing; combat defers the r
     Stub.fire(frames, "LOOT_OPENED")
     Stub.fire(frames, "QUEST_DETAIL")
     assert(WoWCompanionDB.observed == nil)
+end }
+
+local function vendor_stock(n)
+    local stock = {}
+    for i = 1, n do stock[i] = { 1000 + i, i * 10 } end
+    return stock
+end
+
+local function item_link(stock) return function(i) return "|cff|Hitem:" .. stock[i][1] .. "::::|h[x]|h|r" end end
+
+local function seen_vendor()
+    local WC = seen_client()
+    NPC.guid, NPC.name = "Creature-0-4379-1-9999-888-0000ABCD", "Test Vendor"
+    GetMerchantNumItems, GetMerchantItemInfo, GetMerchantItemLink, C_MerchantFrame = nil, nil, nil, nil
+    return WC
+end
+
+cases[#cases + 1] = { "seen: the C_MerchantFrame table shape is read, every page, with a raw sample", function()
+    seen_vendor()
+    local stock = vendor_stock(20)
+    C_MerchantFrame = {
+        GetNumItems = function() return #stock end,
+        GetItemInfo = function(i) return { name = "x", price = stock[i][2], stackCount = 5, numAvailable = (i == 2) and 4 or -1, hasExtendedCost = (i == 3) } end,
+    }
+    GetMerchantItemLink = item_link(stock)
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local v = WoWCompanionDB.observed.vendors
+    assert(#v == 1 and #v[1].items == 20 and v[1].items[20].id == 1020 and v[1].items[20].price == 200, "both pages saved")
+    assert(v[1].items[1].stack == 5 and v[1].items[1].limited == nil and v[1].items[2].limited == 4 and v[1].items[3].ext == true)
+    local raw = WoWCompanionDB.observed.raw.merchant
+    assert(#raw == 3 and raw[1].call == "C_MerchantFrame.GetItemInfo" and raw[1].vals[1]:find("price=10", 1, true) and raw[1].vals[1]:find("stackCount=5", 1, true))
+    assert(not WoWCompanionDB.observed.raw.errors)
+    C_MerchantFrame = nil
+end }
+
+cases[#cases + 1] = { "seen: the global merchant tuple shape is read", function()
+    seen_vendor()
+    local stock = vendor_stock(3)
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) return "n", "t", stock[i][2], 2, -1, true, false end
+    GetMerchantItemLink = item_link(stock)
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local v = WoWCompanionDB.observed.vendors
+    assert(#v[1].items == 3 and v[1].items[3].price == 30 and v[1].items[3].stack == 2)
+    assert(WoWCompanionDB.observed.raw.merchant[1].call == "GetMerchantItemInfo")
+end }
+
+cases[#cases + 1] = { "seen: a missing merchant API still saves the vendor and records the error", function()
+    seen_vendor()
+    GetMerchantNumItems = function() return 2 end -- the count exists, the item info does not
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local o = WoWCompanionDB.observed
+    assert(#o.vendors == 1 and o.vendors[1].npc == 888 and #o.vendors[1].items == 0 and o.vendors[1].map == 1411)
+    assert(#o.raw.errors >= 1 and o.raw.errors[1].kind == "merchant" and #o.raw.errors[1].msg <= 120)
+    GetMerchantNumItems = nil
+    Stub.fire(frames, "MERCHANT_UPDATE")
+    assert(#o.vendors == 1 and #o.raw.errors >= 2, "no count API at all: the vendor is kept")
+end }
+
+cases[#cases + 1] = { "seen: one failing item does not lose the others", function()
+    seen_vendor()
+    local stock = vendor_stock(4)
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) if i == 2 then error("boom") end return "n", "t", stock[i][2], 1, -1 end
+    GetMerchantItemLink = item_link(stock)
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local o = WoWCompanionDB.observed
+    assert(#o.vendors[1].items == 3 and o.vendors[1].items[2].id == 1003)
+    assert(#o.raw.errors == 1 and o.raw.errors[1].msg:find("boom"))
+end }
+
+cases[#cases + 1] = { "seen: the error log keeps the last five, each capped", function()
+    local WC = seen_vendor()
+    for i = 1, 8 do WC.SeenError("trainer", i .. string.rep("x", 300)) end
+    local e = WoWCompanionDB.observed.raw.errors
+    assert(#e == 5 and e[1].msg:sub(1, 1) == "4" and #e[1].msg == 120 and e[5].kind == "trainer" and e[5].t)
+end }
+
+cases[#cases + 1] = { "seen: a trainer link is sampled and enchant links give an id", function()
+    seen_client()
+    seen_trainer({ { name = "A", state = "available", cost = 1, id = 1 } })
+    GetTrainerServiceItemLink = function() return "|cff|Henchant:7421|h[x]|h|r" end
+    Stub.fire(frames, "TRAINER_SHOW")
+    local o = WoWCompanionDB.observed
+    assert(o.trainers[1].offers[1].spell == 7421 and o.raw.trainerlink[1].call == "GetTrainerServiceItemLink")
+end }
+
+cases[#cases + 1] = { "seen: a client without MERCHANT_SHOW reads when the merchant frame is shown", function()
+    local shown
+    UNKNOWN_EVENTS = { MERCHANT_SHOW = true }
+    MerchantFrame = { HookScript = function(_, ev, fn) if ev == "OnShow" then shown = fn end end }
+    seen_vendor()
+    UNKNOWN_EVENTS, MerchantFrame = nil, nil
+    assert(shown, "OnShow hooked")
+    local stock = vendor_stock(2)
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) return "n", "t", stock[i][2], 1, -1 end
+    GetMerchantItemLink = item_link(stock)
+    shown()
+    assert(#WoWCompanionDB.observed.vendors[1].items == 2)
 end }
 
 cases[#cases + 1] = { "seen: no other addon's names in the code", function()

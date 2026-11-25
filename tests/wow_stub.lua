@@ -8,7 +8,10 @@ local function new_region(kind)
     function r:SetMovable(v) self.movable = v end
     function r:EnableMouse(v) self.mouse = v end
     function r:RegisterForDrag(...) self.drag = { ... } end
-    function r:RegisterEvent(e) self.events[e] = true end
+    function r:RegisterEvent(e)
+        if UNKNOWN_EVENTS and UNKNOWN_EVENTS[e] then error("unknown event " .. e) end -- a test sets it to mimic a client without the event
+        self.events[e] = true
+    end
     function r:SetScript(name, fn) self.scripts[name] = fn end
     function r:SetPoint(point, rel, relPoint, x, y)
         self.points = { { point, rel, relPoint, x or 0, y or 0 } }
