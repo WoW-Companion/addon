@@ -469,11 +469,9 @@ function WC.SeenReadFlightPoints()
 end
 
 local function skill_rank(kind)
-    if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
-    for i = 1, GetNumSkillLines() or 0 do
-        local name, header, _, rank = GetSkillLineInfo(i)
-        name, rank = WC.Clean(name), WC.Clean(rank)
-        if not header and name == SKILL_NAME[kind] then return rank end
+    if not WC.ReadSkillLines then return nil end
+    for _, line in ipairs(WC.ReadSkillLines()) do
+        if not line.header and line.name == SKILL_NAME[kind] then return line.rank end
     end
 end
 

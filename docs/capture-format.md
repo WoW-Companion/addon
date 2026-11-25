@@ -47,6 +47,9 @@ Notes:
 - Reads wait about two seconds so a burst of events is read once, and are held back while in combat; they run when
   combat ends.
 - `profession` marks the skills under the client's Professions and Secondary Skills headers.
+- Skills are read with `C_SkillInfo.GetNumSkillLines` and `C_SkillInfo.GetSkillLineInfo` (a table per line) when the client has them,
+  else with the legacy `GetNumSkillLines`/`GetSkillLineInfo`. They refresh on `SKILL_LINES_CHANGED`, at login and on level up; an open
+  profession window also records `C_TradeSkillUI.GetBaseProfessionInfo()`'s skill level and max for that profession.
 
 ## Client APIs used (all read-only)
 

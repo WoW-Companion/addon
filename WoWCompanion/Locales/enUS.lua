@@ -338,6 +338,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_40_1 = "Your professions and skill levels are recorded again.",
     WHATS_NEW_0_6_39_1 = "Fixed how base stats are recorded.",
     WHATS_NEW_0_6_38_1 = "Clicking a step on the map keeps the map in its frame; the All zones / This map switch is clearer.",
     WHATS_NEW_0_6_37_1 = "Your character's stats are recorded so stat advice matches the game.",

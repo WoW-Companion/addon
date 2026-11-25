@@ -287,17 +287,55 @@ function readers.stats(r)
     r.stats = s
 end
 
+-- Every skill line the client lists, in order: { name, header, rank, max }. The modern client's C_SkillInfo
+-- returns a table per line; the legacy globals return positional values. Values go through WC.Clean.
+local function pick(t, ...)
+    for i = 1, select("#", ...) do
+        local v = WC.Clean(t[select(i, ...)])
+        if v ~= nil then return v end
+    end
+end
+
+function WC.ReadSkillLines()
+    local out = {}
+    local S = C_SkillInfo
+    if S and S.GetNumSkillLines and S.GetSkillLineInfo then
+        local n = WC.Clean(S.GetNumSkillLines())
+        if type(n) == "number" and n > 0 then
+            for i = 1, n do
+                local info = S.GetSkillLineInfo(i)
+                if type(info) == "table" then
+                    out[#out + 1] = {
+                        name = pick(info, "skillName", "skillLineName", "name"),
+                        header = pick(info, "isHeader", "header") and true or false,
+                        rank = pick(info, "skillRank", "rank") or 0,
+                        max = pick(info, "maxSkillRank", "skillMaxRank", "maxRank") or 0,
+                    }
+                end
+            end
+            if #out > 0 then return out end
+        end
+    end
+    if GetNumSkillLines and GetSkillLineInfo then
+        for i = 1, WC.Clean(GetNumSkillLines()) or 0 do
+            local name, header, _, rank, _, _, max = GetSkillLineInfo(i)
+            out[#out + 1] = { name = WC.Clean(name), header = WC.Clean(header) and true or false,
+                rank = WC.Clean(rank) or 0, max = WC.Clean(max) or 0 }
+        end
+    end
+    return out
+end
+
 function readers.skills(r)
     local list = {}
     local group
     local primary = TRADE_SKILLS or "Professions"
     local secondary = SECONDARY_SKILLS or "Secondary Skills"
-    for i = 1, GetNumSkillLines and GetNumSkillLines() or 0 do
-        local name, header, _, rank, _, _, max = GetSkillLineInfo(i)
-        if header then
-            group = name
-        elseif name then
-            local s = { name = name, rank = rank or 0, max = max or 0, group = group }
+    for _, line in ipairs(WC.ReadSkillLines()) do
+        if line.header then
+            group = line.name
+        elseif type(line.name) == "string" then
+            local s = { name = line.name, rank = line.rank, max = line.max, group = group }
             if group == primary or group == secondary or group == "Professions" or group == "Secondary Skills" then
                 s.profession = true
             end
@@ -404,6 +442,23 @@ local function read_modern_recipes(r)
         profession = type(p) == "table" and (p.professionName or p.parentProfessionName) or nil
     end
     if not profession and T.GetTradeSkillLine then profession = T.GetTradeSkillLine() end
+    if T.GetBaseProfessionInfo then
+        local p = T.GetBaseProfessionInfo()
+        if type(p) == "table" then
+            local lvl, mx = WC.Clean(p.skillLevel), WC.Clean(p.maxSkillLevel)
+            if type(profession) == "string" and type(lvl) == "number" then
+                r.skills = r.skills or {}
+                local found
+                for _, sk in ipairs(r.skills) do if sk.name == profession then found = sk end end
+                if not found then
+                    found = { name = profession, group = "Professions", profession = true }
+                    r.skills[#r.skills + 1] = found
+                end
+                found.rank = lvl
+                if type(mx) == "number" then found.max = mx end
+            end
+        end
+    end
     local out = {}
     for _, id in ipairs(T.GetAllRecipeIDs() or {}) do
         if #out >= MAX_RECIPES then break end
@@ -530,7 +585,7 @@ end
 
 local EVENTS = {
     PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "completed", "talents", "stats", "skills", "spells", "reputations" },
-    PLAYER_LEVEL_UP = { "identity", "money", "talents", "stats", "spells" },
+    PLAYER_LEVEL_UP = { "identity", "money", "talents", "stats", "spells", "skills" },
     PLAYER_XP_UPDATE = { "money" },
     PLAYER_MONEY = { "money" },
     ZONE_CHANGED_NEW_AREA = { "location" },
