@@ -556,6 +556,11 @@ function WC.RefreshMapPins()
     local setting = WC.db.settings.planSize
     stepPin = {}
     local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
+    if #(WC.plan.live or {}) > 0 then
+        local withLive = { unpack(shown) }
+        for _, st in ipairs(WC.plan.live) do withLive[#withLive + 1] = st end
+        shown = withLive
+    end
     local groups = WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext())
     local markers = #groups > 0 and WC.ClientMarkers(mapID) or {}
     local radius = WC.MarkerRadius(WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale())

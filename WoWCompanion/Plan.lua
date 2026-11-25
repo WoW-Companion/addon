@@ -35,6 +35,38 @@ local function clamp(v, lo, hi)
     return math.max(lo, math.min(hi, v))
 end
 
+-- One guided position: text plus an optional map position (a zone-only item has none).
+local function guided_spot(o)
+    if type(o) ~= "table" or type(o.text) ~= "string" or o.text == "" then return nil end
+    local r = { doLine = plain(o.text), zone = type(o.zone) == "string" and plain(o.zone) or nil }
+    if tonumber(o.map) and tonumber(o.x) and tonumber(o.y) then
+        r.map, r.x, r.y = tonumber(o.map), clamp(tonumber(o.x), 0, 100), clamp(tonumber(o.y), 0, 100)
+    end
+    return r
+end
+
+-- Plan.lua 1.2 per-quest guidance, keyed by quest id: { quest, class, steps = {route step n}, objectives = {spot},
+-- turnin = spot or nil, after }. Returns nil when the plan has none (an older plan keeps today's behaviour).
+function WC.ParseGuidance(g)
+    if type(g) ~= "table" then return nil end
+    local out, any = {}, false
+    for key, e in pairs(g) do
+        local id = tonumber(type(e) == "table" and e.questID or key)
+        if id and id > 0 and type(e) == "table" then
+            local objs = {}
+            for _, o in ipairs(type(e.objectives) == "table" and e.objectives or {}) do
+                local spot = guided_spot(o)
+                if spot then objs[#objs + 1] = spot end
+            end
+            out[id] = { questID = id, quest = plain(e.quest or ""), class = e.class == true, steps = id_list(e.steps),
+                objectives = objs, turnin = guided_spot(e.turnin),
+                after = type(e.after) == "string" and e.after ~= "" and plain(e.after) or nil }
+            any = true
+        end
+    end
+    return any and out or nil
+end
+
 -- The valid steps for player in a Plan.lua table, in order; unknown fields are ignored.
 -- Returns nil, reason when there is nothing to show ("missing", "schema" or "character").
 function WC.ParsePlan(plan, player)
@@ -60,13 +92,14 @@ function WC.ParsePlan(plan, player)
                 npcLevel = (type(s.npcLevel) == "string" or type(s.npcLevel) == "number") and plain(tostring(s.npcLevel)) or nil,
                 -- Plan.lua 1.1 chain fields: a follow-up is locked until every quest in unlockedBy is turned in;
                 -- a turn-in lists what it unlocks. A 1.0 plan has none of them and nothing is ever locked.
+                questIDs = id_list(s.questIDs),
                 locked = s.locked == true, unlockedBy = id_list(s.unlockedBy), unlocks = id_list(s.unlocks),
                 chain = type(s.chain) == "string" and s.chain ~= "" and plain(s.chain) or nil,
             }
         end
     end
     if #steps == 0 then return nil, "character" end
-    return steps, nil, tonumber(plan.generated) or 0
+    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -170,7 +203,7 @@ end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -179,21 +212,31 @@ function WC.PlanInit()
         saved = { generated = generated, done = {} }
         WC.db.plan[charKey()] = saved
     end
-    WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {} }
+    WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
+        guidance = guidance, live = {}, liveSig = "" }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
     WC.PlanScan()
     WC.PlanUnlockCheck(true)
+    WC.PlanLiveRefresh()
 end
 
--- The first step not yet done, or nil when the route is finished.
-function WC.PlanNext()
+-- The first route step not yet done, or nil when the route is finished.
+local function route_next()
     local p = WC.plan
     if not p then return end
     for _, s in ipairs(p.steps) do
         if not p.done[s.n] and not WC.StepLocked(s) then return s end
     end
+end
+WC.RouteNext = route_next
+
+-- The step to show now: the live step of the quest being followed (see PlanLiveRefresh), else the route's next step.
+function WC.PlanNext()
+    local p = WC.plan
+    if not p then return end
+    return p.liveNow or route_next()
 end
 
 -- ---------------------------------------------------------------- chains: locked steps, unlocks, "New"
@@ -370,6 +413,15 @@ function WC.PlanCounts()
     return n, #p.steps
 end
 
+-- True when every quest a turn-in step serves is turned in (a merged stop lists them in questIDs).
+function WC.StepTurnedIn(step)
+    local ids = step.questIDs and #step.questIDs > 0 and step.questIDs or { step.questID }
+    for _, id in ipairs(ids) do
+        if WC.PlanQuestState(id) ~= "turnedin" then return false end
+    end
+    return true
+end
+
 local function mark(step)
     if WC.plan.done[step.n] then return false end
     WC.plan.done[step.n] = true
@@ -390,7 +442,7 @@ function WC.PlanScan(keep)
             if not p.done[s.n] then
                 local done = (s.kind == "pickup" and st ~= "none")
                     or (s.kind == "objective" and (st == "ready" or st == "turnedin"))
-                    or (s.kind == "turnin" and st == "turnedin")
+                    or (s.kind == "turnin" and WC.StepTurnedIn(s))
                 if done then changed = mark(s) or changed end
             elseif known and st == "none" and (s.kind == "pickup" or s.kind == "objective") and s.questID ~= keep then
                 p.done[s.n] = nil
@@ -401,6 +453,100 @@ function WC.PlanScan(keep)
     return changed
 end
 
+-- ---------------------------------------------------------------- live guidance (Plan.lua 1.2)
+
+local function step_has_quest(s, id)
+    if s.questID == id then return true end
+    for _, q in ipairs(s.questIDs or {}) do
+        if q == id then return true end
+    end
+    return false
+end
+
+-- A quest just accepted becomes the one the panel follows when the plan lists it and it is a class quest or the
+-- plan's current step. Any other listed quest still gets its pin; a quest the plan does not list is ignored.
+function WC.PlanFollowAccepted(id)
+    local p = WC.plan
+    local g = p and p.guidance and p.guidance[id]
+    if not g then return end
+    local cur = route_next()
+    if g.class or (cur and step_has_quest(cur, id)) then p.focus = id end
+end
+
+-- Which of the quest's guided objectives are still open, matched to the client's objectives by position when the
+-- counts agree, else by text. An unknown objective counts as open.
+local function open_objective(g, qid)
+    local live = WC.QuestObjectives(qid)
+    for i, o in ipairs(g.objectives) do
+        local fin = false
+        if live then
+            local m = (#live == #g.objectives) and live[i]
+            if not m then
+                for _, lo in ipairs(live) do
+                    local name = lo.text:gsub("^%d+/%d+%s*", ""):gsub(":?%s*%d+/%d+$", ""):lower()
+                    if name ~= "" and o.doLine:lower():find(name, 1, true) then m = lo break end
+                end
+            end
+            fin = m ~= nil and m.finished == true
+        end
+        if not fin then return o end
+    end
+end
+
+-- The step a guided quest in the log shows: its first open objective, or its turn-in once they are done. nil when
+-- the guidance has nothing for the state. n is the route step it belongs to, so "Step n/N" stays on the route.
+local function live_step(p, g, state)
+    local spot, kind
+    if state == "ready" then spot, kind = g.turnin, "turnin" else spot, kind = open_objective(g, g.questID), "objective" end
+    if not spot then return nil end
+    local n
+    for _, sn in ipairs(g.steps) do
+        if p.steps[sn] and not p.done[sn] then n = sn break end
+    end
+    return { n = n or (100000 + g.questID), kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
+        approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true }
+end
+
+-- Rebuilds the live steps from the quest log and the plan's guidance: nothing is stored, so a reload gives the same
+-- view. Returns whether what the panel shows changed.
+function WC.PlanLiveRefresh()
+    local p = WC.plan
+    if not p then return false end
+    local live, ids = {}, {}
+    for id in pairs(p.guidance or {}) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        local state = WC.PlanQuestState(id)
+        if state == "active" or state == "ready" then
+            local st = live_step(p, p.guidance[id], state)
+            if st then live[#live + 1] = st end
+        end
+    end
+    local byQuest = {}
+    for _, st in ipairs(live) do byQuest[st.questID] = st end
+    if p.focus and not byQuest[p.focus] then p.focus = nil end
+    local cur = route_next()
+    local now = p.focus and byQuest[p.focus]
+    if not now and cur then
+        for _, st in ipairs(live) do
+            if step_has_quest(cur, st.questID) then now = st break end
+        end
+    end
+    local sig = {}
+    for _, st in ipairs(live) do
+        sig[#sig + 1] = st.questID .. ":" .. st.kind .. ":" .. st.label .. ":" .. tostring(st.n)
+    end
+    sig = table.concat(sig, "|") .. "#" .. tostring(now and now.questID)
+    local changed = sig ~= p.liveSig
+    p.live, p.liveNow, p.liveSig = live, now, sig
+    return changed
+end
+
+-- True when the plan carries guidance, so the panel follows the quest log.
+function WC.PlanFollowing()
+    return WC.plan ~= nil and WC.plan.guidance ~= nil
+end
+
 -- Quest events advance the route with no /reload. QUEST_ACCEPTED carries (logIndex, questID) in
 -- classic clients and (questID) alone elsewhere; every event also rescans the log.
 function WC.PlanOnQuestEvent(event, a, b)
@@ -409,12 +555,17 @@ function WC.PlanOnQuestEvent(event, a, b)
     if not p then return end
     local changed = false
     local id = tonumber(event == "QUEST_ACCEPTED" and (b or a) or a)
+    if id and event == "QUEST_ACCEPTED" then WC.PlanFollowAccepted(id) end
     if id and (event == "QUEST_ACCEPTED" or event == "QUEST_TURNED_IN") then
         for _, s in ipairs(p.steps) do
-            if s.questID == id and (event == "QUEST_TURNED_IN" or s.kind == "pickup") then changed = mark(s) or changed end
+            if s.questID == id and (event == "QUEST_ACCEPTED" and s.kind == "pickup"
+                or event == "QUEST_TURNED_IN" and (not s.questIDs or #s.questIDs == 0 or s.kind ~= "turnin")) then
+                changed = mark(s) or changed
+            end
         end
     end
     changed = WC.PlanScan(event == "QUEST_ACCEPTED" and id or nil) or changed
+    changed = WC.PlanLiveRefresh() or changed
     -- A turn-in (or a rescan that finds one) may open follow-ups: they turn solid, pulse once and carry "New".
     local opened = WC.PlanUnlockCheck()
     if #opened > 0 then
