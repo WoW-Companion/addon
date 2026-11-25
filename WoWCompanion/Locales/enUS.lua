@@ -338,6 +338,7 @@ local L = {
     VIEW_CLICK = "Click for %s",
     WHATS_NEW_0_6_12_1 = "The map tab looks and sits like the quest log's own tabs; click it to open or close the plan.",
     WHATS_NEW_0_6_17_1 = "The view button now shows the view you're in; click it to switch.",
+    WHATS_NEW_0_6_44_1 = "Known spells are now recorded on this client, so the app no longer lists spells you already have as new.",
     WHATS_NEW_0_6_43_1 = "Bag and worn items now record quality, item level and slot, and enchants are read correctly.",
     WHATS_NEW_0_6_42_1 = "Each profession is recorded once, with its real level.",
     WHATS_NEW_0_6_41_1 = "Tooltips wrap neatly like the game's own.",
