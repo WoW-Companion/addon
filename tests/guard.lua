@@ -31,6 +31,10 @@ for name in ([[
     GetTradeSkillNumReagents GetTradeSkillReagentInfo GetTradeSkillReagentItemLink
     GetCraftNumReagents GetCraftReagentInfo GetCraftReagentItemLink C_Timer.After C_TradeSkillUI.GetBaseProfessionInfo
     C_TradeSkillUI.GetTradeSkillLine C_TradeSkillUI.IsTradeSkillLinked C_TradeSkillUI.IsTradeSkillGuild
+    UnitHealthMax UnitPowerMax UnitArmor UnitStat UnitAttackPower UnitRangedAttackPower
+    GetSpellCritChance GetCritChance GetRangedCritChance GetDodgeChance GetParryChance GetBlockChance GetManaRegen
+    GetSpellBonusDamage GetSpellBonusHealing GetSpellCritChanceFromIntellect GetCritChanceFromAgility
+    GetUnitManaRegenRateFromSpirit GetUnitHealthRegenRateFromSpirit
     CreateFrame
 ]]):gmatch("%S+") do capture_allowed[name] = true end
 

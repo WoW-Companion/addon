@@ -23,6 +23,9 @@ for name in ([[
     GetBuildInfo GetAddOnMetadata GetAddOnInfo GetRealmName GetZoneText GetMinimapShape GetPlayerFacing GetBindingKey GetBindLocation
     GetFileIDFromPath
     UnitName UnitLevel UnitClass UnitRace UnitFactionGroup UnitExists UnitGUID UnitReaction UnitXP UnitXPMax UnitStat UnitArmor UnitAttackPower
+    UnitHealthMax UnitPowerMax UnitRangedAttackPower GetSpellCritChance GetCritChance GetRangedCritChance GetDodgeChance
+    GetParryChance GetBlockChance GetManaRegen GetSpellBonusDamage GetSpellBonusHealing GetSpellCritChanceFromIntellect
+    GetCritChanceFromAgility GetUnitManaRegenRateFromSpirit GetUnitHealthRegenRateFromSpirit
     GetMoney GetXPExhaustion GetUnspentTalentPoints
     GetItemInfo GetItemInfoInstant GetItemIcon GetItemQualityColor GetInventoryItemID GetInventoryItemLink
     GetContainerNumSlots GetContainerItemInfo GetContainerItemID
