@@ -323,6 +323,29 @@ local function active_config()
     return try(C_ClassTalents.GetActiveConfigID)
 end
 
+-- A spell's name: C_Spell.GetSpellName, else C_Spell.GetSpellInfo(...).name, else the global GetSpellInfo.
+local function spell_name(id)
+    if not id then return nil end
+    local C = C_Spell
+    local name = C and try(C.GetSpellName, id)
+    if name == nil and C and C.GetSpellInfo then
+        local info = try(C.GetSpellInfo, id)
+        name = type(info) == "table" and info.name or nil
+    end
+    if name == nil and GetSpellInfo then name = (try(GetSpellInfo, id)) end
+    return WC.Clean(name)
+end
+
+-- The class tree's name when GetTreeInfo gives none: the specialization's own name, only when the config has one tree.
+local function spec_tree_name()
+    local S = C_SpecializationInfo
+    if not (S and S.GetSpecialization and S.GetSpecializationInfo) then return nil end
+    local idx = try(S.GetSpecialization)
+    if type(idx) ~= "number" then return nil end
+    local _, name = try(S.GetSpecializationInfo, idx)
+    return WC.Clean(name)
+end
+
 local function talents_traits()
     local T = C_Traits
     if not (T and T.GetConfigInfo and T.GetTreeNodes and T.GetNodeInfo) then return nil end
@@ -330,24 +353,32 @@ local function talents_traits()
     if not config then return {} end
     local info = try(T.GetConfigInfo, config)
     local trees = {}
-    for _, treeID in ipairs(type(info) == "table" and info.treeIDs or {}) do
+    local treeIDs = type(info) == "table" and info.treeIDs or {}
+    for _, treeID in ipairs(treeIDs) do
         local tinfo = T.GetTreeInfo and try(T.GetTreeInfo, config, treeID)
-        local tree = { tree = type(tinfo) == "table" and WC.Clean(tinfo.name or tinfo.treeName) or nil, points = 0, nodes = {} }
+        local tname = type(tinfo) == "table" and WC.Clean(tinfo.name or tinfo.treeName) or nil
+        if tname == nil and #treeIDs == 1 then tname = spec_tree_name() end
+        local tree = { tree = tname, points = 0, nodes = {} }
         for _, nodeID in ipairs(try(T.GetTreeNodes, treeID) or {}) do
             if #tree.nodes >= MAX_NODES then break end
             local node = try(T.GetNodeInfo, config, nodeID)
             if type(node) == "table" and (node.maxRanks or 0) > 0 then
                 local entry = node.activeEntry and node.activeEntry.entryID or (node.entryIDs and node.entryIDs[1])
-                local name
+                local name, spell
                 local einfo = entry and T.GetEntryInfo and try(T.GetEntryInfo, config, entry)
                 local def = type(einfo) == "table" and einfo.definitionID and T.GetDefinitionInfo and try(T.GetDefinitionInfo, einfo.definitionID)
                 if type(def) == "table" then
-                    name = def.overrideName or (def.spellID and GetSpellInfo and (try(GetSpellInfo, def.spellID)))
+                    spell = tonumber(WC.Clean(def.spellID))
+                    name = WC.Clean(def.overrideName)
+                    if name == nil or name == "" then name = spell_name(spell) end
                 end
                 local rank = tonumber(WC.Clean(node.activeRank)) or 0
                 tree.points = tree.points + rank
-                tree.nodes[#tree.nodes + 1] = { name = WC.Clean(name) or ("node " .. tostring(nodeID)), rank = rank,
-                    max = tonumber(WC.Clean(node.maxRanks)) or 0 }
+                local row = { node = tonumber(WC.Clean(nodeID)), entry = tonumber(WC.Clean(entry)), spell = spell,
+                    rank = rank, max = tonumber(WC.Clean(node.maxRanks)) or 0,
+                    posX = tonumber(WC.Clean(node.posX)), posY = tonumber(WC.Clean(node.posY)) }
+                if type(name) == "string" and name ~= "" then row.name = name end
+                tree.nodes[#tree.nodes + 1] = row
             end
         end
         trees[#trees + 1] = tree
@@ -414,6 +445,15 @@ function readers.talents(r)
     end
     counts.legacyNodes = legacy and nodecount(legacy) or -1
     counts.traitsNodes = traits and nodecount(traits) or -1
+    local named, withSpell = 0, 0
+    for _, t in ipairs(traits or {}) do
+        for _, n in ipairs(t.nodes) do
+            if n.name then named = named + 1 end
+            if n.spell then withSpell = withSpell + 1 end
+        end
+    end
+    counts.named = named
+    counts.withSpell = withSpell
     local picked = {}
     if legacy and #legacy > 0 and counts.legacyNodes > 0 then picked = legacy
     elseif traits and #traits > 0 and counts.traitsNodes > 0 then picked = traits end

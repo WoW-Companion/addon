@@ -25,6 +25,7 @@ for name in ([[
     GetNumTalentTabs GetTalentTabInfo GetNumTalents GetTalentInfo
     UnitCharacterPoints GetUnspentTalentPoints GetSpellInfo GetSpellBookItemInfo
     C_ClassTalents.GetActiveConfigID C_Traits.GetConfigInfo C_Traits.GetTreeInfo C_Traits.GetTreeNodes C_Traits.GetNodeInfo
+    C_Spell.GetSpellName C_Spell.GetSpellInfo C_SpecializationInfo.GetSpecialization C_SpecializationInfo.GetSpecializationInfo
     C_Traits.GetEntryInfo C_Traits.GetDefinitionInfo C_Traits.GetTreeCurrencyInfo C_SpecializationInfo.GetNumSpecializations
     GetNumSkillLines GetSkillLineInfo C_SkillInfo.GetNumSkillLines C_SkillInfo.GetSkillLineInfo GetNumSpellTabs GetSpellTabInfo GetSpellLink C_SpellBook.GetSpellBookItemInfo C_SpellBook.GetNumSpellBookSkillLines C_SpellBook.GetSpellBookSkillLineInfo
     GetNumFactions GetFactionInfo
