@@ -239,7 +239,9 @@ function readers.stats(r)
     local s = { seenAt = time(), level = WC.Clean(UnitLevel and UnitLevel("player")) }
     local stats = {}
     for key, i in pairs(STAT_INDEX) do
-        local base, total, pos, neg = nums(UnitStat, "player", i)
+        local first, total, pos, neg = nums(UnitStat, "player", i)
+        -- The first return on this client is the effective total, so base = total - pos - neg (neg is reported negative).
+        local base = total and (total - (pos or 0) - (neg or 0)) or first
         if base or total then stats[key] = { base = base, total = total, pos = pos, neg = neg } end
     end
     s.stats = stats
