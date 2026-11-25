@@ -88,18 +88,18 @@ local function talking_to()
     if not (UnitGUID and UnitExists) then return nil end
     local unit, id
     for _, u in ipairs({ "npc", "target" }) do -- some clients leave "npc" empty while a window is open
-        if UnitExists(u) then
-            id = npc_id(UnitGUID(u))
+        if WC.Clean(UnitExists(u)) then
+            id = npc_id(WC.Clean(UnitGUID(u)))
             if id then unit = u break end
         end
     end
     if not id then return nil end
     local g = { id = id }
-    local name = UnitName and UnitName(unit)
+    local name = WC.Clean(UnitName and UnitName(unit))
     if type(name) == "string" and name ~= "" then g.name = name end
     g.map, g.x, g.y = here()
-    if UnitReaction then g.reaction = UnitReaction("player", unit) end
-    if UnitFactionGroup then g.faction = UnitFactionGroup(unit) end
+    if UnitReaction then g.reaction = WC.Clean(UnitReaction("player", unit)) end
+    if UnitFactionGroup then g.faction = WC.Clean(UnitFactionGroup(unit)) end
     return g
 end
 
@@ -111,6 +111,7 @@ end
 
 -- Replaces the record for this npc (the list stays oldest first) and drops the oldest beyond the cap.
 local function put(list, rec, cap)
+    WC.CleanTree(rec)
     for i, r in ipairs(list) do
         if type(r) == "table" and r.npc == rec.npc then table.remove(list, i) break end
     end
@@ -133,7 +134,7 @@ local function table_text(t)
     for _, k in ipairs(keys) do
         local v = t[k]
         if v == nil then v = t[tonumber(k)] end
-        out[#out + 1] = k .. "=" .. tostring(v)
+        out[#out + 1] = k .. "=" .. tostring(WC.Clean(v))
     end
     return table.concat(out, " "):sub(1, RAW_TABLE)
 end
@@ -160,6 +161,10 @@ function WC.SeenRaw(kind, call, ...)
     local vals = {}
     for i = 1, math.min(select("#", ...), RAW_VALUES) do
         local v = select(i, ...)
+        if type(v) ~= "table" then
+            local c = WC.Clean(v)
+            if c == nil and v ~= nil then v = "(secret)" else v = c end
+        end
         local t = type(v)
         if t == "string" then v = v:sub(1, RAW_TEXT)
         elseif t == "table" then v = table_text(v)
@@ -177,7 +182,7 @@ local AVAILABILITY = { available = true, unavailable = true, used = true }
 function WC.SeenClassifyService(...)
     local name, rank, state, icon
     for i = 1, select("#", ...) do
-        local v = select(i, ...)
+        local v = WC.Clean(select(i, ...))
         if type(v) == "string" and v ~= "" then
             if i == 1 then name = v
             elseif AVAILABILITY[v] then state = state or v
@@ -242,6 +247,28 @@ local function merchant_count()
     error("no merchant item count API")
 end
 
+-- The extra costs of one merchant item, { { id = item id, count = n } or { currency = currency id, count = n } }
+-- (at most COST_SLOTS), or nil when the client gives none. A failing read is recorded and costs only this list.
+local COST_SLOTS = 8
+local function merchant_costs(i)
+    if not (GetMerchantItemCostInfo and GetMerchantItemCostItem) then return nil end
+    local ok, n = pcall(GetMerchantItemCostInfo, i)
+    if not ok then WC.SeenError("merchant", n) return nil end
+    local out = {}
+    for j = 1, math.min(tonumber(WC.Clean(n)) or 0, COST_SLOTS) do
+        local okj, _, value, link = pcall(GetMerchantItemCostItem, i, j)
+        if not okj then WC.SeenError("merchant", value) break end
+        value, link = WC.Clean(value), WC.Clean(link)
+        if type(link) == "string" and type(value) == "number" then
+            local cur = tonumber(link:match("currency:(%d+)"))
+            local item = item_id(link)
+            if cur then out[#out + 1] = { currency = cur, count = value }
+            elseif item then out[#out + 1] = { id = item, count = value } end
+        end
+    end
+    if #out > 0 then return out end
+end
+
 local function merchant_item(i)
     local price, qty, avail, ext, id
     local info
@@ -257,22 +284,28 @@ local function merchant_item(i)
     if type(info) ~= "table" then error("merchant item info is " .. type(info)) end
     if info.price ~= nil or info.name ~= nil or info.stackCount ~= nil then
         price, qty, avail, ext = info.price, info.stackCount, info.numAvailable, info.hasExtendedCost
-        id = tonumber(info.itemID) or item_id(info.itemLink)
+        id = tonumber(WC.Clean(info.itemID)) or item_id(WC.Clean(info.itemLink))
     else
         price, qty, avail, ext = info[3], info[4], info[5], info[7]
+    end
+    price, qty, avail, ext = WC.Clean(price), WC.Clean(qty), WC.Clean(avail), WC.Clean(ext)
+    if GetMerchantItemID then -- the item id directly, preferred
+        local ok, direct = pcall(GetMerchantItemID, i)
+        direct = ok and tonumber(WC.Clean(direct)) or nil
+        if direct and direct > 0 then id = direct end
     end
     if not id then
         local link
         if GetMerchantItemLink then link = GetMerchantItemLink(i)
         elseif C_MerchantFrame and C_MerchantFrame.GetItemLink then link = C_MerchantFrame.GetItemLink(i) end
-        id = item_id(link)
+        id = item_id(WC.Clean(link))
     end
     if not id then return nil end
     local it = { id = id }
     if type(price) == "number" then it.price = price end
     if type(qty) == "number" then it.stack = qty end
     if type(avail) == "number" and avail >= 0 then it.limited = avail end
-    if ext then it.ext = true end
+    if ext then it.ext = merchant_costs(i) or true end
     return it
 end
 
@@ -295,10 +328,26 @@ function WC.SeenReadMerchant()
     return true
 end
 
+WC.SEEN_FLIGHT_CAP = 300 -- flight masters kept
+
+-- Taxi window: only the flight master (npc, name, where), never the node list.
+function WC.SeenReadFlight()
+    if not on() then return false end
+    local g = talking_to()
+    if not g then WC.SeenError("taxi", "no npc to attribute the flight master to") return false end
+    local list = section("flightmasters")
+    if not list then return false end
+    local rec = {}
+    fill_npc(rec, g)
+    put(list, rec, WC.SEEN_FLIGHT_CAP)
+    return true
+end
+
 local function skill_rank(kind)
     if not (GetNumSkillLines and GetSkillLineInfo) then return nil end
     for i = 1, GetNumSkillLines() or 0 do
         local name, header, _, rank = GetSkillLineInfo(i)
+        name, rank = WC.Clean(name), WC.Clean(rank)
         if not header and name == SKILL_NAME[kind] then return rank end
     end
 end
@@ -313,7 +362,7 @@ function WC.SeenCast(unit, ...)
     if not kind and GetSpellInfo then
         for _, v in ipairs({ ... }) do
             if type(v) == "number" then
-                local name = GetSpellInfo(v)
+                local name = WC.Clean(GetSpellInfo(v))
                 kind = name and KIND_BY_NAME[name]
             elseif type(v) == "string" then
                 kind = KIND_BY_NAME[v]
@@ -336,16 +385,16 @@ function WC.SeenLoot()
     if not (map and x and y) then return false end
     local source
     if c.kind == "skin" and UnitExists and UnitExists("target") then
-        local n = UnitName and UnitName("target")
+        local n = WC.Clean(UnitName and UnitName("target"))
         if type(n) == "string" and n ~= "" then source = n end
     end
     local items = {}
     for i = 1, GetNumLootItems() or 0 do
-        local id = item_id(GetLootSlotLink(i))
+        local id = item_id(WC.Clean(GetLootSlotLink(i)))
         if id then
             local count = 1
             if GetLootSlotInfo then
-                local q = select(3, GetLootSlotInfo(i))
+                local q = WC.Clean(select(3, GetLootSlotInfo(i)))
                 if type(q) == "number" and q > 0 then count = q end
             end
             items[#items + 1] = { id = id, count = count }
@@ -404,7 +453,10 @@ function WC.SeenGiverFor(e)
     giver = nil
 end
 
-local READ = { trainer = "SeenReadTrainer", merchant = "SeenReadMerchant" }
+local READ = { trainer = "SeenReadTrainer", merchant = "SeenReadMerchant", taxi = "SeenReadFlight" }
+local OPEN_DELAY, UPDATE_DELAY = 0.5, 1.5 -- seconds after a window opens or updates that its data is read
+local gen = {}          -- window name -> counter; a newer schedule replaces an older one (debounce)
+
 local function read(win)
     if not open[win] then return end
     if InCombatLockdown and InCombatLockdown() then pending[win] = true; return end
@@ -413,24 +465,77 @@ local function read(win)
     if not ok then WC.SeenError(win, err) end
 end
 
+-- Reads the window after a short delay (the lists can be empty or partial when the event fires). Repeated
+-- schedules cause one read; without C_Timer the read happens at once.
+local function schedule(win, delay)
+    if not (C_Timer and C_Timer.After) then read(win) return end
+    gen[win] = (gen[win] or 0) + 1
+    local mine = gen[win]
+    C_Timer.After(delay, function() if gen[win] == mine then read(win) end end)
+end
+
+-- A window opens once, whichever event says so first; a repeat while it is up counts as an update.
+-- (a stale "open" from a missed close expires after DOUBLE_FIRE seconds, so the next real open is read).
+local DOUBLE_FIRE = 1
+local function open_window(win)
+    local now = time()
+    local who = tostring(WC.Clean(UnitGUID and UnitGUID("npc")))
+    if open[win] and open[win].who == who and now - open[win].at < DOUBLE_FIRE then return end
+    open[win] = { at = now, who = who }
+    schedule(win, OPEN_DELAY)
+end
+
+local function update_window(win)
+    if open[win] then schedule(win, UPDATE_DELAY) end
+end
+
+local function close_window(win)
+    open[win], pending[win] = nil, nil
+    gen[win] = (gen[win] or 0) + 1
+end
+
+-- PLAYER_INTERACTION_MANAGER_FRAME_SHOW/HIDE carry an Enum.PlayerInteractionType: the enum at runtime when the
+-- client has it, else the documented numbers.
+local TYPE_WINDOW = { { "Merchant", 5, "merchant" }, { "Vendor", 12, "merchant" }, { "Trainer", 7, "trainer" },
+    { "Banker", 8, "bank" }, { "QuestGiver", 4, "quest" }, { "TaxiNode", 6, "taxi" } }
+function WC.SeenWindowOfType(t)
+    t = WC.Clean(t)
+    if type(t) ~= "number" then return nil end
+    local E = Enum and Enum.PlayerInteractionType
+    for _, row in ipairs(TYPE_WINDOW) do
+        local v = type(E) == "table" and tonumber(E[row[1]]) or row[2]
+        if v == t then return row[3] end
+    end
+end
+
 local frame = CreateFrame("Frame")
 for _, ev in ipairs({ "TRAINER_SHOW", "TRAINER_UPDATE", "TRAINER_CLOSED", "MERCHANT_SHOW", "MERCHANT_UPDATE",
-    "MERCHANT_CLOSED", "LOOT_OPENED", "QUEST_DETAIL", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START",
-    "PLAYER_REGEN_ENABLED" }) do
+    "MERCHANT_CLOSED", "TAXIMAP_OPENED", "TAXIMAP_CLOSED", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW",
+    "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", "LOOT_OPENED", "QUEST_DETAIL", "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_SPELLCAST_CHANNEL_START", "PLAYER_REGEN_ENABLED" }) do
     pcall(frame.RegisterEvent, frame, ev) -- a client without an event just skips it
 end
 -- A client with no MERCHANT_SHOW event: read when the merchant frame is shown instead (a read-only hook).
 if not pcall(frame.RegisterEvent, frame, "MERCHANT_SHOW") and MerchantFrame and MerchantFrame.HookScript then
-    pcall(MerchantFrame.HookScript, MerchantFrame, "OnShow", function() open.merchant = true; read("merchant") end)
-    pcall(MerchantFrame.HookScript, MerchantFrame, "OnHide", function() open.merchant, pending.merchant = nil, nil end)
+    pcall(MerchantFrame.HookScript, MerchantFrame, "OnShow", function() open_window("merchant") end)
+    pcall(MerchantFrame.HookScript, MerchantFrame, "OnHide", function() close_window("merchant") end)
 end
 frame:SetScript("OnEvent", function(_, event, a, ...)
-    if event == "TRAINER_SHOW" then open.trainer = true; read("trainer")
-    elseif event == "TRAINER_UPDATE" then read("trainer")
-    elseif event == "TRAINER_CLOSED" then open.trainer, pending.trainer = nil, nil
-    elseif event == "MERCHANT_SHOW" then open.merchant = true; read("merchant")
-    elseif event == "MERCHANT_UPDATE" then read("merchant")
-    elseif event == "MERCHANT_CLOSED" then open.merchant, pending.merchant = nil, nil
+    if event == "TRAINER_SHOW" then open_window("trainer")
+    elseif event == "TRAINER_UPDATE" then update_window("trainer")
+    elseif event == "TRAINER_CLOSED" then close_window("trainer")
+    elseif event == "MERCHANT_SHOW" then open_window("merchant")
+    elseif event == "MERCHANT_UPDATE" then update_window("merchant")
+    elseif event == "MERCHANT_CLOSED" then close_window("merchant")
+    elseif event == "TAXIMAP_OPENED" then open_window("taxi")
+    elseif event == "TAXIMAP_CLOSED" then close_window("taxi")
+    elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" or event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
+        local win = WC.SeenWindowOfType(a)
+        if win == "quest" then
+            if event:find("SHOW") then pcall(WC.SeenQuestGiver) end
+        elseif win and READ[win] then
+            if event:find("SHOW") then open_window(win) else close_window(win) end
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         for win in pairs(pending) do read(win) end
     elseif event == "LOOT_OPENED" then pcall(WC.SeenLoot)

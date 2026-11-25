@@ -1961,7 +1961,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.30" and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.31" and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -5176,6 +5176,163 @@ cases[#cases + 1] = { "seen: a client without MERCHANT_SHOW reads when the merch
     GetMerchantItemLink = item_link(stock)
     shown()
     assert(#WoWCompanionDB.observed.vendors[1].items == 2)
+end }
+
+-- Window events, delayed reads, secret values, extended costs, reagents, flight masters.
+local function timers()
+    local q = {}
+    C_Timer = { After = function(sec, fn) q[#q + 1] = { sec, fn } end }
+    return function() local t = {}; for i, x in ipairs(q) do t[i] = x end; for i = #q, 1, -1 do q[i] = nil end; for _, x in ipairs(t) do x[2]() end end, q
+end
+local function stock_api(stock)
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) return "n", "t", stock[i][2], 1, -1 end
+    GetMerchantItemLink = item_link(stock)
+end
+
+cases[#cases + 1] = { "seen: only the interaction-manager event fires, the window is still read", function()
+    seen_vendor()
+    local fire = timers()
+    stock_api(vendor_stock(2))
+    Stub.fire(frames, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 5)
+    fire()
+    assert(#WoWCompanionDB.observed.vendors[1].items == 2)
+    Stub.fire(frames, "PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 5)
+    C_Timer = nil
+end }
+
+cases[#cases + 1] = { "seen: both events fire, one read", function()
+    seen_vendor()
+    local fire, q = timers()
+    stock_api(vendor_stock(1))
+    local reads = 0
+    local base = GetMerchantNumItems
+    GetMerchantNumItems = function() reads = reads + 1 return base() end
+    Stub.fire(frames, "MERCHANT_SHOW")
+    Stub.fire(frames, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 5)
+    assert(#q == 1 and q[1][1] == 0.5, "one delayed read scheduled")
+    fire()
+    assert(reads == 1 and #WoWCompanionDB.observed.vendors == 1)
+    Stub.fire(frames, "MERCHANT_UPDATE"); Stub.fire(frames, "MERCHANT_UPDATE")
+    assert(q[#q][1] == 1.5)
+    fire()
+    assert(reads == 2, "updates are debounced into one read")
+    C_Timer = nil
+end }
+
+cases[#cases + 1] = { "seen: the enum is used at runtime, the numbers are the fallback", function()
+    local WC = seen_client()
+    assert(WC.SeenWindowOfType(5) == "merchant" and WC.SeenWindowOfType(12) == "merchant" and WC.SeenWindowOfType(7) == "trainer")
+    assert(WC.SeenWindowOfType(8) == "bank" and WC.SeenWindowOfType(4) == "quest" and WC.SeenWindowOfType(6) == "taxi" and WC.SeenWindowOfType(99) == nil)
+    Enum = { PlayerInteractionType = { Merchant = 50, Trainer = 70 } }
+    assert(WC.SeenWindowOfType(50) == "merchant" and WC.SeenWindowOfType(5) == nil and WC.SeenWindowOfType(12) == "merchant")
+    Enum = nil
+end }
+
+cases[#cases + 1] = { "seen: an empty list at open is filled after the delay and saved", function()
+    seen_vendor()
+    local fire = timers()
+    local stock = {}
+    stock_api(stock)
+    Stub.fire(frames, "MERCHANT_SHOW")
+    stock[1], stock[2] = { 1001, 10 }, { 1002, 20 }
+    fire()
+    assert(#WoWCompanionDB.observed.vendors[1].items == 2)
+    C_Timer = nil
+end }
+
+cases[#cases + 1] = { "seen: a secret value is never stored", function()
+    local WC = seen_vendor()
+    local secret = {}
+    issecretvalue = function(v) return v == secret end
+    assert(WC.Clean(secret) == nil and WC.Clean("a") == "a" and WC.Clean(3) == 3 and WC.Clean(false) == false and WC.Clean(print) == nil)
+    NPC.name = secret
+    GetMerchantNumItems = function() return 2 end
+    GetMerchantItemInfo = function(i) return secret, "t", i == 1 and secret or 7, 1, -1 end
+    GetMerchantItemLink = item_link(vendor_stock(2))
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local v = WoWCompanionDB.observed.vendors[1]
+    assert(v.name == nil and v.items[1].price == nil and v.items[2].price == 7)
+    local t = { a = secret, b = { c = secret, d = 1 } }
+    WC.CleanTree(t)
+    assert(t.a == nil and t.b.c == nil and t.b.d == 1)
+    issecretvalue = nil
+end }
+
+cases[#cases + 1] = { "seen: a raising call records an error and nothing crashes", function()
+    seen_vendor()
+    stock_api(vendor_stock(2))
+    GetMerchantItemID = function() error("secret state") end
+    GetMerchantItemCostInfo = function() error("cost boom") end
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local o = WoWCompanionDB.observed
+    assert(#o.vendors[1].items == 2 or #o.raw.errors >= 1)
+    GetMerchantItemID = nil
+    GetMerchantItemCostInfo = nil
+end }
+
+cases[#cases + 1] = { "seen: an extended-cost item carries its item and currency costs", function()
+    seen_vendor()
+    local stock = vendor_stock(2)
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) return "n", "t", 0, 1, -1, true, true end
+    GetMerchantItemID = function(i) return 5000 + i end
+    GetMerchantItemCostInfo = function(i) return i == 1 and 2 or 0 end
+    GetMerchantItemCostItem = function(i, j)
+        if j == 1 then return "tex", 20, "|cff|Hitem:29434::::|h[Badge]|h|r" end
+        return "tex", 5, "|cff|Hcurrency:1704|h[Spirit Shard]|h|r"
+    end
+    Stub.fire(frames, "MERCHANT_SHOW")
+    local it = WoWCompanionDB.observed.vendors[1].items
+    assert(it[1].id == 5001, "GetMerchantItemID preferred")
+    assert(#it[1].ext == 2 and it[1].ext[1].id == 29434 and it[1].ext[1].count == 20 and it[1].ext[2].currency == 1704 and it[1].ext[2].count == 5)
+    assert(it[2].ext == true, "flagged but no cost rows: the flag stays")
+    GetMerchantItemID, GetMerchantItemCostInfo, GetMerchantItemCostItem = nil, nil, nil
+end }
+
+cases[#cases + 1] = { "capture: recipe reagents through the modern schematic and the classic API", function()
+    local WC, run = capture_client()
+    GetNumTradeSkills, GetTradeSkillLine = nil, nil
+    C_TradeSkillUI = {
+        GetBaseProfessionInfo = function() return { professionName = "Blacksmithing" } end,
+        GetAllRecipeIDs = function() return { 2663 } end,
+        GetRecipeInfo = function(id) return { name = "Sword", recipeID = id, learned = true, relativeDifficulty = 1 } end,
+        GetRecipeSchematic = function()
+            local slots = {}
+            for n = 1, 10 do slots[n] = { quantityRequired = 2, reagents = { { itemID = 100 + n } } } end
+            return { outputItemID = 777, quantityMin = 1, reagentSlotSchematics = slots }
+        end,
+    }
+    run()
+    Stub.fire(frames, "TRADE_SKILL_SHOW"); run()
+    local e = WoWCompanionDB.characters["Testrealm:Thrall"].recipes.Blacksmithing.entries[1]
+    assert(e.makes.item == 777 and e.makes.count == 1 and e.difficulty == "yellow")
+    assert(#e.reagents == 8 and e.reagents[1].item == 101 and e.reagents[1].count == 2, "capped at 8")
+    C_TradeSkillUI = nil
+    capture_clear()
+    -- classic family
+    local WC2, run2 = capture_client()
+    GetNumTradeSkills = function() return 2 end
+    GetTradeSkillNumReagents = function() return 2 end
+    GetTradeSkillReagentInfo = function(i, j) return "r", "t", j * 3, 9 end
+    GetTradeSkillReagentItemLink = function(i, j) return "|cff|Hitem:" .. (200 + j) .. "::::|h[x]|h|r" end
+    Stub.fire(frames, "TRADE_SKILL_SHOW"); run2()
+    local e2 = WoWCompanionDB.characters["Testrealm:Thrall"].recipes.Blacksmithing.entries[1]
+    assert(#e2.reagents == 2 and e2.reagents[1].item == 201 and e2.reagents[2].count == 6)
+    GetTradeSkillNumReagents, GetTradeSkillReagentInfo, GetTradeSkillReagentItemLink = nil, nil, nil
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "seen: a flight master is recorded, the npc only", function()
+    seen_client()
+    local fire = timers()
+    NPC.guid, NPC.name = "Creature-0-4379-1-9999-1571-0000ABCD", "Test Flight Master"
+    Stub.fire(frames, "TAXIMAP_OPENED")
+    fire()
+    Stub.fire(frames, "TAXIMAP_CLOSED")
+    local f = WoWCompanionDB.observed.flightmasters
+    assert(#f == 1 and f[1].npc == 1571 and f[1].name == "Test Flight Master" and f[1].map == 1411 and f[1].x == 50 and f[1].y == 25 and f[1].nodes == nil)
+    C_Timer = nil
 end }
 
 cases[#cases + 1] = { "seen: no other addon's names in the code", function()

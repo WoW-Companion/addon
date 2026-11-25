@@ -62,10 +62,14 @@ observed.trainers = {  -- at most 300 trainers; opening a trainer again replaces
 }
 observed.vendors = {   -- at most 300 vendors; opening a vendor again overwrites its stock
   { npc, name, map, x, y, reaction, faction, t,
-    items = { { id = <item id>, price = <copper>, stack = <n>, limited = <n left, only when limited>, ext = true --[[ also costs tokens or items ]] } } },  -- at most 200
+    items = { { id = <item id>, price = <copper>, stack = <n>, limited = <n left, only when limited>, ext = <true | { { id = <item id>, count = <n> } | { currency = <currency id>, count = <n> }, ... }> --[[ also costs items or currency: the list (at most 8) when the client gives the cost rows, else true ]] } } },  -- at most 200
+}
+observed.flightmasters = {  -- at most 300; the flight master's npc only, never the node list; opening again replaces
+  { npc, name, map, x, y, reaction, faction, t },
 }
 observed.raw = {      -- the first 3 raw return tuples per window kind per session, to verify the field mapping; temporary
   trainer = { { call = "GetTrainerServiceInfo", n = <values returned>, t = <unix s>, vals = { ... } } },
+  errors = { { kind = "<window>", t = <unix s>, msg = "<cut to 120>" } },  -- the last 5 failed reads
   merchant = { ... }, tradeskill = { ... },   -- strings cut to 60 characters, at most 12 values
 }
 observed.gathering = { -- at most 2000 rows, aggregated; no raw events. The least recently updated row is dropped first
@@ -78,3 +82,7 @@ observed.gathering = { -- at most 2000 rows, aggregated; no raw events. The leas
 
 Gathering is recorded only for loot that opens right after the player's own Herb Gathering, Mining, Skinning or
 Fishing cast (within 20 s, 45 s for Fishing); any other loot is ignored.
+
+Windows are read about 0.5 s after they open and 1.5 s after an update (the lists can arrive late); the old window
+event or `PLAYER_INTERACTION_MANAGER_FRAME_SHOW` opens a window, once. A secret value (the client's `issecretvalue`)
+is never saved: every stored value is a string, number or boolean.

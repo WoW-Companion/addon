@@ -25,7 +25,8 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   skills = { { name, rank, max, group = "<header>", profession? = true } },
   spells = { <spellID>, ... },                               -- the spellbook, sorted
   reputations = { { faction, standing = <1-8>, value, min, max } },
-  recipes = { ["<profession>"] = { seenAt = <unix s>, entries = { { name, id?, item?, difficulty? = "orange"|"yellow"|"green"|"grey" } } } },
+  recipes = { ["<profession>"] = { seenAt = <unix s>, entries = { { name, id?, item?, difficulty? = "orange"|"yellow"|"green"|"grey",
+    makes? = { item, count }, reagents? = { { item, count } }  --[[ at most 8 ]], learnSkill? = <skill needed, when exposed> } } } },
 }
 ```
 
