@@ -2,7 +2,7 @@
 -- the WoW client's (the allow-list below), nor assigned as a global by an addon file.
 -- It lists each file's bytecode with `luajit -bl` and reads the GGET/GSET names, so it sees what the
 -- compiler resolved as a global: a function that reads a `local` declared further down the file shows
--- up as a GGET of that name (the ADDON-093 crash: SCROLL_TOP read before its local).
+-- up as a GGET of that name (the login crash: SCROLL_TOP read before its local).
 local M = {}
 
 local allowed = {}
