@@ -2035,7 +2035,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.46" and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.47" and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -6008,6 +6008,107 @@ cases[#cases + 1] = { "plan guidance: an older Plan.lua keeps the route behaviou
     QUESTS[10] = "active"
     WC.LiveUpdate("QUEST_ACCEPTED", 10)
     assert(WC.PlanNext().label == "Kill 5 boars" and WC.PlanNext() == WC.RouteNext())
+end }
+
+-- The "Here" card (Plan.lua 1.3): what can be done at a plan NPC, from the live quest log.
+local HERE_POS = { 0.51, 0.5 }
+local function here_client(file)
+    local WC = guided_client(file or "here")
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetMapWorldSize = function() return 1000, 1000 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return HERE_POS[1], HERE_POS[2] end } end }
+    UnitLevel = function() return 10 end
+    return WC
+end
+local function here_text(WC)
+    local mapID, px, py = WC.PlayerPos()
+    local t = {}
+    for _, r in ipairs(WC.HereRows(mapID, px, py)) do t[#t + 1] = r.text end
+    return table.concat(t, "\n")
+end
+
+cases[#cases + 1] = { "here card: shows in range with the missing items, hides out of range", function()
+    local WC = here_client()
+    HERE_POS = { 0.51, 0.5 }
+    QUESTS[10] = "active"
+    OBJ[10] = { { text = "Test Gyro: 0/1", finished = false }, { text = "Test Core: 0/1", finished = false } }
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    local txt = here_text(WC)
+    assert(txt:find("Here: Test Windshaper", 1, true), txt)
+    assert(txt:find("Turn in: Quest 10; still need Collect Test Gyro (Test Lake), Collect Test Core (Test Camp)", 1, true), txt)
+    assert(txt:find("Train", 1, true) and txt:find("Vendor", 1, true), txt)
+    OBJ[10][1].finished = true
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    txt = here_text(WC)
+    assert(txt:find("still need Collect Test Core (Test Camp)", 1, true) and not txt:find("still need Collect Test Gyro", 1, true), txt)
+    HERE_POS = { 0.9, 0.9 }
+    assert(not here_text(WC):find("Here:", 1, true) and WC.HereCard(WC.PlayerPos()) == nil, "far away: no card")
+    HERE_POS = { 0.51, 0.5 }
+end }
+
+cases[#cases + 1] = { "here card: a later ready turn-in and a pick-up that fits show as 'while you're here'", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    QUESTS[10] = "active"
+    OBJ[10] = { { text = "Test Gyro: 0/1", finished = false }, { text = "Test Core: 0/1", finished = false } }
+    QUESTS[50] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    local txt = here_text(WC)
+    assert(txt:find("While you're here: step 5, turn in Quest 50", 1, true), txt)
+    assert(txt:find("While you're here: step 4, pick up Quest 20", 1, true), txt)
+    assert(not txt:find("Turn in: Quest 50", 1, true), "listed once")
+    UnitLevel = function() return 3 end
+    assert(not here_text(WC):find("Quest 20", 1, true), "a pick-up above the player's level is not offered")
+end }
+
+cases[#cases + 1] = { "here card: the step line points at the next open objective with place, distance and progress", function()
+    local WC = here_client()
+    HERE_POS = { 0.51, 0.5 }
+    QUESTS[10] = "active"
+    OBJ[10] = { { text = "Test Gyro: 1/1", finished = true }, { text = "Test Core: 0/1", finished = false } }
+    WC.LiveUpdate("QUEST_ACCEPTED", 10)
+    local mapID, px, py = WC.PlayerPos()
+    local line = WC.NextStepLine(WC.PlanNext(), mapID, px, py)
+    assert(line:find("Collect Test Core", 1, true) and line:find("Test Camp", 1, true) and line:find("1 of 2 done", 1, true) and line:find(" yd ", 1, true), line)
+    QUESTS[10] = "ready"; OBJ[10][2].finished = true
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    line = WC.NextStepLine(WC.PlanNext(), mapID, px, py)
+    assert(line:find("Turn in Quest 10", 1, true) and not line:find("done", 1, true), line)
+end }
+
+cases[#cases + 1] = { "here card: off-plan quests in the log are listed under Also doing", function()
+    local WC = here_client()
+    HERE_POS = { 0.9, 0.9 }
+    assert(not here_text(WC):find("Also doing", 1, true))
+    QUESTS[30] = "active"; QUESTS[32] = "active"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    local txt = here_text(WC)
+    assert(txt:find("Also doing", 1, true) and txt:find("Quest 30: Slay Test Drake", 1, true) and txt:find("Quest 32: Burn Test Hut", 1, true), txt)
+    QUESTS[10] = "active"
+    assert(not here_text(WC):find("Quest 10:", 1, true), "a route quest is not off-plan")
+end }
+
+cases[#cases + 1] = { "here card: the tick checks at most once a second", function()
+    local WC = here_client()
+    HERE_POS = { 0.51, 0.5 }
+    local calls, orig = 0, WC.HereCard
+    WC.HereCard = function(...) calls = calls + 1 return orig(...) end
+    local t = 100
+    GetTime = function() return t end
+    local mapID, px, py = WC.PlayerPos()
+    WC.plan.hereAt = nil -- the addon's own tick may already have run
+    WC.HereTick(mapID, px, py); WC.HereTick(mapID, px, py); t = 100.5; WC.HereTick(mapID, px, py)
+    assert(calls == 1, calls)
+    t = 101.2; WC.HereTick(mapID, px, py)
+    assert(calls == 2, calls)
+    GetTime = nil
+end }
+
+cases[#cases + 1] = { "here card: an older Plan.lua shows no card and keeps the step line", function()
+    local WC = here_client("full")
+    assert(WC.plan.here == nil and WC.HereCard(WC.PlayerPos()) == nil and #WC.HereRows(WC.PlayerPos()) == 0)
+    assert(WC.NextStepLine(WC.PlanNext(), nil):find("Pick up Quest 10", 1, true))
+    WC = here_client("guided")
+    assert(WC.plan.here == nil and WC.HereCard(WC.PlayerPos()) == nil)
 end }
 
 local failed = 0

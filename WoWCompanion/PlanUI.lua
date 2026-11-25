@@ -790,6 +790,7 @@ local function tick()
     if f and f:IsShown() then f.label:SetText(WC.SafeText(WC.PlanText(step, mapID, px, py))) end
     if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
     if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
+    if WC.HereTick then WC.HereTick(mapID, px, py) end
     WC.UpdateNextLine(mapID, px, py)
     local m = WC.planMinimap
     if m then
