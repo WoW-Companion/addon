@@ -1,16 +1,17 @@
-# Quest observation log (`WoWCompanionDB.observed`)
+# Observation log (`WoWCompanionDB.observed`)
 
-A bounded ring of the player's own quest events, kept in the addon's SavedVariables. It leaves the game only when
+A bounded record of the player's own quest events and of what the player sees: trainers, vendors, gathering and fishing, kept in the addon's SavedVariables. It leaves the game only when
 the client saves (`/reload`, logout or quit); the addon never asks for a reload. Turn it off with "Keep a log of my
-quest events for the overlay" in the Panel options.
+quest events, trainers, vendors and gathering for the overlay" in the Panel options (on by default; off records nothing). Strictly read-only: the client's read APIs only, no tooltip scanning, nothing bought, learned or clicked, and work waits until the player is out of combat.
 
 ```lua
 WoWCompanionDB.observed = {
-  version = 1,
+  version = 2,
   events = {  -- oldest first; at most 400, the oldest are dropped
     { t = <unix s>, ev = "accepted" | "turnedin" | "abandoned", questID = <n>, character = "<name>",
       map = <uiMapID>, x = <pct>, y = <pct>,      -- the player's position at the event (omitted when the client has none)
       npc = "<name>",                              -- accepted only, when the client names the giver
+      npcId = <n>, npcMap = <uiMapID>, npcX = <pct>, npcY = <pct>, -- accepted only: the giver's creature id and the player's position at the dialog
       offPlan = true },                            -- accepted only: the quest was not in the plan
   },
 }
@@ -42,3 +43,33 @@ WoWCompanionDB.observed.mapGeometry = {
 -- <frame> = { field, name, w, h, scale, shown, points = { { point, rel, relPoint, x, y }, ... } }
 -- `rel` is the relative-to frame's name, or "(unnamed)"; sizes and offsets are rounded to 0.1.
 ```
+
+## What the player sees (`observed.trainers`, `observed.vendors`, `observed.gathering`)
+
+Sections are lists, oldest first; a full section drops its oldest entries. `x`/`y` are the player's own map position
+in percent (the npc stands within a few yards) rounded to 0.1.
+
+```lua
+observed.trainers = {  -- at most 300 trainers; opening a trainer again replaces its record
+  { npc = <creature id>, name = "<name>", map = <uiMapID>, x, y, reaction = <1..8>, faction = "Alliance" | "Horde",
+    t = <unix s>,
+    offers = {         -- at most 200 per trainer: class and profession trainers alike
+      { name = "<service>", rank = "<subtext>", state = "available" | "unavailable" | "used",
+        cost = <copper>, skill = "<profession>", skillLevel = <n>,   -- the skill gate, when there is one
+        spell = <spell id> },                                         -- when the client links one
+    } },
+}
+observed.vendors = {   -- at most 300 vendors; opening a vendor again overwrites its stock
+  { npc, name, map, x, y, reaction, faction, t,
+    items = { { id = <item id>, price = <copper>, stack = <n>, limited = <n left, only when limited>, ext = true --[[ also costs tokens or items ]] } } },  -- at most 200
+}
+observed.gathering = { -- at most 2000 rows, aggregated; no raw events. The least recently updated row is dropped first
+  { kind = "herb" | "mine" | "skin" | "fish", source = "<name>" | nil,  -- skinning: the target's name; nodes and schools: not exposed
+    map = <uiMapID>, cx = <n>, cy = <n>,        -- the cell: floor(percent / 5)
+    n = <loots>, t = <unix s>, skillMin = <n>, skillMax = <n>,           -- the player's skill in the profession
+    items = { [<item id>] = { count = <total>, n = <loots with it> } } },  -- at most 40 per row
+}
+```
+
+Gathering is recorded only for loot that opens right after the player's own Herb Gathering, Mining, Skinning or
+Fishing cast (within 20 s, 45 s for Fishing); any other loot is ignored.

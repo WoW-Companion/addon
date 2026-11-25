@@ -30,6 +30,19 @@ for name in ([[
     CreateFrame
 ]]):gmatch("%S+") do capture_allowed[name] = true end
 
+-- The client APIs the observation of what the player sees (Seen.lua) may call, on top of the ones above that
+-- it shares. Each only READS: the trainer, merchant and loot windows' contents, who the player is talking to,
+-- the spell a cast was, and the skill ranks. None is protected, none buys, learns, loots or acts.
+local seen_allowed = {}
+for name in ([[
+    UnitGUID UnitExists UnitReaction
+    GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceCost GetTrainerServiceSkillReq GetTrainerServiceItemLink
+    GetMerchantNumItems GetMerchantItemInfo GetMerchantItemLink
+    GetNumLootItems GetLootSlotLink GetLootSlotInfo
+    GetSpellInfo
+]]):gmatch("%S+") do seen_allowed[name] = true end
+for name in pairs(capture_allowed) do seen_allowed[name] = true end
+
 local handle = assert(io.popen('find "' .. root .. '" -name "*.lua" | sort'))
 local files = {}
 for f in handle:lines() do files[#files + 1] = f end
@@ -42,13 +55,16 @@ local function report(file, n, msg, line)
 end
 
 local function check_capture(file, n, code, line)
-    if not file:find("Capture%.lua$") then return end
+    local allowed
+    if file:find("Capture%.lua$") then allowed = capture_allowed
+    elseif file:find("Seen%.lua$") then allowed = seen_allowed
+    else return end
     for name in code:gmatch("%f[%w_.:]([%u][%w_]*)%s*%(") do
         local before = code:match("([%.:]?)" .. name .. "%s*%(")
-        if before == "" and not capture_allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
+        if before == "" and not allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
     end
     for name in code:gmatch("(C_%a+%.[%a_]+)%s*%(") do
-        if not capture_allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
+        if not allowed[name] then report(file, n, "API not on the read-only allowlist: " .. name, line) end
     end
 end
 

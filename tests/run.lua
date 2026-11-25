@@ -1945,7 +1945,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.26" and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.27" and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -4116,7 +4116,7 @@ cases[#cases + 1] = { "observed: accept, turn-in and abandon are logged with whe
     turn_in(30)
     QUESTS[99] = nil; Stub.fire(frames, "QUEST_REMOVED", 99)
     local ev = WoWCompanionDB.observed.events
-    assert(WoWCompanionDB.observed.version == 1 and #ev == 4)
+    assert(WoWCompanionDB.observed.version == 2 and #ev == 4)
     assert(ev[1].ev == "accepted" and ev[1].questID == 99 and ev[1].offPlan == true and ev[1].character == "Thrall")
     assert(ev[1].map == 7001 and ev[1].x == 45.7 and ev[1].y == 20 and type(ev[1].t) == "number")
     assert(ev[2].ev == "accepted" and ev[2].offPlan == nil)
@@ -4866,6 +4866,154 @@ cases[#cases + 1] = { "capture: a failing read costs only its own part", functio
     local c = WoWCompanionDB.characters["Testrealm:Thrall"]
     assert(c.level == 23 and c.bags and c.talents == nil)
     capture_clear()
+end }
+
+-- What the player sees (Seen.lua): synthetic trainer, vendor, loot and giver, client reads stubbed.
+local function seen_client()
+    local WC = chain_client()
+    C_Map = { GetBestMapForUnit = function() return 1411 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.25 end } end }
+    NPC = { guid = "Creature-0-4379-1-9999-3455-0000ABCD", name = "Test Trainer" }
+    UnitExists = function(u) return u == "npc" and NPC ~= nil end
+    UnitGUID = function(u) return u == "npc" and NPC and NPC.guid or nil end
+    UnitName = function(u) if u == "npc" then return NPC and NPC.name end return "Thrall" end
+    UnitReaction = function() return 5 end
+    UnitFactionGroup = function() return "Horde" end
+    return WC
+end
+
+local function seen_trainer(services)
+    GetNumTrainerServices = function() return #services end
+    GetTrainerServiceInfo = function(i) local s = services[i]; return s.name, s.rank or "", s.state end
+    GetTrainerServiceCost = function(i) return services[i].cost end
+    GetTrainerServiceSkillReq = function(i) return services[i].skill, services[i].level end
+    GetTrainerServiceItemLink = function(i) return "|cff|Hspell:" .. services[i].id .. "|h[x]|h|r" end
+end
+
+cases[#cases + 1] = { "seen: a trainer window is recorded with costs and skill gates", function()
+    local WC = seen_client()
+    seen_trainer({
+        { name = "Smelt Bronze", state = "available", cost = 100, skill = "Mining", level = 65, id = 2670 },
+        { name = "Copper Axe", rank = "Rank 2", state = "unavailable", cost = 25000, id = 3292 },
+    })
+    Stub.fire(frames, "TRAINER_SHOW")
+    Stub.fire(frames, "TRAINER_UPDATE") -- a second read overwrites, never duplicates
+    local t = WoWCompanionDB.observed.trainers
+    assert(#t == 1 and t[1].npc == 3455 and t[1].name == "Test Trainer" and t[1].map == 1411 and t[1].x == 50 and t[1].y == 25)
+    assert(t[1].reaction == 5 and t[1].faction == "Horde" and #t[1].offers == 2)
+    local o = t[1].offers[1]
+    assert(o.name == "Smelt Bronze" and o.cost == 100 and o.skill == "Mining" and o.skillLevel == 65 and o.spell == 2670 and o.state == "available")
+    assert(t[1].offers[2].rank == "Rank 2" and t[1].offers[2].skill == nil)
+    assert(WoWCompanionDB.observed.version == 2)
+end }
+
+cases[#cases + 1] = { "seen: a vendor's stock is overwritten, not duplicated", function()
+    local WC = seen_client()
+    NPC.guid, NPC.name = "Creature-0-4379-1-9999-777-0000ABCD", "Test Vendor"
+    local stock = { { 2589, 5, 1, -1 }, { 4306, 90, 5, 3 } }
+    GetMerchantNumItems = function() return #stock end
+    GetMerchantItemInfo = function(i) return "n", "t", stock[i][2], stock[i][3], stock[i][4], true, false end
+    GetMerchantItemLink = function(i) return "|cff|Hitem:" .. stock[i][1] .. "::::|h[x]|h|r" end
+    Stub.fire(frames, "MERCHANT_SHOW")
+    stock = { { 2589, 6, 1, -1 } }
+    Stub.fire(frames, "MERCHANT_UPDATE")
+    local v = WoWCompanionDB.observed.vendors
+    assert(#v == 1 and v[1].npc == 777 and #v[1].items == 1 and v[1].items[1].price == 6 and v[1].items[1].limited == nil)
+    stock = { { 2589, 6, 1, -1 }, { 4306, 90, 5, 3 } }
+    Stub.fire(frames, "MERCHANT_UPDATE")
+    assert(#v == 1 and v[1].items[2].limited == 3 and v[1].items[2].stack == 5)
+end }
+
+local function seen_loot(links)
+    GetNumLootItems = function() return #links end
+    GetLootSlotLink = function(i) return "|cff|Hitem:" .. links[i][1] .. "::::|h[x]|h|r" end
+    GetLootSlotInfo = function(i) return "icon", "n", links[i][2] end
+    GetNumSkillLines = function() return 2 end
+    GetSkillLineInfo = function(i) if i == 1 then return "Professions", true end return "Fishing", false, nil, 130 end
+end
+
+cases[#cases + 1] = { "seen: fishing loot is aggregated by cell; mob loot after no gathering cast is ignored", function()
+    local WC = seen_client()
+    NPC = nil
+    seen_loot({ { 6291, 1 }, { 6303, 2 } })
+    Stub.fire(frames, "LOOT_OPENED") -- no cast before it: a mob's loot
+    assert(not (WoWCompanionDB.observed and WoWCompanionDB.observed.gathering))
+    for _ = 1, 2 do
+        Stub.fire(frames, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 7620)
+        Stub.fire(frames, "LOOT_OPENED")
+    end
+    Stub.fire(frames, "LOOT_OPENED") -- the cast is used up
+    local g = WoWCompanionDB.observed.gathering
+    assert(#g == 1 and g[1].kind == "fish" and g[1].map == 1411 and g[1].cx == 10 and g[1].cy == 5 and g[1].n == 2)
+    assert(g[1].items[6291].count == 2 and g[1].items[6303].count == 4 and g[1].skillMin == 130 and g[1].skillMax == 130)
+    NOW = NOW + 100 -- a cast whose loot never came goes stale
+    Stub.fire(frames, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2575)
+    NOW = NOW + 60
+    Stub.fire(frames, "LOOT_OPENED")
+    assert(#g == 1 and g[1].n == 2)
+    NOW = 1800000000
+end }
+
+cases[#cases + 1] = { "seen: a quest giver gets an id and position", function()
+    local WC = seen_client()
+    NPC.guid, NPC.name = "Creature-0-4379-1-9999-1234-0000ABCD", "Quest Giver"
+    Stub.fire(frames, "QUEST_DETAIL")
+    NPC = nil -- the dialog closes before QUEST_ACCEPTED
+    QUESTS[55] = "active"; Stub.fire(frames, "QUEST_ACCEPTED", 1, 55)
+    local e = WoWCompanionDB.observed.events[1]
+    assert(e.npcId == 1234 and e.npc == "Quest Giver" and e.npcMap == 1411 and e.npcX == 50 and e.npcY == 25)
+end }
+
+cases[#cases + 1] = { "seen: every section is capped, dropping the oldest", function()
+    local WC = seen_client()
+    seen_trainer({ { name = "A", state = "available", cost = 1, id = 1 } })
+    WC.SEEN_TRAINER_CAP = 3
+    for i = 1, 5 do
+        NPC.guid = "Creature-0-4379-1-9999-" .. (100 + i) .. "-0000ABCD"
+        Stub.fire(frames, "TRAINER_SHOW")
+    end
+    local t = WoWCompanionDB.observed.trainers
+    assert(#t == 3 and t[1].npc == 103 and t[3].npc == 105)
+    WC.SEEN_GATHER_CAP, WC.SEEN_OFFER_CAP = 2, 1
+    NPC = nil
+    seen_loot({ { 6291, 1 } })
+    for i = 1, 4 do
+        C_Map.GetPlayerMapPosition = function() return { GetXY = function() return i * 0.1, 0.5 end } end
+        Stub.fire(frames, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 7620)
+        Stub.fire(frames, "LOOT_OPENED")
+    end
+    local g = WoWCompanionDB.observed.gathering
+    assert(#g == 2 and g[1].cx == 6 and g[2].cx == 8, "the oldest two cells dropped")
+    seen_trainer({ { name = "A", state = "a", id = 1 }, { name = "B", state = "a", id = 2 } })
+    NPC = { guid = "Creature-0-4379-1-9999-900-0000ABCD", name = "T" }
+    Stub.fire(frames, "TRAINER_SHOW")
+    local last = t[#t]
+    assert(#last.offers == 1)
+end }
+
+cases[#cases + 1] = { "seen: the option off records nothing; combat defers the read", function()
+    local WC = seen_client()
+    seen_trainer({ { name = "A", state = "available", cost = 1, id = 1 } })
+    COMBAT = true
+    Stub.fire(frames, "TRAINER_SHOW")
+    assert(not (WoWCompanionDB.observed and WoWCompanionDB.observed.trainers), "nothing read in combat")
+    COMBAT = false
+    Stub.fire(frames, "PLAYER_REGEN_ENABLED")
+    assert(#WoWCompanionDB.observed.trainers == 1, "read once combat ends")
+    WC.SetSetting("keepObserved", false)
+    WoWCompanionDB.observed = nil
+    seen_loot({ { 6291, 1 } })
+    Stub.fire(frames, "TRAINER_UPDATE")
+    Stub.fire(frames, "MERCHANT_SHOW")
+    Stub.fire(frames, "UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 7620)
+    Stub.fire(frames, "LOOT_OPENED")
+    Stub.fire(frames, "QUEST_DETAIL")
+    assert(WoWCompanionDB.observed == nil)
+end }
+
+cases[#cases + 1] = { "seen: no other addon's names in the code", function()
+    local src = assert(io.open("WoWCompanion/Seen.lua")):read("*a")
+    for _, n in ipairs({ "Everloot", "ForeverScribe", "Questie", "ElvUI", "Lib%u" }) do assert(not src:find(n), "Seen names " .. n) end
 end }
 
 local failed = 0
