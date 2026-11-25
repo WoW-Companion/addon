@@ -150,8 +150,10 @@ local function read_bag(bag)
             if info then id, count, link = info.itemID, info.stackCount, info.hyperlink end
         elseif GetContainerItemID then
             id = GetContainerItemID(bag, slot)
-            if id and GetContainerItemInfo then count = select(2, GetContainerItemInfo(bag, slot)) end
-            if id and GetContainerItemLink then link = GetContainerItemLink(bag, slot) end
+            if id and GetContainerItemInfo then
+                local _, n, _, _, _, _, l = GetContainerItemInfo(bag, slot) -- icon, count, locked, quality, readable, lootable, link
+                count, link = n, l
+            end
         end
         if id then
             local e = { id = id, count = count or 1 }
