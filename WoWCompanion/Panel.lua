@@ -196,7 +196,7 @@ local function get_chip(f, i)
         WC.ChipHovered(self.chip.kind)
         WC.StyleChip(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        for _, l in ipairs(WC.ChipTipLines(self.chip)) do GameTooltip:AddLine(l.text, l.color[1], l.color[2], l.color[3]) end
+        for _, l in ipairs(WC.ChipTipLines(self.chip)) do GameTooltip:AddLine(WC.SafeText(l.text), l.color[1], l.color[2], l.color[3]) end
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -263,7 +263,7 @@ function WC.RefreshNextLine()
     if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
     local text = WC.NextStepLine(WC.PlanNext(), mapID, px, py)
     if f.step:GetText() == text then return end
-    f.step:SetText(text)
+    f.step:SetText(WC.SafeText(text))
     WC.LayoutPanelHeader()
     if f:IsShown() and WC.view.mode == "next" then WC.Refresh() end
 end
@@ -317,7 +317,7 @@ function WC.CreatePanel()
     f.headerTip:SetScript("OnEnter", function(self)
         if not f.stale then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine(L.STALE_TIP, 1, 1, 1, true)
+        GameTooltip:AddLine(WC.SafeText(L.STALE_TIP), 1, 1, 1, true)
         GameTooltip:Show()
     end)
     f.headerTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -351,7 +351,7 @@ function WC.CreatePanel()
     grip:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         for _, l in ipairs(WC.GripTipLines()) do
-            if l[2] then GameTooltip:AddLine(l[1], 1, 0.82, 0) else GameTooltip:AddLine(l[1], 1, 1, 1) end
+            if l[2] then GameTooltip:AddLine(WC.SafeText(l[1]), 1, 0.82, 0) else GameTooltip:AddLine(WC.SafeText(l[1]), 1, 1, 1) end
         end
         GameTooltip:Show()
     end)
@@ -371,7 +371,7 @@ function WC.CreatePanel()
     c:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         for _, l in ipairs(WC.ViewTipLines(WC.ViewMode())) do
-            if l[2] then GameTooltip:AddLine(l[1], 1, 0.82, 0) else GameTooltip:AddLine(l[1], 1, 1, 1) end
+            if l[2] then GameTooltip:AddLine(WC.SafeText(l[1]), 1, 0.82, 0) else GameTooltip:AddLine(WC.SafeText(l[1]), 1, 1, 1) end
         end
         GameTooltip:Show()
     end)
@@ -530,7 +530,7 @@ function WC.Refresh()
     WC.StyleText(f.step)
     WC.SetChips(f, meta and meta.chips)
     f.title:SetText(meta and string.format(L.PANEL_TITLE, L.ADDON_NAME, meta.name) or L.ADDON_NAME)
-    f.header:SetText(meta and meta.advice or header)
+    f.header:SetText(WC.SafeText(meta and meta.advice or header))
     f.stale = meta and meta.stale or false
     local hc = f.stale and WC.COLORS.amber or WC.COLORS.dim
     f.header:SetTextColor(hc[1], hc[2], hc[3])
@@ -538,7 +538,7 @@ function WC.Refresh()
     WC.view.mode = mode
     local mapID, px, py
     if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
-    f.step:SetText(WC.NextStepLine(WC.PlanNext(), mapID, px, py))
+    f.step:SetText(WC.SafeText(WC.NextStepLine(WC.PlanNext(), mapID, px, py)))
     WC.LayoutPanelHeader()
     rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
     local compact = mode ~= "full"
@@ -552,10 +552,10 @@ function WC.Refresh()
         WC.StyleText(row.label)
         WC.StyleText(row.right, -1)
         local x = layout_row(row, r)
-        row.label:SetText(r.text)
+        row.label:SetText(WC.SafeText(r.text))
         if row.label.SetMaxLines then row.label:SetMaxLines((r.kind == "line" or r.why) and 2 or 0) end -- a note wraps to 2 lines; its card shows all
         row.baseColor = r.color or WC.COLORS.white
-        row.right:SetText(r.right or "")
+        row.right:SetText(WC.SafeText(r.right or ""))
         row.right:SetTextColor(unpack(WC.COLORS.dim))
         -- The text wraps at the panel width; it is never cut.
         row.label:SetWidth(content_width() - x - (r.right and RIGHT_W or 0))

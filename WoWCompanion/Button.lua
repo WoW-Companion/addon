@@ -68,7 +68,7 @@ local function show_tooltip(owner)
     local lines = WC.TooltipLines({ digest = WoWCompanionDigest, db = WC.db or {}, player = UnitName("player"), now = time(),
         captured = WC.OwnCapturedAt(UnitName("player")), minimap = owner == WC.minimapButton })
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
-    for _, line in ipairs(lines) do GameTooltip:AddLine(line) end
+    for _, line in ipairs(lines) do GameTooltip:AddLine(WC.SafeText(line)) end
     GameTooltip:Show()
 end
 
@@ -213,7 +213,7 @@ end
 
 local function round_tooltip(owner)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(line) end
+    for _, line in ipairs({ WC.L.ADDON_NAME, WC.L.TIP_MAP_ROUND, WC.L.TIP_MAP_RIGHT, WC.L.TIP_MAP_DRAG }) do GameTooltip:AddLine(WC.SafeText(line)) end
     if WC.panelState.wantOpen or WC.panelState.wantClose then GameTooltip:AddLine(WC.L.TIP_MAP_DEFERRED) end
     GameTooltip:Show()
 end

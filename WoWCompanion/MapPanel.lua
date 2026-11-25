@@ -283,7 +283,7 @@ local function make_row(f, i)
         if self.newTag:IsShown() and self.quest and WC.ClearNew(self.quest) then self.newTag:Hide() end -- hovering dismisses "New"
         if self.thenTip and GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(self.thenTip, 1, 1, 1)
+            GameTooltip:AddLine(WC.SafeText(self.thenTip), 1, 1, 1)
             GameTooltip:Show()
         end
     end)
@@ -301,7 +301,7 @@ local function fill_row(f, i, m, y)
     local r = f.rows[i] or make_row(f, i)
     r.step, r.top = m.step, y
     r.thenTip = m.thenTip
-    r.thenLine:SetText(m.thenText or "")
+    r.thenLine:SetText(WC.SafeText(m.thenText or ""))
     r.thenLine:SetShown(m.thenText ~= nil)
     r.newTag:SetShown(m.isNew == true)
     r.quest = (m.step.questID or 0) > 0 and m.step.questID or nil
@@ -313,8 +313,8 @@ local function fill_row(f, i, m, y)
     if m.icon then r.icon:SetTexture(m.icon) r.icon:Show() else r.icon:Hide() end
     local tw = math.max(60, f.rowWidth - TEXT_X - 26) -- text clears the badge on the left and the check / New tag on the right
     for _, fs in ipairs({ r.label, r.sub, r.thenLine }) do fs:SetWidth(tw) end
-    r.label:SetText(m.title)
-    r.sub:SetText(m.sub or "")
+    r.label:SetText(WC.SafeText(m.title))
+    r.sub:SetText(WC.SafeText(m.sub or ""))
     local function line_h(fs, shown, fallback)
         if not shown then return 0 end
         local mh = fs.GetStringHeight and fs:GetStringHeight()
@@ -392,9 +392,9 @@ function WC.UpdateMapPanelHeader()
     local f = mp()
     if not (f and WC.panelState.selected) then return end
     local h = WC.PanelHeader()
-    f.title:SetText(h.title)
-    f.stepText:SetText(h.step .. (h.dist ~= "" and (" · " .. h.dist) or ""))
-    f.advice:SetText(h.advice)
+    f.title:SetText(WC.SafeText(h.title))
+    f.stepText:SetText(WC.SafeText(h.step .. (h.dist ~= "" and (" · " .. h.dist) or "")))
+    f.advice:SetText(WC.SafeText(h.advice))
     f.eye:SetAlpha(WC.PlanShownOnMap() and 1 or 0.4)
 end
 
