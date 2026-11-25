@@ -390,7 +390,7 @@ function WC.CreateMapButton()
         end)
         map:HookScript("OnSizeChanged", WC.ReplaceMapControl)
         map:HookScript("OnUpdate", function(_, elapsed) WC.WatchRoundColumn(elapsed) end)
-        map:HookScript("OnHide", function() WC.ClearSelectedStep() end) -- the selection ends with the map
+        map:HookScript("OnHide", function() WC.ClearSelectedStep(); WC.ResetMapView() end) -- the selection ends with the map
     end
     if hooksecurefunc and type(map.OnMapChanged) == "function" and not WC.mapChangedHooked then
         WC.mapChangedHooked = pcall(hooksecurefunc, map, "OnMapChanged", WC.ReplaceMapControl)
