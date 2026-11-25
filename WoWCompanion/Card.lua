@@ -477,6 +477,7 @@ local function create_card()
     c.link:SetScript("OnEnter", function(self)
         if not self.itemLink then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        WC.TipStyle(GameTooltip)
         GameTooltip:SetHyperlink(self.itemLink)
         GameTooltip:Show()
     end)

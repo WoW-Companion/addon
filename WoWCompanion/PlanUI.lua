@@ -34,6 +34,7 @@ local MINIMAP_YARDS = { [0] = 233, 200, 166, 133, 100, 66 }
 local MINIMAP_YARDS_INDOORS = { [0] = 150, 125, 100, 75, 50, 25 }
 local MM_RIM = 14 -- the badge centre stays this far inside the minimap edge so the arrow fits outside it
 local MM_LIFT = { 8, 8 } -- pixels the badge sits up and right of the true spot, so the NPC icon stays visible
+local MM_CENTRE = 7 -- the player's arrow reaches about this far from the minimap centre
 local MM_ARROW_SIZE = 10 -- the rim arrow's length in pixels
 local MM_ARROW_GAP = 13 -- the edge arrow sits this far from the badge centre, toward the target
 local ARRIVE_YARDS = 5 -- pick-ups and turn-ins pulse within this distance
@@ -65,10 +66,53 @@ end
 local PULSE_SECONDS = { map = 1.2, minimap = 0.8 } -- one pulse at the default speed; the pulseSpeed setting divides it
 local TAG_LEVEL = 3500 -- above the client's marker frames, which stay below this on the canvas
 
+-- The player's own arrow is the client's, on the world map's canvas; our layers always draw below it.
+local arrowLevel = nil
+-- The frame level of the client's player arrow (the group-members pin), or nil when it cannot be found.
+function WC.PlayerArrowLevel()
+    local wm = WorldMapFrame
+    if not (wm and wm.EnumeratePinsByTemplate) then return nil end
+    local ok, iter, a, b = pcall(wm.EnumeratePinsByTemplate, wm, "GroupMembersPinTemplate")
+    if not ok or type(iter) ~= "function" then return nil end
+    local top
+    for _, pin in iter, a, b do
+        local pk, lv = pcall(function() return pin:GetFrameLevel() end)
+        if pk and type(lv) == "number" and (not top or lv > top) then top = lv end
+    end
+    return top
+end
+-- A level for one of our layers: base + rel, but shifted down together so the highest layer (the next step's tag)
+-- still sits one below the arrow's level when the plain level would reach it. Pure, given the arrow's level.
+function WC.LayerLevel(base, rel, arrow)
+    local lvl = base + rel
+    if arrow and lvl >= arrow then lvl = math.max(0, arrow - 1 - (TAG_LEVEL + NEXT_LEVEL - rel)) end
+    return lvl
+end
+local function layer_level(base, rel) return WC.LayerLevel(base, rel, arrowLevel) end
+
+-- Our pins within about 15 yards of the player (at 1x map zoom; the reach shrinks as the map zooms in, since
+-- pins keep their pixel size) shrink and fade so the arrow and what is around it stay readable.
+local NEAR_YARDS, NEAR_SCALE, NEAR_ALPHA = 15, 0.6, 0.5
+function WC.NearPlayerLook(distYards, zoom)
+    if distYards and distYards <= NEAR_YARDS / math.max(1, zoom or 1) then return NEAR_SCALE, NEAR_ALPHA end
+    return 1, 1
+end
+
+-- Where a route line that starts at the player begins instead: GAP canvas units short of the player, toward the
+-- target, so it never crosses the arrow. Returns nil when the target is inside the gap (draw nothing).
+local PLAYER_GAP = 14
+function WC.LineStartShort(sx, sy, tx, ty, gap)
+    local dx, dy = tx - sx, ty - sy
+    local len = math.sqrt(dx * dx + dy * dy)
+    if len <= gap then return nil end
+    return sx + dx / len * gap, sy + dy / len * gap
+end
+
 local EMPTY = ""
 local pins, lines, arrows = {}, {}, {}
 local stepPin = {} -- step.n -> the badge or tag frame drawn for it in the last refresh
 local lineLayer, arrowLayer
+local nearPins = {} -- the drawn badges and tags with their true spots, for the near-the-player look
 local nextLine -- the next-stop line pair and what it needs to follow the player: set by drawNextLine
 
 local function mapShown()
@@ -437,7 +481,7 @@ function WC.DrawGhosts(canvas, mapID, first, w, h, scale, where, spot)
             p:SetScale(scale)
             p:ClearAllPoints()
             p:SetSize(size, size)
-            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL - 1) end
+            if p.SetFrameLevel then p:SetFrameLevel(layer_level(base, PIN_LEVEL - 1)) end
             p:SetPoint("CENTER", a, "CENTER", 0, 0)
             p.planGroup = { steps = { s }, ghost = true, from = gh.from, total = #WC.plan.steps }
             p.isTag = false
@@ -492,15 +536,39 @@ function WC.DrawGhostLines(ghosts, canvas, layer, n, lineW, outline, spot, where
     end
 end
 
+-- Shrinks and fades each drawn pin that sits near the player (see WC.NearPlayerLook); called after a redraw and
+-- from the tick, so a pin eases back as the player walks away.
+function WC.UpdateNearPlayer(mapID, px, py)
+    if #nearPins == 0 then return end
+    local w, h = WC.MapYards(WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID() or mapID)
+    local zoom = WorldMapFrame and WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale() or 1
+    local here = px ~= nil and mapID ~= nil and WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID() == mapID
+    for _, np in ipairs(nearPins) do
+        local p = np.pin
+        local sc, al = 1, 1
+        if here and w then
+            local d = WC.PlanDistance(px, py, np.x, np.y, w, h)
+            sc, al = WC.NearPlayerLook(d, zoom)
+        end
+        if p.SetScale then p:SetScale(np.scale * sc) end
+        if p.SetAlpha then p:SetAlpha(al) end
+    end
+end
+
 -- Moves the next-stop line's start to the player and shows it, or hides it when the player is not on the shown
 -- map. Called from the existing tick (about 5 a second); it only re-anchors two lines.
 function WC.UpdateNextLine(mapID, px, py)
     local nl = nextLine
     if not nl then return end
     local on = px ~= nil and mapID == nl.map and mapShown()
+    local sx, sy
+    if on then
+        sx, sy = WC.LineStartShort(px / 100 * nl.w, -py / 100 * nl.h, nl.tx, nl.ty, PLAYER_GAP * nl.scale)
+        on = sx ~= nil
+    end
     for _, ln in ipairs({ nl.outline, nl.line }) do
         if on then
-            ln:SetStartPoint("TOPLEFT", nl.canvas, px / 100 * nl.w, -py / 100 * nl.h)
+            ln:SetStartPoint("TOPLEFT", nl.canvas, sx, sy)
             ln:Show()
         else
             ln:Hide()
@@ -511,7 +579,7 @@ end
 -- The one highlighted line, from the player to the next step, when that step is on the shown map. It is a
 -- brighter shade of the route colour (or the player's own pick), a little thicker, and above the other legs.
 -- Returns the new count of pooled lines in use.
-local function drawNextLine(canvas, mapID, w, h, scale, where, n, lineW, lineA, outline)
+local function drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline)
     nextLine = nil
     local step = WC.PlanNext()
     local target = step and step.map == mapID and where[step.n]
@@ -534,7 +602,8 @@ local function drawNextLine(canvas, mapID, w, h, scale, where, n, lineW, lineA, 
         ln:Hide()
         pair[k] = ln
     end
-    nextLine = { outline = pair[1], line = pair[2], canvas = canvas, map = mapID, w = w, h = h }
+    nextLine = { outline = pair[1], line = pair[2], canvas = canvas, map = mapID, w = w, h = h, scale = scale,
+        tx = spot[step.n][1], ty = spot[step.n][2] }
     local pm, px, py = WC.PlayerPos()
     WC.UpdateNextLine(pm, px, py)
     return n
@@ -543,6 +612,8 @@ end
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     nextLine = nil
+    nearPins = {}
+    arrowLevel = WC.PlayerArrowLevel()
     if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end -- the side panel follows the map shown and the plan
     hideAll(pins)
     hideAll(lines)
@@ -582,7 +653,7 @@ function WC.RefreshMapPins()
         if marker then
             local d = WC.TagDiameter(size)
             p:SetSize(WC.TagWidth(d, label), d)
-            if p.SetFrameLevel then p:SetFrameLevel(base + TAG_LEVEL + (g.isNext and NEXT_LEVEL or 0)) end
+            if p.SetFrameLevel then p:SetFrameLevel(layer_level(base, TAG_LEVEL + (g.isNext and NEXT_LEVEL or 0))) end
             p:SetPoint("CENTER", a, "CENTER", TAG_OFFSET, TAG_OFFSET)
             WC.SetBadgeInset(p, 1.5)
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
@@ -590,7 +661,7 @@ function WC.RefreshMapPins()
             p.mark:SetText("")
         else
             p:SetSize(size, size)
-            if p.SetFrameLevel then p:SetFrameLevel(base + PIN_LEVEL + (g.isNext and NEXT_LEVEL or 0)) end
+            if p.SetFrameLevel then p:SetFrameLevel(layer_level(base, PIN_LEVEL + (g.isNext and NEXT_LEVEL or 0))) end
             p:SetPoint("CENTER", a, "CENTER", 0, 0)
             WC.SetBadgeInset(p, 3)
             if p.num.SetFontObject then p.num:SetFontObject("GameFontNormal") end
@@ -622,7 +693,12 @@ function WC.RefreshMapPins()
         if p.pulse and ((g.isNext and WC.Setting("nextPulse")) or WC.GroupHot(g)) then p.pulse:Play() end
         local r = (marker and WC.TagDiameter(size) or size) * scale / 2
         for _, s in ipairs(g.steps) do stepPin[s.n] = p end
+        nearPins[#nearPins + 1] = { pin = p, x = g.x, y = g.y, scale = scale }
         for _, s in ipairs(g.steps) do where[s.n], spot[s.n], rad[s.n] = p.anchor, { ox * scale, oy * scale }, r end
+    end
+    do
+        local pm, px, py = WC.PlayerPos()
+        WC.UpdateNearPlayer(pm, px, py)
     end
     local ghosts = WC.DrawGhosts(canvas, mapID, #groups, w, h, scale, where, spot)
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
@@ -630,13 +706,13 @@ function WC.RefreshMapPins()
         lineLayer = CreateFrame("Frame", nil, canvas)
         lineLayer:SetAllPoints(canvas)
     end
-    if lineLayer.SetFrameLevel then lineLayer:SetFrameLevel(base + LINE_LEVEL) end
+    if lineLayer.SetFrameLevel then lineLayer:SetFrameLevel(layer_level(base, LINE_LEVEL)) end
     lineLayer:Show()
     if not arrowLayer then
         arrowLayer = CreateFrame("Frame", nil, canvas)
         arrowLayer:SetAllPoints(canvas)
     end
-    if arrowLayer.SetFrameLevel then arrowLayer:SetFrameLevel(base + ARROW_LEVEL) end
+    if arrowLayer.SetFrameLevel then arrowLayer:SetFrameLevel(layer_level(base, ARROW_LEVEL)) end
     arrowLayer:Show()
     local wantArrows = WC.db.settings.planArrows
     local lineW, lineA, lineC = WC.Setting("lineWidth"), WC.Setting("lineOpacity"), WC.Setting("lineColor")
@@ -688,7 +764,7 @@ function WC.RefreshMapPins()
             prev = s
         end
     end
-    n = drawNextLine(canvas, mapID, w, h, scale, where, n, lineW, lineA, outline)
+    n = drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline)
     WC.DrawGhostLines(ghosts, canvas, lineLayer, n, lineW, outline, spot, where)
 end
 
@@ -713,6 +789,16 @@ function WC.MinimapBadgeOffset(edge)
     return MM_LIFT[1], MM_LIFT[2]
 end
 
+-- Keeps the minimap badge off the player's arrow at the centre: when the badge (lifted off its spot) would cover
+-- the centre, it moves out to the rim in the target's direction and counts as an edge pin. Returns x, y, edge.
+function WC.MinimapKeepClear(x, y, angle, half, badge, edge)
+    if edge then return x, y, edge end
+    local cx, cy = x + MM_LIFT[1], y + MM_LIFT[2]
+    if math.sqrt(cx * cx + cy * cy) >= badge / 2 + MM_CENTRE then return x, y, false end
+    local rim = half - MM_RIM
+    return math.sin(angle) * rim, math.cos(angle) * rim, true
+end
+
 -- The edge arrow's offset from the badge centre and its texture rotation (the art points up).
 function WC.MinimapArrow(angle)
     return math.sin(angle) * MM_ARROW_GAP, math.cos(angle) * MM_ARROW_GAP, -angle
@@ -735,6 +821,7 @@ local function placeMinimap(m, mapID, px, py, step)
     local facing
     if GetCVar and GetCVar("rotateMinimap") == "1" and GetPlayerFacing then facing = GetPlayerFacing() end
     local x, y, angle, edge = WC.MinimapPlace(dist, bearing, facing, radius, half)
+    x, y, edge = WC.MinimapKeepClear(x, y, angle, half, WC.Setting("minimapBadgeSize"), edge)
     m:ClearAllPoints()
     m:SetPoint("CENTER", Minimap, "CENTER", x, y)
     local b = m.badge
@@ -792,6 +879,7 @@ local function tick()
     if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
     if WC.HereTick then WC.HereTick(mapID, px, py) end
     WC.UpdateNextLine(mapID, px, py)
+    if mapShown() then WC.UpdateNearPlayer(mapID, px, py) end
     local m = WC.planMinimap
     if m then
         if step and mapShown() and WC.Setting("minimapPin") then placeMinimap(m, mapID, px, py, step) else m:Hide() end
