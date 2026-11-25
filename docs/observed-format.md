@@ -98,3 +98,5 @@ number the client does not return is left out. Read-only APIs used (interface 16
 `UnitRangedAttackPower`, `GetSpellBonusDamage`, `GetSpellBonusHealing`, and the per-point getters
 `GetSpellCritChanceFromIntellect`, `GetCritChanceFromAgility`, `GetUnitManaRegenRateFromSpirit`,
 `GetUnitHealthRegenRateFromSpirit`. The client exposes no getter for mana or health per point, so those are not stored.
+`UnitStat`'s first return is the effective total here, so `base` is stored as `total - pos - neg` (`neg` is reported negative), matching the tooltip "90 (50+40)".
+The per-point getters do not exist on interface 16001, so `perPoint` is normally absent: consumers must not rely on it.
