@@ -3632,7 +3632,7 @@ cases[#cases + 1] = { "no /reload in any current-locale player string (What's ne
     fresh_client(nil)
     local n = 0
     for k, v in pairs(WoWCompanion.L) do
-        if not k:find("^WHATS_NEW_") then
+        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" then -- the one reload hint, shown once and only as a note
             n = n + 1
             assert(not tostring(v):lower():find("/reload", 1, true), k)
         end
@@ -6494,9 +6494,9 @@ cases[#cases + 1] = { "stale note: an old plan that disagrees with the log says 
     for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
     for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
     assert(n == 2 and WC.StaleNote(7001) == note, "one line per render, the same single note")
-    WC.plan.generated = os.time()
+    WC.plan.generated = time()
     local WC2 = here_client()
-    WC2.plan.generated = os.time()
+    WC2.plan.generated = time()
     QUESTS[77] = "ready"
     weaver(WC2)
     assert(WC2.StaleNote(7001) == nil, "a fresh plan gets no note")
