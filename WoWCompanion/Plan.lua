@@ -820,7 +820,8 @@ function WC.NextStepLine(step, mapID, px, py)
     if not step then return string.format(L.PLAN_DONE, total) end
     local label = WC.PlanLiveText(step, step.label)
     local text = string.format(L.NEXT_STEP_LINE, WC.StepNumber(step), total, label)
-    if step.place and not label:find(step.place, 1, true) then text = text .. string.format(L.NEXT_STEP_PLACE, step.place) end
+    local place = step.place and WC.PlaceName(step.place, step.map)
+    if place and not label:find(place, 1, true) then text = text .. string.format(L.NEXT_STEP_PLACE, place) end
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))
         text = text .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
@@ -947,7 +948,7 @@ function WC.HereCard(mapID, px, py)
         elseif q.role == "turnin" and state == "active" then
             local need = {}
             for _, m in ipairs(open_items(q)) do
-                need[#need + 1] = item_name(m.doLine) .. ((m.place or m.zone) and (" (" .. (m.place or m.zone) .. ")") or "")
+                need[#need + 1] = item_name(m.doLine) .. ((m.place or m.zone) and (" (" .. (m.place and WC.PlaceName(m.place, m.map) or m.zone) .. ")") or "")
             end
             if #need > 0 then
                 lines[#lines + 1] = string.format(L.HERE_TURNIN_NEED, title, table.concat(need, ", "))
@@ -971,7 +972,7 @@ function WC.HereCard(mapID, px, py)
     if vendor then lines[#lines + 1] = L.HERE_VENDOR end
     for _, w in ipairs(whileHere) do lines[#lines + 1] = w end
     if #lines == 0 then return nil end
-    return { title = b.npc ~= "" and b.npc or (b.place or "?"), lines = lines, key = b.npc .. "#" .. table.concat(lines, "|") }
+    return { title = b.npc ~= "" and b.npc or (b.place and WC.PlaceName(b.place, b.map) or "?"), lines = lines, key = b.npc .. "#" .. table.concat(lines, "|") }
 end
 
 -- Quests in the log that the route does not list but the plan has guidance for (its own, or a nearby block's):
@@ -1267,15 +1268,45 @@ end
 
 WC.ALSO_DOING_MAX = 3 -- the default for the alsoDoingMax setting
 
-local function map_name(id)
+local function map_info(id)
     local ok, info = pcall(function() return C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id) end)
-    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
+    if ok and type(info) == "table" then return info end
 end
+local function good_name(info)
+    return info and type(info.name) == "string" and info.name ~= "" and not info.name:match("^map %d+$") and info.name or nil
+end
+local function map_name(id)
+    return good_name(map_info(id))
+end
+
+-- A label safe to show: never "map 310". A missing label or a raw "map N" is resolved through the client's map
+-- (pcall-guarded): the map's own name, else its parent's name plus "(instance)", else "Unknown place".
+-- `place` is the label from the plan, `mapID` the map it belongs to (read from "map N" when not given).
+function WC.PlaceName(place, mapID)
+    if type(place) == "string" and place ~= "" and not place:match("^%s*[Mm]ap %d+%s*$") then return place end
+    local id = tonumber(mapID) or (type(place) == "string" and tonumber(place:match("^%s*[Mm]ap (%d+)%s*$"))) or nil
+    if id then
+        local info = map_info(id)
+        local name = good_name(info)
+        if name then return name end
+        local parent = info and tonumber(info.parentMapID)
+        if parent and parent > 0 then
+            local pn = map_name(parent)
+            if pn then return pn .. L.PLACE_INSTANCE end
+        end
+    end
+    return L.PLACE_UNKNOWN
+end
+
+-- The row text for a quest in a list: ready ones get a gold "?" turn-in marker (the map's glyph) before the name.
+function WC.ReadyMark(text) return L.READY_MARK .. text end
 
 -- The place a quest's next spot belongs to, for grouping: its zone, else its map's name, else its place.
 local function entry_zone(a)
     local sp = a.spot
-    return sp.zone or (sp.map and map_name(sp.map)) or sp.place or L.ALSO_ELSEWHERE
+    if sp.zone then return sp.zone end
+    if sp.map or sp.place then return WC.PlaceName(sp.place, sp.map) end
+    return L.ALSO_ELSEWHERE
 end
 
 -- Yards to an entry when it is near the player (same map, or within TURNIN_YARDS on the continent); an unplaced
@@ -1352,13 +1383,22 @@ local function also_line(a, mapID, px, py)
     return t
 end
 
+-- A quest's row: ready ones in the user's ready colour with the turn-in marker.
+local function quest_row(a, indent, t)
+    if not a.ready then return { kind = "line", indent = indent, text = t } end
+    local color = WC.Setting("readyColor")
+    return { kind = "line", indent = indent, text = WC.ReadyMark(t), color = color }
+end
+
 local function also_rows(mapID, px, py)
     local sp = WC.AlsoDoingSplit(mapID, px, py)
     local rows = {}
     if #sp.near == 0 and #sp.rest == 0 then return rows end
     if #sp.near > 0 then
         rows[#rows + 1] = { kind = "line", text = L.ALSO_DOING, color = WC.COLORS.gold }
-        for _, a in ipairs(sp.near) do rows[#rows + 1] = { kind = "line", indent = 1, text = also_line(a, mapID, px, py) } end
+        for _, a in ipairs(sp.near) do
+            rows[#rows + 1] = quest_row(a, 1, also_line(a, mapID, px, py))
+        end
     end
     if #sp.rest == 0 then return rows end
     -- the rest, grouped by place; places with the most ready turn-ins first, ready turn-ins first inside each
@@ -1392,10 +1432,10 @@ local function also_rows(mapID, px, py)
                 if a.ready ~= b.ready then return a.ready end
                 return a.questID < b.questID
             end)
-            rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.ALSO_ZONE, g.zone, #g.list), color = WC.COLORS.gold }
+            rows[#rows + 1] = { kind = "line", indent = 1, text = (g.ready > 0 and string.format(L.ALSO_ZONE_READY, g.zone, #g.list, g.ready) or string.format(L.ALSO_ZONE, g.zone, #g.list)), color = WC.COLORS.gold }
             for _, a in ipairs(g.list) do
                 local t = a.ready and string.format(L.ALSO_READY_LINE, a.quest) or string.format(L.ALSO_DOING_LINE, a.quest, a.line)
-                rows[#rows + 1] = { kind = "line", indent = 2, text = t }
+                rows[#rows + 1] = quest_row(a, 2, t)
             end
         end
     end

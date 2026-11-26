@@ -84,7 +84,7 @@ local function step_lines(lines, group, s, prevQuest, opts)
     local total = group.total or (WC.plan and WC.plan.steps and #WC.plan.steps)
     local foot = total and string.format(L.PLAN_TIP_STEP_OF, tostring(s.n), tostring(total)) or string.format(L.PLAN_TIP_STEP, tostring(s.n))
     if group.next == s then foot = foot .. L.PLAN_TIP_NEXT end
-    if s.place then foot = foot .. " \194\183 " .. s.place end
+    if s.place then foot = foot .. " \194\183 " .. WC.PlaceName(s.place, s.map) end
     if opts and opts.dist then foot = foot .. " \194\183 " .. string.format(L.PLAN_TIP_DIST, math.floor(opts.dist + 0.5), opts.dir or "") end
     lines[#lines + 1] = { text = foot, color = DIM, small = true }
 end

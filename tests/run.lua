@@ -6786,8 +6786,8 @@ cases[#cases + 1] = { "also doing: clicking the summary expands the rest grouped
     assert(WC.AlsoExpanded() and WC.db.characters["Testrealm:Thrall"].alsoExpanded == true)
     local t = also_texts(WC)
     assert(t[5]:find("^%+35 more in your log.*click to hide"), t[5])
-    assert(t[6] == "Hillsbrad (14)" and t[7] == "Q2001: ready to turn in", table.concat(t, "\n", 5, 8))
-    assert(t[6 + 15] == "Barrens (10)" and t[6 + 15 + 11] == "Stonetalon (8)", table.concat(t, "\n"))
+    assert(t[6] == "Hillsbrad (14, 6 ready)" and t[7] == "|cffffd100?|r Q2001: ready to turn in", table.concat(t, "\n", 5, 8))
+    assert(t[6 + 15] == "Barrens (10, 3 ready)" and t[6 + 15 + 11] == "Stonetalon (8, 1 ready)", table.concat(t, "\n"))
     assert(t[7 + 6]:find("Q2007", 1, true), t[7 + 6])
     assert(#t == 5 + 4 + 35, #t)
     WC.AlsoDoingRows(mapID, px, py)[5].click()
@@ -6817,6 +6817,59 @@ cases[#cases + 1] = { "also doing: the current step's quest is never listed", fu
     local ids = {}
     for _, a in ipairs(WC.AlsoDoing()) do ids[a.questID] = true end
     assert(not ids[30] and ids[32], "headline quest left out, the other stays")
+end }
+
+cases[#cases + 1] = { "also doing: ready rows are coloured, marked and first in their group; headers count them", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    WC.db.settings.readyColor = { 0.1, 0.2, 0.3 }
+    WC.AlsoExpanded = function() return true end
+    local mapID, px, py = WC.PlayerPos()
+    local rows = WC.AlsoDoingRows(mapID, px, py)
+    local i = 0
+    for k, r in ipairs(rows) do if r.text == "Barrens (10, 3 ready)" then i = k end end
+    assert(i > 0)
+    for k = i + 1, i + 10 do
+        local r = rows[k]
+        local isready = k <= i + 3
+        assert((r.text:find("|cffffd100?|r ", 1, true) == 1) == isready, r.text)
+        assert((r.color ~= nil and r.color[1] == 0.1) == isready, r.text)
+    end
+end }
+
+cases[#cases + 1] = { "places: map ids resolve to names, else the parent plus (instance), else Unknown place", function()
+    local WC = here_client()
+    C_Map.GetMapInfo = function(id)
+        if id == 310 then return { name = "Shadowfang Keep" } end
+        if id == 311 then return { parentMapID = 217 } end
+        if id == 217 then return { name = "Silverpine Forest" } end
+        return nil
+    end
+    assert(WC.PlaceName("map 310") == "Shadowfang Keep")
+    assert(WC.PlaceName(nil, 310) == "Shadowfang Keep")
+    assert(WC.PlaceName("map 311") == "Silverpine Forest (instance)")
+    assert(WC.PlaceName("map 999") == "Unknown place")
+    assert(WC.PlaceName(nil, nil) == "Unknown place")
+    assert(WC.PlaceName("Orgrimmar", 310) == "Orgrimmar")
+    C_Map.GetMapInfo = function() error("boom") end
+    assert(WC.PlaceName("map 310") == "Unknown place")
+    C_Map.GetMapInfo = nil
+    assert(WC.PlaceName("map 310") == "Unknown place")
+end }
+
+cases[#cases + 1] = { "places: no Also doing row or step line ever shows map N", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    for _, e in pairs(WC.plan.guidance) do
+        for _, o in ipairs(e.objectives or {}) do if o.map == 9001 then o.zone = nil o.place = "map 9001" end end
+    end
+    WC.AlsoExpanded = function() return true end
+    local mapID, px, py = WC.PlayerPos()
+    for _, r in ipairs(WC.AlsoDoingRows(mapID, px, py)) do assert(not r.text:find("map %d+"), r.text) end
+    C_Map.GetMapInfo = nil
+    for _, r in ipairs(WC.AlsoDoingRows(mapID, px, py)) do assert(not r.text:find("map %d+"), r.text) end
 end }
 
 local failed = 0
