@@ -1265,6 +1265,61 @@ cases[#cases + 1] = { "plan: standing in a later step's zone leads with it, as t
     C_Map = realMap
 end }
 
+-- Step 1 is a Hillsbrad kill, and a live turn-in (no plan number) waits in Undercity.
+local function undercity_plan(playerMap)
+    local WC = plan_client(nil)
+    local live = { n = 200000 + 77, synthetic = true, kind = "turnin", questID = 77, questIDs = {}, quest = "Source of Power",
+        label = "Turn in Source of Power to Doctor Martin Felben", approx = false, map = 1458, x = 67, y = 38, unlockedBy = {},
+        unlocks = {}, live = true }
+    WC.plan = { steps = {
+        { n = 1, kind = "objective", questID = 5, quest = "Kill Hillsbrad Peasant", label = "Kill Hillsbrad Peasant", map = 1424, x = 40, y = 40 },
+    }, done = {}, generated = 1, live = { live } }
+    C_Map = { GetBestMapForUnit = function() return playerMap end,
+        GetMapInfo = function(id) return { name = ({ [1458] = "Undercity", [1424] = "Hillsbrad Foothills" })[id] or "Elsewhere", parentMapID = 0 } end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.67, 0.38 end } end }
+    return WC
+end
+
+cases[#cases + 1] = { "plan: NOW is the stop on the player's map, and the map's badge is the same stop", function()
+    local realMap = C_Map
+    local WC = undercity_plan(1458)
+    local st = WC.PlanNext()
+    assert(st.questID == 77 and st.hereFirst and st.skipped.n == 1, tostring(st.n))
+    local isNext = 0
+    for _, g in ipairs(WC.MapBadgeGroups(1458)) do
+        if g.isNext then isNext = isNext + 1 assert(g.next.questID == 77) end
+    end
+    assert(isNext == 1)
+    local S = WC.PanelSections(1458, 67, 38)
+    assert(S.now.step.questID == 77 and #S.here.stops == 0, "no repeat in HERE")
+    local text = WC.PanelSectionRows and S.now.plabel
+    assert(text == "", "a live step has no number to lead with: " .. tostring(text))
+    C_Map = realMap
+end }
+
+cases[#cases + 1] = { "plan: in the plan step's own zone NOW is plan step 1, and HERE rows never lead with a cut-short name", function()
+    local realMap = C_Map
+    local WC = undercity_plan(1424)
+    local st = WC.PlanNext()
+    assert(st.n == 1 and not st.hereFirst)
+    C_Map = realMap
+    WC = undercity_plan(1458)
+    WC.plan.live[1].quest = "Source of Power and a Rather Long Quest Name"
+    WC.plan.live[1].label = "Turn in " .. WC.plan.live[1].quest .. " to Doctor Martin Felben"
+    local S = WC.PanelSections(1458, 67, 38)
+    local rows = WC.PanelSectionRows(S, 1458, 67, 38)
+    local found
+    for _, r in ipairs(rows) do
+        local t = r.text or ""
+        assert(not t:find("Source of Po \194\183", 1, true), t)
+        if t:find("Rather Long Quest Name", 1, true) then found = t end
+    end
+    assert(found and found:find("^%s*Turn in Source of Power and a Rather Long Quest Name") or found:find("Turn in Source"), tostring(found))
+    -- the map badge keeps the short label
+    assert(WC.PinLabel(S.now.step and { S.now.step }) == ("Source of Power and a Rather Long Quest Name"):sub(1, 12))
+    C_Map = realMap
+end }
+
 cases[#cases + 1] = { "plan: a trip with no action is marked done on arrival; elsewhere nothing changes", function()
     local realMap = C_Map
     local WC = tarren_mill(17)

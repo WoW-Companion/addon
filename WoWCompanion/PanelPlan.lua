@@ -51,6 +51,18 @@ local function merged_text(step, id)
     return label ~= "" and label or (step.quest or "")
 end
 
+-- The label a panel row leads with: the badge's step number(s), or nothing. A step with no number (a live turn-in) has
+-- only the map badge's cut-short name for a label, which the panel never shows: its text already names the quest.
+local function panel_label(steps)
+    local l = WC.PinLabel(steps)
+    return l:match("^%d") and l or ""
+end
+
+local function labelled(fmt, label, text)
+    if label == "" then return text end
+    return string.format(fmt, label, text)
+end
+
 -- A stop as a row: its badge label and its text (a travel step on the player's own map reads as its action). A stop
 -- that merges several quests also lists each one in `items` ({ id, step, text }), so each is named with its own state.
 local function stop_of(group)
@@ -66,7 +78,7 @@ local function stop_of(group)
             end
         end
     end
-    local stop = { label = WC.PinLabel(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
+    local stop = { label = WC.PinLabel(group.steps), plabel = panel_label(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
         isNext = group.isNext == true }
     if #items > 1 then
         for _, it in ipairs(items) do
@@ -115,9 +127,10 @@ function WC.PanelSections(mapID, px, py)
 
     -- NOW: the current step with its badge label, distance and direction.
     if cur then
-        local label
-        for _, g in ipairs(groups) do if g.isNext then label = WC.PinLabel(g.steps) end end
+        local label, steps
+        for _, g in ipairs(groups) do if g.isNext then label, steps = WC.PinLabel(g.steps), g.steps end end
         label = label or WC.PinLabel({ cur })
+        local plabel = panel_label(steps or { cur })
         local view = cur.kind == "travel" and WC.PlanTipStep(cur) or cur
         local text = WC.PlanLiveText(view, view.label or "")
         local where
@@ -127,7 +140,7 @@ function WC.PanelSections(mapID, px, py)
         else
             where = L.PLAN_ELSEWHERE
         end
-        S.now = { label = label, text = text, where = where, step = cur }
+        S.now = { label = label, plabel = plabel, text = text, where = where, step = cur }
         note(cur)
     end
 
@@ -232,11 +245,11 @@ end
 local function now_text(S)
     local n = S.now
     if n.travel then return string.format(L.PANEL_NOW_TRAVEL, n.text) end
-    return string.format(L.PANEL_NOW_LINE, n.label, n.text) .. n.where
+    return labelled(L.PANEL_NOW_LINE, n.plabel or n.label, n.text) .. n.where
 end
 
 local function stop_text(stop)
-    return string.format(L.PANEL_STOP_LINE, stop.label, stop.text)
+    return labelled(L.PANEL_STOP_LINE, stop.plabel, stop.text)
 end
 
 local function header(id, text, click)
@@ -311,7 +324,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
         if stop.items then
             for i, it in ipairs(stop.items) do
                 local ready = it.step.kind == "turnin" and WC.PlanQuestState(it.id) == "ready"
-                local text = i == 1 and string.format(L.PANEL_STOP_LINE, stop.label, it.text) or it.text
+                local text = i == 1 and labelled(L.PANEL_STOP_LINE, stop.plabel, it.text) or it.text
                 add_quest(rows, { kind = "line", indent = i == 1 and 1 or 2, text = text,
                     color = ready and WC.Setting("readyColor") or nil }, it.id > 0 and it.id or nil, it.step.quest, it.step)
             end

@@ -545,18 +545,31 @@ local function lead_step(p, cur)
     local pm = WC.PlayerPos()
     if not pm then return cur end
     if same_zone(pm, cur.map) then return arrived_view(p, cur) or cur end
+    local function lead(s)
+        local v = arrived_view(p, s)
+        if not v then return nil end
+        if v == s then
+            v = {}
+            for k, val in pairs(s) do v[k] = val end
+        end
+        v.hereFirst, v.skipped = true, cur
+        return v
+    end
     for _, s in ipairs(p.steps) do
         if (cur.n >= 100000 or s.n > cur.n) and not p.done[s.n] and same_zone(pm, s.map)
             and not WC.StepLocked(s) and not WC.StepUnready(s) then
-            local v = arrived_view(p, s)
-            if v then
-                if v == s then
-                    v = {}
-                    for k, val in pairs(s) do v[k] = val end
-                end
-                v.hereFirst, v.skipped = true, cur
-                return v
-            end
+            local v = lead(s)
+            if v then return v end
+        end
+    end
+    -- Work on this map that is not a plan step (a live turn-in, a quest in the log) still comes before another zone.
+    local extras = {}
+    for _, st in ipairs(p.live or {}) do extras[#extras + 1] = st end
+    for _, st in ipairs(WC.LiveTurnInSteps and WC.LiveTurnInSteps() or {}) do extras[#extras + 1] = st end
+    for _, s in ipairs(extras) do
+        if s ~= cur and not (cur.questID and s.questID == cur.questID) and WC.HasPlace(s) and same_zone(pm, s.map)
+            and not (tonumber(s.n) and p.done[s.n]) then
+            return lead(s)
         end
     end
     return cur
