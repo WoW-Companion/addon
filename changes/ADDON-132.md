@@ -1,1 +1,0 @@
-A travel step that carries a quest ("Fly to X: turn in Y") is now done once that quest is turned in or gone from the log, so no stray map badge is left. Its map tooltip reads as the turn-in once you are in the zone.
