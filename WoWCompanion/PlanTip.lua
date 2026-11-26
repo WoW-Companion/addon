@@ -82,6 +82,16 @@ local function step_lines(lines, group, orig, prevQuest, opts)
             end
         end
     end
+    for _, id in ipairs(s.questIDs or {}) do -- a merged stop: every other quest it serves, with its own state
+        if id ~= s.questID then
+            local level = WC.QuestLevel and WC.QuestLevel(id)
+            local name = WC.QuestTitle(id) or L.QUEST_UNKNOWN:format(id)
+            lines[#lines + 1] = { text = (level and ("[" .. level .. "] ") or "") .. name, color = WC.DifficultyColor(level) }
+            local st = WC.PlanQuestState(id)
+            if st == "ready" then lines[#lines + 1] = { text = INDENT .. L.PLAN_TIP_READY, color = GREEN }
+            elseif st == "active" then lines[#lines + 1] = { text = INDENT .. L.PLAN_TIP_NOT_READY, color = DIM } end
+        end
+    end
     local total = group.total or (WC.plan and WC.plan.steps and #WC.plan.steps)
     local foot
     if WC.IsSyntheticStep(s) then

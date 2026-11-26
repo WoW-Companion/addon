@@ -313,7 +313,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
 end
 
 -- The "Unplanned" entries: quests accepted that the plan does not hold yet, live objectives and a hint that the
--- overlay routes them after the next save. Returns rows (possibly none).
+-- overlay routes them after the next save (a quest the plan's save already had says it is not in this plan). Returns rows (possibly none).
 function WC.UnplannedRows(collapsed, playerLevel)
     local out = {}
     for _, q in ipairs(WC.UnplannedQuests and WC.UnplannedQuests() or {}) do
@@ -321,7 +321,7 @@ function WC.UnplannedRows(collapsed, playerLevel)
         if rows then
             rows[1].right = L.UNPLANNED_TAG
             rows[1].id = "u" .. q.id
-            rows[#rows + 1] = { kind = "status", indent = 2, text = L.UNPLANNED_HINT, color = WC.COLORS.dim, group = rows[1].group }
+            rows[#rows + 1] = { kind = "status", indent = 2, text = q.new and L.UNPLANNED_HINT or L.UNPLANNED_OLD, color = WC.COLORS.dim, group = rows[1].group }
             for _, r in ipairs(rows) do out[#out + 1] = r end
         end
     end
