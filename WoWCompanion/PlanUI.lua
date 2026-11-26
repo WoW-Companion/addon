@@ -115,6 +115,7 @@ local pins, lines, arrows = {}, {}, {}
 local stepPin = {} -- step.n -> the badge or tag frame drawn for it in the last refresh
 local lineLayer, arrowLayer
 local nearPins = {} -- the drawn badges and tags with their true spots, for the near-the-player look
+local NEXT_MARK_SLOTS = 12 -- arrow pool slots the next-stop line owns: one arrowhead and two chevrons, four lines each
 local nextLine -- the next-stop line pair and what it needs to follow the player: set by drawNextLine
 
 local function mapShown()
@@ -599,16 +600,38 @@ function WC.UpdateNextLine(mapID, px, py)
             ln:Hide()
         end
     end
+    -- the direction marks ride the same pass, in their own fixed pool slots (never more, never fewer)
+    for i = nl.na + 1, nl.na + NEXT_MARK_SLOTS do
+        if arrows[i] then arrows[i]:Hide() end
+    end
+    if on and nl.arrows then
+        local fx, fy = px / 100 * nl.w, -py / 100 * nl.h
+        local ang, tx, ty, len = WC.ArrowPlace(fx, fy, nl.tx, nl.ty, nl.rad, ARROW_GAP + nl.arrowSize / 2)
+        -- no marks when the head's tip would land on the player's own end of the line
+        if ang and math.sqrt((tx - fx) ^ 2 + (ty - fy) ^ 2) > PLAYER_GAP * nl.scale then
+            local slot = nl.na
+            local function put(cx, cy, size, sub)
+                placeArrow(arrowLayer, arrows, slot + 1, cx, cy, size * nl.scale, ang, nl.outline4, sub, (nl.lineW + OUTLINE_PAD + 3) * nl.scale)
+                placeArrow(arrowLayer, arrows, slot + 3, cx, cy, size * nl.scale, ang, nl.head, sub + 1, (nl.lineW + 2) * nl.scale)
+                slot = slot + 4
+            end
+            put(tx, ty, nl.arrowSize, 5)
+            local chevrons = nl.chevrons and WC.ChevronCount(len, nl.w) or 0
+            for _, f in ipairs(WC.ChevronSpots(chevrons)) do
+                put(fx + (nl.tx - fx) * f, fy + (nl.ty - fy) * f, nl.chevronSize, 5)
+            end
+        end
+    end
 end
 
 -- The one highlighted line, from the player to the next step, when that step is on the shown map. It is a
 -- brighter shade of the route colour (or the player's own pick), a little thicker, and above the other legs.
 -- Returns the new count of pooled lines in use.
-local function drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline)
+local function drawNextLine(canvas, mapID, w, h, scale, where, spot, rad, n, na, lineW, lineA, outline)
     nextLine = nil
     local step = WC.PlanNext()
     local target = step and step.map == mapID and where[step.n]
-    if not target then return n end
+    if not target then return n, na end
     local c = WC.NextLineColor()
     local pair = {}
     for k = 1, 2 do
@@ -628,10 +651,12 @@ local function drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, l
         pair[k] = ln
     end
     nextLine = { outline = pair[1], line = pair[2], canvas = canvas, map = mapID, w = w, h = h, scale = scale,
-        tx = spot[step.n][1], ty = spot[step.n][2] }
+        tx = spot[step.n][1], ty = spot[step.n][2], rad = rad[step.n], na = na, lineW = lineW, outline4 = outline,
+        head = { c[1], c[2], c[3], 1 }, arrows = WC.db.settings.planArrows and arrowLayer.CreateTexture ~= nil,
+        chevrons = WC.Setting("planChevrons"), arrowSize = WC.Setting("arrowSize"), chevronSize = WC.Setting("chevronSize") }
     local pm, px, py = WC.PlayerPos()
     WC.UpdateNextLine(pm, px, py)
-    return n
+    return n, na + NEXT_MARK_SLOTS
 end
 
 -- The temporary pin for "Show on map" on a place with no plan badge: one pulsing ring and a label on the world map's
@@ -973,7 +998,7 @@ function WC.RefreshMapPins()
             end
         end
     end
-    if not foreign then n = drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline) end
+    if not foreign then n, na = drawNextLine(canvas, mapID, w, h, scale, where, spot, rad, n, na, lineW, lineA, outline) end
     WC.DrawGhostLines(ghosts, canvas, lineLayer, n, lineW, outline, spot, where)
 end
 

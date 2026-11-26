@@ -1807,7 +1807,7 @@ cases[#cases + 1] = { "plan: the highlight is one line from the player to the ne
         if ln.shown and ln.colorTexture then
             local c = line_rgb(ln)
             if c[1] == lc[1] and c[2] == lc[2] and c[3] == lc[3] and ln.colorTexture[4] == WC.Setting("lineOpacity") then legs = legs + 1
-            elseif c[1] == auto[1] and c[2] == auto[2] and c[3] == auto[3] then hi[#hi + 1] = ln end
+            elseif c[1] == auto[1] and c[2] == auto[2] and c[3] == auto[3] and ln.endPoint[1] == "CENTER" then hi[#hi + 1] = ln end
         end
     end
     assert(legs == 2, "the two ordinary legs (1 to 2, 2 to 3 share spots) keep the route colour, got " .. legs)
@@ -1825,6 +1825,43 @@ cases[#cases + 1] = { "plan: the highlight is one line from the player to the ne
     assert(not hi[1].shown)
     WC.UpdateNextLine(7002, 50, 50)
     assert(not hi[1].shown, "hidden when the player is on another map")
+end }
+
+-- shown next-line marks: the coloured (non-outline) pieces on the arrow layer, two per arrowhead or chevron
+local function next_marks(WC, made)
+    local auto, out = WC.NextLineColor(), {}
+    for _, ln in ipairs(made) do
+        local c = ln.colorTexture
+        if ln.shown and c and ln.endPoint and ln.endPoint[1] == "TOPLEFT" and ln.startPoint[1] == "TOPLEFT" and c[4] == 1
+            and c[1] == auto[1] and c[2] == auto[2] and c[3] == auto[3] then out[#out + 1] = ln end
+    end
+    return out
+end
+
+cases[#cases + 1] = { "plan: the next-stop line gets an arrowhead, plus chevrons when long, pointing player to stop, following the player", function()
+    local WC, made = draw_route_lines({ lineColor = { 0.8, 0.2, 0.5 } })
+    WC.UpdateNextLine(7001, 90, 10) -- far from the stop: long line
+    local long = next_marks(WC, made)
+    assert(#long == 4 or #long == 6, "arrowhead plus 1-2 chevrons, got " .. #long / 2)
+    -- every mark is angled from the player toward the stop: each stroke's tip lies on that bearing's side
+    assert(#long >= 4, "long: " .. #long)
+    local pins = 0
+    for _, ln in ipairs(made) do pins = pins + 1 end
+    for i = 1, 100 do WC.UpdateNextLine(7001, 10 + i * 0.5, 10 + i * 0.3) end
+    assert(#made == pins, "the pool is stable over 100 updates")
+    WC.UpdateNextLine(7001, 90, 10)
+    assert(#next_marks(WC, made) == #long)
+    WC.UpdateNextLine(7001, 56, 50) -- near: arrowhead only
+    local near = next_marks(WC, made)
+    assert(#near == 2, "short line: the arrowhead only, got " .. #near / 2)
+    WC.UpdateNextLine(7002, 50, 50)
+    assert(#next_marks(WC, made) == 0, "hidden off the map")
+end }
+
+cases[#cases + 1] = { "plan: with planChevrons off the next-stop line keeps only its arrowhead", function()
+    local WC, made = draw_route_lines({ planChevrons = false })
+    WC.UpdateNextLine(7001, 90, 10)
+    assert(#next_marks(WC, made) == 2, "arrowhead only")
 end }
 
 cases[#cases + 1] = { "settings: the next-stop colour is auto by default and follows lineColor; a pick is kept; the old yellow migrates", function()
