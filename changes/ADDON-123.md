@@ -1,1 +1,0 @@
-Ready turn-ins in the expanded quest list now stand out in your ready colour with a gold "?" marker, sort first in each zone, and zone headers show how many are ready. Places never read "map 310" any more: they use the real map name, or the parent zone with "(instance)".
