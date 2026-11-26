@@ -292,7 +292,7 @@ function WC.PinGroups(steps, mapID, done, nextStep)
                 groups[#groups + 1] = home
             end
             home.steps[#home.steps + 1] = s
-            if s == nextStep or (nextStep and nextStep.live and not s.live and s.n == nextStep.n) then home.next = s end
+            if s == nextStep or (nextStep and (nextStep.live and not s.live or nextStep.hereFirst) and s.n == nextStep.n) then home.next = s end
         end
     end
     for _, g in ipairs(groups) do g.isNext = g.next ~= nil end
