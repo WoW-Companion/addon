@@ -1596,6 +1596,101 @@ local function draw_route_lines(settings_in)
     return WC, made, canvas
 end
 
+-- Draws map `shown` with the player on map `player` for the plan_zones fixture; drop_zones makes it an older plan.
+local function draw_zone_map(shown, player, drop_zones)
+    local WC = plan_client("zones")
+    if drop_zones then WC.plan.zones = nil end
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    local made, create = {}, CreateFrame
+    CreateFrame = function(...)
+        local f = create(...)
+        local old = f.CreateLine
+        f.CreateLine = function(self) local ln = old(self); made[#made + 1] = ln; return ln end
+        return f
+    end
+    local realMap = C_Map
+    C_Map = { GetBestMapForUnit = function() return player end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.2, 0.4 end } end }
+    canvas.CreateLine = function() return {} end
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return shown end }
+    WC.RefreshMapPins()
+    CreateFrame = create
+    WorldMapFrame = nil
+    C_Map = realMap
+    return WC, made
+end
+
+-- The shown route-colour legs as { fromAnchor, toAnchor } (the dark outline lines are thicker and skipped).
+local function zone_legs(WC, made)
+    local lc, legs = WC.Setting("lineColor"), {}
+    for _, ln in ipairs(made) do
+        local c = ln.colorTexture
+        if ln.shown and c and c[1] == lc[1] and c[2] == lc[2] and c[3] == lc[3] and c[4] == WC.Setting("lineOpacity") then
+            legs[#legs + 1] = { ln.startPoint[2], ln.endPoint[2] }
+        end
+    end
+    return legs
+end
+
+local function shown_pin_of(anchor)
+    for _, f in ipairs(frames) do if f.anchor == anchor and f.shown then return f end end
+end
+
+cases[#cases + 1] = { "plan: another zone's map draws one chain from the arrival marker through the zone's order, each stop once", function()
+    local WC, made = draw_zone_map(7002, 7001)
+    local legs = zone_legs(WC, made)
+    assert(#legs == 5, "arrival plus four ordered stops: five legs, got " .. #legs)
+    local first = shown_pin_of(legs[1][1])
+    assert(first and first.planGroup.arrival and first.planGroup.arrival.kind == "flight" and first.icon.shown, "starts on the flight-master marker")
+    local want, seen = { 3, 1, 5, 2, 4 }, {}
+    for i, leg in ipairs(legs) do
+        assert(i == 1 or leg[1] == legs[i - 1][2], "each leg starts where the last ended")
+        local pin = shown_pin_of(leg[2])
+        assert(pin.planGroup.steps[1].n == want[i], "stop order follows the zone's order")
+        assert(pin.num.text == tostring(i), "numbered by the zone's own order")
+        assert(not seen[pin], "each stop once")
+        seen[pin] = true
+    end
+    for _, f in ipairs(frames) do
+        if f.planGroup and f.planGroup.steps[1] and f.planGroup.steps[1].n == 6 and f.shown then
+            assert(not seen[f], "an unordered stop is not in the chain")
+            return
+        end
+    end
+    error("the unordered stop keeps its badge")
+end }
+
+cases[#cases + 1] = { "plan: the arrival marker's tooltip names the place and shows the travel text", function()
+    local WC = draw_zone_map(7002, 7001)
+    local pin
+    for _, f in ipairs(frames) do if f.planGroup and f.planGroup.arrival and f.shown then pin = f end end
+    assert(pin)
+    local lines = WC.PlanTipLines(pin.planGroup)
+    assert(lines[1].text == "Arrive: Sun Rock Retreat (Tharm)" and lines[2].text == "Fly to Sun Rock Retreat (Tharm)")
+    local z = WC.ParseZones({ [7002] = { arrival = { kind = "walk", name = "Camp", x = 1, y = 2 }, order = { 1 } } }, WC.plan.steps)
+    assert(z[7002].arrival.kind == "walk" and z[7002].arrival.map == 7002)
+end }
+
+cases[#cases + 1] = { "plan: the player's own zone keeps its legs and gets no arrival marker", function()
+    local WC, made = draw_zone_map(7002, 7002)
+    assert(#zone_legs(WC, made) == 5, "steps 1..6 joined in plan order, as before")
+    for _, f in ipairs(frames) do assert(not (f.planGroup and f.planGroup.arrival and f.shown)) end
+end }
+
+cases[#cases + 1] = { "plan: an older plan draws badges only, no legs, on another zone", function()
+    local WC, made = draw_zone_map(7002, 7001, true)
+    assert(#zone_legs(WC, made) == 0)
+    local badges = 0
+    for _, f in ipairs(frames) do
+        if f.planGroup and f.shown then
+            assert(not f.planGroup.arrival)
+            badges = badges + 1
+        end
+    end
+    assert(badges == 6)
+end }
+
 local function line_rgb(ln) local c = ln.colorTexture; return { c[1], c[2], c[3] } end
 
 cases[#cases + 1] = { "plan: the highlight is one line from the player to the next stop, never a leg that shares its spot", function()

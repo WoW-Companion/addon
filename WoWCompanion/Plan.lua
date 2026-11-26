@@ -76,6 +76,37 @@ function WC.ParseGuidance(g)
     return any and out or nil
 end
 
+-- Plan.lua `zones`: per other zone, where the player arrives and the one stop order to follow from there:
+-- { [mapID] = { arrival = { kind = "flight"|"walk", npc, name, map, x, y, text }, order = { route step n... } } }.
+-- A zone with no usable arrival or order is dropped; nil when the plan has none (an older plan: no legs on other zones).
+function WC.ParseZones(z, steps)
+    if type(z) ~= "table" then return nil end
+    local known = {}
+    for _, s in ipairs(steps or {}) do known[s.n] = true end
+    local out, any = {}, false
+    for key, e in pairs(z) do
+        local map = tonumber(key)
+        local a = type(e) == "table" and e.arrival
+        if map and type(a) == "table" and tonumber(a.x) and tonumber(a.y) then
+            local order, seen = {}, {}
+            for _, n in ipairs(id_list(e.order) or {}) do
+                if known[n] and not seen[n] then seen[n] = true order[#order + 1] = n end
+            end
+            local function str(v) return type(v) == "string" and v ~= "" and plain(v) or nil end
+            local text = str(a.text)
+            local tn = tonumber(a.step)
+            if not text and tn then
+                for _, s in ipairs(steps) do if s.n == tn then text = s.label end end
+            end
+            out[map] = { order = order, arrival = { kind = a.kind == "walk" and "walk" or "flight", npc = str(a.npc),
+                name = str(a.name), map = tonumber(a.map) or map, x = clamp(tonumber(a.x), 0, 100),
+                y = clamp(tonumber(a.y), 0, 100), text = text } }
+            any = true
+        end
+    end
+    return any and out or nil
+end
+
 -- Plan.lua `finishers`: where each logged quest is turned in. Either { [questID] = { spot... } } or a list of
 -- { questID, quest, places = { spot... } }; a spot is { npc, map, x, y, place }. Returns { [questID] = { quest, spots } }
 -- or nil when the plan has none (an older plan).
@@ -221,7 +252,7 @@ function WC.ParsePlan(plan, player)
     end
     if #steps == 0 then return nil, "character" end
     return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
-        WC.ParseFinishers(entry.finishers)
+        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -325,7 +356,7 @@ end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later, finishers = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers, zones = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -335,7 +366,7 @@ function WC.PlanInit()
         WC.db.plan[charKey()] = saved
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
-        guidance = guidance, here = here, later = later or {}, finishers = finishers, live = {}, liveSig = "" }
+        guidance = guidance, here = here, later = later or {}, finishers = finishers, zones = zones, live = {}, liveSig = "" }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
