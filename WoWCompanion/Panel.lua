@@ -534,6 +534,10 @@ function WC.Refresh()
     if meta and WC.PlanFollowing() and WC.plan.generated > 0 then
         advice = string.format(L.ADVICE_FOLLOWING, WC.FormatClock(WC.plan.generated))
     end
+    if meta and WC.PlanBehind() then
+        advice = advice .. L.PLAN_BEHIND
+        if WC.lagDismissed then f.title:SetText(f.title:GetText() .. L.PLAN_BEHIND_MARK) end
+    end
     f.header:SetText(WC.SafeText(advice))
     f.stale = meta and meta.stale or false
     local hc = f.stale and WC.COLORS.amber or WC.COLORS.dim
