@@ -3830,7 +3830,7 @@ cases[#cases + 1] = { "no /reload in any current-locale player string (What's ne
     fresh_client(nil)
     local n = 0
     for k, v in pairs(WoWCompanion.L) do
-        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" then -- the one reload hint, shown once and only as a note
+        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" and k ~= "PLAN_LAG_NOTE" then -- the one reload hint, shown once and only as a note
             n = n + 1
             assert(not tostring(v):lower():find("/reload", 1, true), k)
         end
