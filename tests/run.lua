@@ -4711,7 +4711,7 @@ cases[#cases + 1] = { "chains: an unplanned accept shows an Unplanned entry with
     local text = panel_text()
     assert(text:find("Stray Task", 1, true), text)
     assert(WC.UnplannedRows({}, 10)[1].right == "Unplanned")
-    assert(text:find("The overlay will route this after your next save", 1, true) and text:find("1/2 Find 2 things", 1, true))
+    assert(text:find("New: the overlay will route this after your next save", 1, true) and text:find("1/2 Find 2 things", 1, true))
     local list = WC.UnplannedQuests()
     assert(#list == 1 and list[1].id == 99)
     turn_in(99)
@@ -7506,6 +7506,70 @@ cases[#cases + 1] = { "panel plan: the one-save-behind note shows only when a li
     assert(WC.PlanLacksLive() == false)
     C_QuestLog.GetInfo = function() return { questID = 999 } end
     assert(WC.PlanLacksLive() == true)
+end }
+
+local function merged_client()
+    local WC = panel_client("merged")
+    QUESTS[10], QUESTS[11] = "active", "ready"
+    C_QuestLog.GetQuestObjectives = function(id)
+        if id == 10 then return { { text = "8/15 Hillsbrad Peasant slain", numFulfilled = 8, numRequired = 15, finished = false } } end
+        return { { text = "1/1 Sword", numFulfilled = 1, numRequired = 1, finished = true } }
+    end
+    WC.Refresh()
+    return WC
+end
+
+cases[#cases + 1] = { "panel plan: a merged stop names every quest with its own state, and the tooltip too", function()
+    local WC = merged_client()
+    local text = table.concat(panel_lines(WC), "\n")
+    assert(text:find("3\194\1834 \194\183 Turn in Quest 10 (Darthalia)", 1, true), text)
+    assert(text:find("Turn in Quest 11 (Humbert)", 1, true), text)
+    local S = WC.PanelSections(7001, 50, 50)
+    local stop = S.here.stops[#S.here.stops]
+    assert(stop.label == "3\194\1834" and #stop.items == 2 and stop.items[2].id == 11)
+    -- a single step that serves two quests lists both in the tooltip, the ready one marked
+    local step = { n = 3, kind = "turnin", questID = 10, questIDs = { 10, 11 }, quest = "Quest 10", label = "Turn in Quest 10 to Darthalia", map = 7001, x = 50, y = 50 }
+    local tip = {}
+    for _, l in ipairs(WC.PlanTipLines({ steps = { step }, total = 4 })) do tip[#tip + 1] = l.text end
+    local t = table.concat(tip, "|")
+    assert(t:find("Quest 11|    Ready to turn in", 1, true) or t:find("Quest 11|", 1, true), t)
+end }
+
+cases[#cases + 1] = { "panel plan: a not-ready turn-in says what it waits on, not the objective's progress", function()
+    local WC = merged_client()
+    local lines = panel_lines(WC)
+    assert(count_of(lines, "8/15 Hillsbrad Peasant slain") == 1, "the progress shows once, under NOW: " .. table.concat(lines, "|"))
+    assert(count_of(lines, "after step 1") == 1, table.concat(lines, "|"))
+    for i, l in ipairs(lines) do
+        if l:find("Turn in Quest 11 (Humbert)", 1, true) then assert(not (lines[i + 1] or ""):find("Sword", 1, true), "a ready turn-in shows no progress under it") end
+    end
+end }
+
+cases[#cases + 1] = { "panel plan: an unplanned quest is New after the plan's save, Not in this plan before it, and a trip's quest is neither", function()
+    local WC = merged_client()
+    local function accept(id, at)
+        QUESTS[id] = "active"
+        Stub.fire(frames, "QUEST_ACCEPTED", 1, id)
+        for _, e in ipairs(WC.db.observed.events) do if e.questID == id then e.t = at end end
+    end
+    local saved = WC.plan.generated
+    accept(98, saved - 86400)
+    accept(99, saved + 100)
+    accept(30, saved + 100)
+    accept(40, saved + 100)
+    local text = {}
+    for _, r in ipairs(WC.UnplannedRows({}, 10)) do text[#text + 1] = r.text end
+    text = table.concat(text, "|")
+    assert(text:find("Quest 98", 1, true) and text:find("Quest 99", 1, true), text)
+    assert(text:find("Quest 30", 1, true) == nil and text:find("Quest 40", 1, true) == nil, "trips and LATER are not unplanned: " .. text)
+    local byId = {}
+    for _, q in ipairs(WC.UnplannedQuests()) do byId[q.id] = q end
+    assert(byId[98].new == false and byId[99].new == true)
+    local rows = WC.UnplannedRows({}, 10)
+    local hints = {}
+    for _, r in ipairs(rows) do if r.kind == "status" then hints[#hints + 1] = r.text end end
+    assert(table.concat(hints, "|") == "Not in this plan|New: the overlay will route this after your next save", table.concat(hints, "|"))
+    assert(WC.planGaps and WC.planGaps[98] and not WC.planGaps[99], "the old one is logged as a plan gap")
 end }
 
 local failed = 0

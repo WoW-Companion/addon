@@ -36,13 +36,63 @@ local function trip_zone(t)
     return t.zone or zone_name(t.map)
 end
 
--- A stop as a row: its badge label and its text (a travel step on the player's own map reads as its action).
+-- A merged stop's turn-in line: "Turn in Quest (Giver)" from the step's "Turn in Quest to Giver".
+local function merged_text(step, id)
+    local title = WC.QuestTitle(id)
+    local label = step.label or ""
+    if #ids_of(step) > 1 then
+        local npc = label:match(" to ([^()]+)$")
+        local name = title or L.QUEST_UNKNOWN:format(id)
+        local verb = step.kind == "turnin" and (L.PANEL_TURNIN .. " ") or ""
+        return npc and string.format("%s%s (%s)", verb, name, npc) or (verb .. name)
+    end
+    local quest, npc = label:match("^(.-) to ([^()]+)$")
+    if step.kind == "turnin" and quest then return string.format("%s (%s)", quest, npc) end
+    return label ~= "" and label or (step.quest or "")
+end
+
+-- A stop as a row: its badge label and its text (a travel step on the player's own map reads as its action). A stop
+-- that merges several quests also lists each one in `items` ({ id, step, text }), so each is named with its own state.
 local function stop_of(group)
     local s = group.steps[1]
     local view = WC.PlanTipStep(s) or s
     local text = WC.PlanLiveText(view, view.label ~= "" and view.label or (s.quest or ""))
-    return { label = WC.PinLabel(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
+    local items, listed = {}, {}
+    for _, st in ipairs(group.steps) do
+        for _, id in ipairs(ids_of(st)) do
+            if not listed[id] then -- a live turn-in step for a quest the plan already lists here is the same quest
+                listed[id] = true
+                items[#items + 1] = { id = id, step = st }
+            end
+        end
+    end
+    local stop = { label = WC.PinLabel(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
         isNext = group.isNext == true }
+    if #items > 1 then
+        for _, it in ipairs(items) do
+            local st = it.step
+            local live = WC.PlanLiveText(st, st.label ~= "" and st.label or (st.quest or ""))
+            if st.kind == "turnin" then live = merged_text(st, it.id) end
+            it.text = live
+        end
+        stop.items = items
+        stop.text = items[1].text
+    end
+    return stop
+end
+
+-- What a not-ready turn-in waits on: the plan's open objective steps ("after step 1"), else the first unmet objective.
+local function waits_on(id)
+    local steps = {}
+    for _, st in ipairs(WC.plan and WC.plan.steps or {}) do
+        if st.kind == "objective" and st.questID == id and not WC.plan.done[st.n] and tonumber(st.n) then
+            steps[#steps + 1] = tostring(st.n)
+        end
+    end
+    if #steps > 0 then return string.format(#steps == 1 and L.PANEL_AFTER_STEP or L.PANEL_AFTER_STEPS, table.concat(steps, ", ")) end
+    for _, o in ipairs(WC.QuestObjectives and WC.QuestObjectives(id) or {}) do
+        if not o.finished and o.text then return string.format(L.PANEL_AFTER_OBJ, (o.text:gsub("^%d+/%d+%s*", ""))) end
+    end
 end
 
 -- The sections for the player at mapID, px, py. nil when there is no plan. Pure over live state: call it any time.
@@ -220,11 +270,15 @@ local function with_card(row, id, title)
 end
 
 -- Adds a quest row, then (for a quest in the log) its objective rows, so the quest's lines light together on hover.
-local function add_quest(out, row, id, title)
+local function add_quest(out, row, id, title, step)
     local r, rows = with_card(row, id, title)
     out[#out + 1] = r
     local state = id and id > 0 and WC.PlanQuestState(id)
-    if rows and (state == "active" or state == "ready") then
+    if step and step.kind == "turnin" then
+        -- a turn-in never repeats the objectives' progress (it is shown where the work is): ready says nothing, else what it waits on
+        local wait = state == "active" and waits_on(id) or nil
+        if wait then out[#out + 1] = { kind = "status", indent = (r.indent or 0) + 1, text = wait, color = WC.COLORS.dim, group = r.group } end
+    elseif rows and (state == "active" or state == "ready") then
         for i = 2, #rows do
             if rows[i].kind == "obj" then
                 rows[i].indent = (r.indent or 0) + 1
@@ -241,7 +295,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
     rows[#rows + 1] = header("panel_now", L.PANEL_NOW)
     if S.now then
         local id = S.now.step and (S.now.step.questID or 0) > 0 and S.now.step.questID or nil
-        add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest)
+        add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest, S.now.step)
     else
         rows[#rows + 1] = { kind = "line", text = L.PANEL_NOTHING_NOW }
     end
@@ -254,8 +308,17 @@ function WC.PanelSectionRows(S, mapID, px, py)
         rows[#rows + 1] = header("panel_here", title)
     end
     for _, stop in ipairs(h.stops) do
-        add_quest(rows, { kind = "line", indent = 1, text = stop_text(stop) },
-            (stop.step.questID or 0) > 0 and stop.step.questID or nil, stop.step.quest)
+        if stop.items then
+            for i, it in ipairs(stop.items) do
+                local ready = it.step.kind == "turnin" and WC.PlanQuestState(it.id) == "ready"
+                local text = i == 1 and string.format(L.PANEL_STOP_LINE, stop.label, it.text) or it.text
+                add_quest(rows, { kind = "line", indent = i == 1 and 1 or 2, text = text,
+                    color = ready and WC.Setting("readyColor") or nil }, it.id > 0 and it.id or nil, it.step.quest, it.step)
+            end
+        else
+            add_quest(rows, { kind = "line", indent = 1, text = stop_text(stop) },
+                (stop.step.questID or 0) > 0 and stop.step.questID or nil, stop.step.quest, stop.step)
+        end
     end
     if h.exit and #h.stops + (S.now and 1 or 0) > 0 then
         rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.PANEL_THEN, h.exit), color = WC.COLORS.dim }

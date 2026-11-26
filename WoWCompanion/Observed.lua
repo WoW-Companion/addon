@@ -53,11 +53,29 @@ function WC.ObservedAdd(ev, questID, offPlan, where)
     return e
 end
 
+-- True when the plan places the quest anywhere: a step, a trip or a parked (LATER) entry.
 local function in_plan(id)
-    for _, s in ipairs(WC.plan and WC.plan.steps or {}) do
+    local p = WC.plan
+    if not p then return false end
+    for _, s in ipairs(p.steps or {}) do
         if s.questID == id then return true end
+        for _, q in ipairs(s.questIDs or {}) do if q == id then return true end end
     end
+    for _, t in ipairs(p.trips or {}) do
+        for _, q in ipairs(t.questIDs or {}) do if q == id then return true end end
+    end
+    for _, k in ipairs(p.parked or {}) do if k.questID == id then return true end end
+    for _, k in ipairs(p.later or {}) do if k.questID == id then return true end end
     return false
+end
+
+-- When the plan's save was taken: the save it was made from, else when it was generated. nil when unknown.
+function WC.PlanSaveTime()
+    local raw = WoWCompanionPlan
+    local basis = type(raw) == "table" and type(raw.basis) == "table" and raw.basis or nil
+    local at = basis and tonumber(basis.captured)
+    if not at or at <= 0 then at = WC.plan and tonumber(WC.plan.generated) end
+    return at and at > 0 and at or nil
 end
 
 -- Quest events feed the log. QUEST_REMOVED fires for abandons and for turn-ins alike, so it waits a moment and
@@ -93,9 +111,10 @@ function WC.ObserveQuestEvent(event, a, b)
 end
 
 -- The quests accepted outside the plan that are still open: replays the log and this session's accepts, drops
--- anything the plan now holds (the overlay routed it) or that left the quest log. Oldest first: { { id, title } }.
+-- anything the plan now holds (the overlay routed it) or that left the quest log. Oldest first:
+-- { { id, title, new } }; new is true when the quest was accepted after the plan's save (or when that is unknown).
 function WC.UnplannedQuests()
-    local ids, order = {}, {}
+    local ids, order, at = {}, {}, {}
     local function add(id)
         if not ids[id] then ids[id] = true order[#order + 1] = id end
     end
@@ -103,18 +122,26 @@ function WC.UnplannedQuests()
     local me = UnitName and UnitName("player")
     for _, e in ipairs(o) do
         if type(e) == "table" and (e.character == nil or e.character == "" or e.character == me) then
-            if e.ev == "accepted" and e.offPlan then add(e.questID)
+            if e.ev == "accepted" and e.offPlan then add(e.questID) at[e.questID] = tonumber(e.t)
             elseif e.ev == "turnedin" or e.ev == "abandoned" then ids[e.questID] = nil end
         end
     end
     for id in pairs(unplanned) do add(id) end
+    local saved = WC.PlanSaveTime()
     local out = {}
     for _, id in ipairs(order) do
         if ids[id] and not in_plan(id) then
             local st = WC.PlanQuestState(id)
             if st == "active" or st == "ready" then
                 local title = WC.QuestTitle and WC.QuestTitle(id)
-                if title then out[#out + 1] = { id = id, title = title } end
+                if title then
+                    local new = not (saved and at[id] and at[id] <= saved)
+                    out[#out + 1] = { id = id, title = title, new = new }
+                    if not new and (WC.plan.trips or WC.plan.parked) then
+                        WC.planGaps = WC.planGaps or {}
+                        WC.planGaps[id] = title -- a plan with trips places every logged quest: shown by /wowc plan debug
+                    end
+                end
             end
         end
     end
