@@ -1,1 +1,0 @@
-- Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has "Panel starts collapsed".

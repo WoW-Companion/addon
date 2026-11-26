@@ -583,6 +583,7 @@ local L = {
     WHATS_NEW_0_6_59_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
     WHATS_NEW_0_6_60_1 = "Another zone's map now draws one connected route that starts at a flight-master marker where you arrive.",
     WHATS_NEW_0_6_61_1 = "When you are already in the zone of a later step, the panel leads with it (\"Here first\"), a travel step there becomes its turn-in, and the line is drawn to it.",
+    WHATS_NEW_0_6_62_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
