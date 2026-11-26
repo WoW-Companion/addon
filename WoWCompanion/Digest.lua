@@ -275,7 +275,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel, opts)
         if kind == "turnin" then
             text = string.format(L.VERB_ROW, L.VERB_TURNIN, title .. (line.class and (" (" .. L.CLASS .. ")") or "")) .. L.READY_SUFFIX
             color = WC.Setting("readyColor")
-        elseif kind == "pickup" then
+        elseif kind == "pickup" or state == "none" then
             text = string.format(L.VERB_ROW, L.VERB_PICKUP, text)
         else
             local objs = (state == "active" or state == "ready") and WC.QuestObjectives and WC.QuestObjectives(quest) or line.objectives
