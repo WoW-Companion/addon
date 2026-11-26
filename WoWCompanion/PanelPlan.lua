@@ -71,7 +71,9 @@ local function stop_of(group)
     if #items > 1 then
         for _, it in ipairs(items) do
             local st = it.step
-            it.text = st.kind == "turnin" and merged_text(st, it.id) or WC.PlanLiveText(st, st.label ~= "" and st.label or (st.quest or ""))
+            local live = WC.PlanLiveText(st, st.label ~= "" and st.label or (st.quest or ""))
+            if st.kind == "turnin" then live = merged_text(st, it.id) end
+            it.text = live
         end
         stop.items = items
         stop.text = items[1].text
