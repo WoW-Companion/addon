@@ -82,7 +82,12 @@ local function step_lines(lines, group, s, prevQuest, opts)
         end
     end
     local total = group.total or (WC.plan and WC.plan.steps and #WC.plan.steps)
-    local foot = total and string.format(L.PLAN_TIP_STEP_OF, tostring(s.n), tostring(total)) or string.format(L.PLAN_TIP_STEP, tostring(s.n))
+    local foot
+    if WC.IsSyntheticStep(s) then
+        foot = L.PLAN_TIP_LIVE
+    else
+        foot = total and string.format(L.PLAN_TIP_STEP_OF, tostring(s.n), tostring(total)) or string.format(L.PLAN_TIP_STEP, tostring(s.n))
+    end
     if group.next == s then foot = foot .. L.PLAN_TIP_NEXT end
     if s.place then foot = foot .. " \194\183 " .. WC.PlaceName(s.place, s.map) end
     if opts and opts.dist then foot = foot .. " \194\183 " .. string.format(L.PLAN_TIP_DIST, math.floor(opts.dist + 0.5), opts.dir or "") end

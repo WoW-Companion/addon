@@ -264,7 +264,15 @@ end
 
 -- A step is drawn only on the map the world map is showing, and only while it is still to do.
 function WC.PinWanted(step, mapID, done)
-    return step.map == mapID and not (done and done[step.n]) and not WC.StepLocked(step)
+    return step.map == mapID and WC.HasPlace(step) and not (done and done[step.n]) and not WC.StepLocked(step)
+end
+
+-- A badge whose every step is approximate is drawn faded (its tooltip says "approx.").
+WC.APPROX_ALPHA = 0.6
+function WC.GroupApprox(g)
+    if not g or not g.steps or #g.steps == 0 then return false end
+    for _, s in ipairs(g.steps) do if not s.approx then return false end end
+    return true
 end
 
 -- Groups the wanted steps of a map into badges, in plan order; steps within the mergeDistance setting of an
@@ -484,7 +492,7 @@ function WC.DrawGhosts(canvas, mapID, first, w, h, scale, where, spot)
     local k = 0
     for _, gh in ipairs(WC.GhostSteps(WC.plan.steps, WC.Setting("ghostsPerChain"))) do
         local s = gh.step
-        if s.map == mapID then
+        if s.map == mapID and WC.HasPlace(s) then
             k = k + 1
             local p = pinFor(first + k, canvas)
             local size = WC.PinSize(setting, false)
@@ -848,10 +856,11 @@ function WC.RefreshMapPins()
         p.fill:Show() -- a ghost badge reuses these frames hollow; a real step is solid again
         p.ring:Show()
         if p.icon then p.icon:Hide() end
-        if p.SetAlpha then p:SetAlpha(1) end
+        local approx = WC.GroupApprox(g)
+        if p.SetAlpha then p:SetAlpha(approx and WC.APPROX_ALPHA or 1) end
         if p.lock then p.lock:Hide() end
         local rc = WC.Setting(g.isNext and "nextRingColor" or "ringColor")
-        p.ring:SetVertexColor(rc[1], rc[2], rc[3], marker and WC.Setting("tagRingOpacity") or 1)
+        p.ring:SetVertexColor(rc[1], rc[2], rc[3], (marker and WC.Setting("tagRingOpacity") or 1) * (approx and WC.APPROX_ALPHA or 1))
         local nc = WC.Setting("numberColor")
         p.num:SetTextColor(nc[1], nc[2], nc[3])
         local gd = (marker and WC.TagDiameter(size) or size) * 1.7
@@ -951,8 +960,10 @@ function WC.RefreshMapPins()
         local prev
         for _, s in ipairs(shown) do
             if not (WC.plan.done and WC.plan.done[s.n]) then
-                if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then leg(prev.n, s.n) end
-                prev = s
+                if WC.HasPlace(s) then
+                    if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then leg(prev.n, s.n) end
+                    prev = s
+                end
             end
         end
     end
@@ -1002,7 +1013,7 @@ function WC.PinArrived(kind, dist)
 end
 
 local function placeMinimap(m, mapID, px, py, step)
-    if not (Minimap and mapID == step.map and px) then m:Hide() return end
+    if not (Minimap and mapID == step.map and px and WC.HasPlace(step)) then m:Hide() return end
     local w, h = WC.MapYards(mapID)
     local dist, compass, bearing = WC.PlanDistance(px, py, step.x, step.y, w, h)
     m.tipDist, m.tipDir = dist, compass
