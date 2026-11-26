@@ -209,13 +209,28 @@ function WC.ParseLater(list)
     local out = {}
     for _, it in ipairs(list) do
         local id, x, y = type(it) == "table" and tonumber(it.questID), tonumber(it and it.x), tonumber(it and it.y)
-        if id and id > 0 and tonumber(it.map) and x and y and x >= 0 and y >= 0 and x <= 100 and y <= 100 then
+        if id and id > 0 and tonumber(it.map) and x and y and x >= 0 and y >= 0 and x <= 100 and y <= 100 and not (x == 0 and y == 0) then
             local k = it.kind
             out[#out + 1] = { questID = id, kind = (k == "pickup" or k == "turnin" or k == "objective") and k or nil,
                 map = tonumber(it.map), x = x, y = y, npc = type(it.npc) == "string" and it.npc ~= "" and plain(it.npc) or nil }
         end
     end
     return #out > 0 and out or nil
+end
+
+-- True when a stop has a real place on its map: x and y are numbers, not negative, not both exactly 0 (the plan's
+-- "no spot" filler), and it is not flagged unplaced. Never draw a badge, ring, line or minimap pin without it.
+function WC.HasPlace(s)
+    if type(s) ~= "table" or s.unplaced then return false end
+    local x, y = tonumber(s.x), tonumber(s.y)
+    if not x or not y or x < 0 or y < 0 then return false end
+    return not (x == 0 and y == 0)
+end
+
+-- A live extra step or a number that is only an id: never a route step, so never "Step n of N".
+function WC.IsSyntheticStep(s)
+    local n = type(s) == "table" and tonumber(s.n)
+    return type(s) == "table" and (s.synthetic == true or s.live == true and n == nil or (n ~= nil and n >= 100000)) or false
 end
 
 -- The valid steps for player in a Plan.lua table, in order; unknown fields are ignored.
@@ -238,6 +253,7 @@ function WC.ParsePlan(plan, player)
                 n = #steps + 1, kind = s.kind, questID = tonumber(s.questID) or 0,
                 quest = plain(s.quest or ""), label = plain(s.label or ""), approx = s.approx == true,
                 map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100),
+                unplaced = s.unplaced == true or tonumber(s.x) < 0 or tonumber(s.y) < 0 or (tonumber(s.x) == 0 and tonumber(s.y) == 0) or nil,
                 -- optional, shown in tooltips only when the plan carries them: quest level, class-quest name, NPC level text
                 level = tonumber(s.level), class = type(s.class) == "string" and s.class ~= "" and plain(s.class) or nil,
                 npcLevel = (type(s.npcLevel) == "string" or type(s.npcLevel) == "number") and plain(tostring(s.npcLevel)) or nil,
@@ -804,7 +820,8 @@ local function live_step(p, g, state)
     end
     return { n = n or (100000 + g.questID), synthetic = n == nil or nil, kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
         approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true,
-        place = spot.place, doneCount = done, totalCount = total }
+        place = spot.place, doneCount = done, totalCount = total,
+        unplaced = not WC.HasPlace(spot) or nil }
 end
 
 -- Rebuilds the live steps from the quest log and the plan's guidance: nothing is stored, so a reload gives the same
