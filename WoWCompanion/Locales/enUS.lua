@@ -130,6 +130,13 @@ local L = {
     HERE_WHILE = "While you're here: step %d, %s",
     ALSO_DOING = "Also doing",
     ALSO_DOING_LINE = "%s: %s",
+    ALSO_ELSEWHERE = "Elsewhere",
+    ALSO_MORE = "+%d more in your log",
+    ALSO_MORE_READY = ": %d ready to turn in (%s)",
+    ALSO_HIDE = " (click to hide)",
+    ALSO_ZONE = "%s (%d)",
+    ALSO_READY_LINE = "%s: ready to turn in",
+    ALSO_DOING_MAX_LABEL = "Also doing rows: %s",
     PLAN_ARROW_DEBUG = "arrowheads: drawn as lines (%d line pieces now); no texture art is used",
     PLAN_ARROW_DEBUG_NONE = "not found",
     PLAN_ARROW_DEBUG_LEGACY = "old arrow texture %s: file id %s",
@@ -550,6 +557,7 @@ local L = {
     WHATS_NEW_0_2_0_3 = "Item and quest tooltips now note upgrades and next steps from your digest (can be turned off in settings).",
     WHATS_NEW_0_2_0_4 = "You can delete the leftover WoWCompanion_Answers folder.",
     WHATS_NEW_0_6_55_1 = "Fixed a Lua error after accepting some quests.",
+    WHATS_NEW_0_6_56_1 = "The panel's \"Also doing\" list now shows only nearby quests; the rest are one click away",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

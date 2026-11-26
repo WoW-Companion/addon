@@ -6603,6 +6603,103 @@ cases[#cases + 1] = { "stale note: an old plan that disagrees with the log says 
     assert(WC2.StaleNote(7001) == nil, "a fresh plan gets no note")
 end }
 
+-- "Also doing": only what is near, a cap, the rest grouped by place behind one line.
+local function big_log(WC)
+    -- 38 quests: 6 near (map 7001: 2 ready), 32 elsewhere in three zones (map 9001-9003, not on this continent)
+    local g, n = {}, 0
+    local function add(id, ready, map, x, zone, name)
+        g[id] = { questID = id, quest = name or ("Q" .. id), steps = {},
+            objectives = { { text = "Do " .. id, map = map, x = x, y = 50.0, zone = zone } },
+            turnin = { text = "Turn in " .. id, map = map, x = x, y = 50.0, zone = zone } }
+        QUESTS[id] = ready and "ready" or "active"
+        n = n + 1
+    end
+    for i = 1, 6 do add(1000 + i, i <= 2, 7001, 50 + i, "Testisle") end
+    for i = 1, 14 do add(2000 + i, i <= 6, 9001, 10 + i, "Hillsbrad") end
+    for i = 1, 10 do add(3000 + i, i <= 3, 9002, 10 + i, "Barrens") end
+    for i = 1, 8 do add(4000 + i, i <= 1, 9003, 10 + i, "Stonetalon") end
+    assert(n == 38)
+    WC.plan.guidance = WC.ParseGuidance(g)
+    WC.plan.here = nil
+    WC.db.settings.alsoDoingMax = nil
+    UnitName = function() return "Thrall" end
+    C_Map.GetMapInfo = function(id)
+        return { name = ({ [7001] = "Testisle", [9001] = "Hillsbrad", [9002] = "Barrens", [9003] = "Stonetalon" })[id] }
+    end
+    return WC
+end
+local function also_texts(WC)
+    local mapID, px, py = WC.PlayerPos()
+    local t = {}
+    for _, r in ipairs(WC.AlsoDoingRows(mapID, px, py)) do t[#t + 1] = r.text end
+    return t
+end
+
+cases[#cases + 1] = { "also doing: a 38-quest log shows at most 3 near rows, ready first, and one summary line", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    local t = also_texts(WC)
+    assert(t[1] == "Also doing" and #t == 5, table.concat(t, "\n"))
+    for i = 2, 4 do assert(t[i]:find("Q100", 1, true), t[i]) end
+    assert(t[2]:find("Q1001", 1, true) and t[3]:find("Q1002", 1, true), "ready turn-ins lead")
+    assert(t[5] == "+35 more in your log: 10 ready to turn in (6 Hillsbrad, 3 Barrens, 1 Stonetalon)", t[5])
+    for _, line in ipairs(t) do assert(not line:find("Q2", 1, true) or line:find("more in your log", 1, true)) end
+end }
+
+cases[#cases + 1] = { "also doing: nothing near shows no rows, only the summary line", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    for i = 1, 6 do QUESTS[1000 + i] = nil end
+    local t = also_texts(WC)
+    assert(#t == 1 and t[1]:find("+32 more in your log: 10 ready to turn in", 1, true), table.concat(t, "\n"))
+end }
+
+cases[#cases + 1] = { "also doing: clicking the summary expands the rest grouped by zone, remembered per character", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    local mapID, px, py = WC.PlayerPos()
+    local rows = WC.AlsoDoingRows(mapID, px, py)
+    assert(not WC.AlsoExpanded())
+    rows[#rows].click()
+    assert(WC.AlsoExpanded() and WC.db.characters["Testrealm:Thrall"].alsoExpanded == true)
+    local t = also_texts(WC)
+    assert(t[5]:find("^%+35 more in your log.*click to hide"), t[5])
+    assert(t[6] == "Hillsbrad (14)" and t[7] == "Q2001: ready to turn in", table.concat(t, "\n", 5, 8))
+    assert(t[6 + 15] == "Barrens (10)" and t[6 + 15 + 11] == "Stonetalon (8)", table.concat(t, "\n"))
+    assert(t[7 + 6]:find("Q2007", 1, true), t[7 + 6])
+    assert(#t == 5 + 4 + 35, #t)
+    WC.AlsoDoingRows(mapID, px, py)[5].click()
+    assert(not WC.AlsoExpanded())
+end }
+
+cases[#cases + 1] = { "also doing: the setting at 0 hides the rows and the cap follows it", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    big_log(WC)
+    WC.db.settings.alsoDoingMax = 0
+    local t = also_texts(WC)
+    assert(#t == 1 and t[1]:find("+38 more in your log: 12 ready to turn in (6 Hillsbrad, 3 Barrens, 2 Testisle)", 1, true), table.concat(t, "\n"))
+    WC.db.settings.alsoDoingMax = 5
+    assert(#also_texts(WC) == 1 + 5 + 1)
+    assert(WC.DEF_OF.alsoDoingMax.default == 3 and WC.DEF_OF.alsoDoingMax.max == 10)
+end }
+
+cases[#cases + 1] = { "also doing: the current step's quest is never listed", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    WC.plan.guidance[30].class = true -- a class quest takes the headline when accepted
+    QUESTS[30] = "active"; QUESTS[32] = "active"
+    WC.LiveUpdate("QUEST_ACCEPTED", 1, 30)
+    local cur = WC.PlanNext()
+    assert(cur and cur.questID == 30, "headline: " .. tostring(cur and cur.questID) .. " " .. tostring(cur and cur.label))
+    local ids = {}
+    for _, a in ipairs(WC.AlsoDoing()) do ids[a.questID] = true end
+    assert(not ids[30] and ids[32], "headline quest left out, the other stays")
+end }
+
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])
