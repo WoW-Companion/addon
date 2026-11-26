@@ -20,11 +20,12 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   bank = { [-1, 5-10] = same shape as bags }, bankSeenAt = <unix s>,   -- only written while the bank is open
   quests = { captured = true, entries = { { id, title, level, complete?, failed?,
              objectives? = { { text, done, have?, need? } } } } },
+  questPOI = { [questID] = { map, x, y (0-100), seenAt, objectiveIndex? } },  -- the game's own quest map point; quests in the log only, max 60
   completedQuests = { <questID>, ... },                      -- sorted; absent when the client offers none
   talents = { { tree = "<name>", points = <spent>, nodes = { { node, entry, spell, name, rank, max, posX, posY } } } },
   talentPoints = <unspent talent points>,                    -- absent when no API gave a number
   apiProbe = { seenAt, talents = { legacy, traits, specialization, legacyNodes, traitsNodes, named, withSpell, used }, points = { ... },
-    spells = { modern, classic, links, used, isSpellKnown } },  -- per path: item count, -1 = API missing; no values
+    spells = { modern, classic, links, used, isSpellKnown }, poi = { onMap, waypoint, legacy } },  -- per path: item count, -1 = API missing; no values
   skills = { { name, rank, max, group = "<header>", profession? = true } },
   stats = { seenAt, level,                                     -- what the client reports; a missing API leaves its key out
     stats = { str|agi|sta|int|spi = { base, total, pos, neg } },  -- UnitStat: "Intellect 90 (50+40)" is base 50, pos 40, total 90

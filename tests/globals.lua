@@ -30,7 +30,7 @@ for name in ([[
     GetItemInfo GetItemInfoInstant GetItemIcon GetItemQualityColor GetInventoryItemID GetInventoryItemLink
     GetContainerNumSlots GetContainerItemInfo GetContainerItemID
     GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard GetQuestLogRewardXP GetQuestLink
-    GetQuestsCompleted GetQuestGreenRange GetQuestDifficultyColor
+    GetQuestsCompleted QuestPOIGetIconInfo GetQuestGreenRange GetQuestDifficultyColor
     GetNumTalentTabs GetTalentTabInfo GetNumTalents GetTalentInfo
     UnitCharacterPoints GetSpellBookItemInfo
     GetNumSkillLines GetSkillLineInfo GetNumSpellTabs GetSpellTabInfo GetSpellLink GetSpellInfo IsSpellKnown IsPlayerSpell

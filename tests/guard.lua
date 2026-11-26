@@ -22,6 +22,7 @@ for name in ([[
     C_Container.GetContainerNumSlots C_Container.GetContainerItemInfo
     GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard
     C_QuestLog.GetInfo C_QuestLog.IsComplete C_QuestLog.GetNumQuestLogEntries C_QuestLog.ReadyForTurnIn C_QuestLog.IsFailed C_QuestLog.GetQuestObjectives C_QuestLog.GetAllCompletedQuestIDs GetQuestsCompleted
+    C_QuestLog.GetQuestsOnMap C_QuestLog.GetNextWaypoint C_QuestLog.GetNextWaypointForMap QuestPOIGetIconInfo
     GetNumTalentTabs GetTalentTabInfo GetNumTalents GetTalentInfo
     UnitCharacterPoints GetUnspentTalentPoints GetSpellInfo GetSpellBookItemInfo
     C_ClassTalents.GetActiveConfigID C_Traits.GetConfigInfo C_Traits.GetTreeInfo C_Traits.GetTreeNodes C_Traits.GetNodeInfo
