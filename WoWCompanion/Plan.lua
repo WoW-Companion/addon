@@ -370,6 +370,23 @@ local function charKey()
     return (UnitName("player") or "?") .. "-" .. (GetRealmName and GetRealmName() or "")
 end
 
+-- The app writes the plan seconds after the save a /reload makes, so the plan loaded by that reload is one
+-- save behind. Compares when the plan was made from (basis.captured, else generated) with the newest save.
+WC.PLAN_BEHIND_SECONDS = 30
+function WC.ComputePlanBehind(raw, generated)
+    local basis = type(raw) == "table" and type(raw.basis) == "table" and raw.basis or nil
+    local planAt = basis and tonumber(basis.captured) or nil
+    if not planAt or planAt <= 0 then planAt = tonumber(generated) end
+    if not planAt or planAt <= 0 then return false end
+    local last = WC.OwnCapturedAt and WC.OwnCapturedAt(UnitName("player")) or nil
+    local saved = WC.db and tonumber(WC.db.lastSave) or nil
+    if saved and (not last or saved > last) then last = saved end
+    return last ~= nil and last - planAt > WC.PLAN_BEHIND_SECONDS
+end
+function WC.PlanBehind() return WC.plan ~= nil and WC.plan.behind == true end
+-- The player has seen the line (or asked not to): it never comes back this session.
+function WC.DismissPlanLag() WC.lagDismissed = true end
+
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
     local steps, _, generated, guidance, here, later, finishers, zones = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
@@ -386,6 +403,7 @@ function WC.PlanInit()
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
+    WC.plan.behind = WC.ComputePlanBehind(WoWCompanionPlan, generated)
     WC.PlanScan()
     WC.PlanUnlockCheck(true)
     WC.PlanLiveRefresh()
@@ -1392,6 +1410,10 @@ end
 function WC.StaleNote(mapID)
     local p = WC.plan
     if not p then return nil end
+    if p.behind then -- the one line: the 30-minute stale note never joins it
+        if WC.lagDismissed then return nil end
+        return L.PLAN_LAG_NOTE
+    end
     if WC.staleNoted then return WC.staleNoted end
     if not (p.generated and p.generated > 0 and time() - p.generated > WC.PLAN_STALE_SECONDS) then return nil end
     local differs = false
@@ -1632,12 +1654,14 @@ end
 local TRAIN_EVENTS = { SPELLS_CHANGED = true, LEARNED_SPELL_IN_TAB = true }
 local ZONE_EVENTS = { ZONE_CHANGED = true, ZONE_CHANGED_INDOORS = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true }
 local events = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
+for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
     "PLAYER_LEVEL_UP", "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED",
     "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do pcall(events.RegisterEvent, events, e) end
 events:SetScript("OnEvent", function(_, event, a, b)
     if not WC.db then return end
-    if event == "PLAYER_LOGIN" then
+    if event == "PLAYER_LOGOUT" then
+        WC.db.lastSave = time()
+    elseif event == "PLAYER_LOGIN" then
         WC.PlanInit()
         if WC.RefreshPlan then WC.RefreshPlan() end
         refresh_panel()

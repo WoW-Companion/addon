@@ -126,6 +126,9 @@ local L = {
     HERE_TITLE = "Here: %s",
     HERE_TURNIN = "Turn in: %s",
     HERE_LIVE_TURNIN = "Here: turn in %s (%d, %d)",
+    PLAN_LAG_NOTE = "A newer plan is being made from your last save. Type /reload in about 15 seconds to see it.",
+    PLAN_BEHIND = " (one save behind)",
+    PLAN_BEHIND_MARK = " (~)",
     PLAN_STALE_NOTE = "Plan from %s; /reload to refresh it",
     HERE_TURNIN_NEED = "Turn in: %s; still need %s",
     HERE_PICKUP = "Pick up: %s",
@@ -587,6 +590,7 @@ local L = {
     WHATS_NEW_0_6_61_1 = "When you are already in the zone of a later step, the panel leads with it (\"Here first\"), a travel step there becomes its turn-in, and the line is drawn to it.",
     WHATS_NEW_0_6_62_1 = "Stops with no real position (0,0 or -1) are no longer drawn on the map or minimap: they show as text with \"(location unknown)\", approximate stops are drawn faded, and live extra steps read \"Also doing\" instead of \"Step 198095 of 4\".",
     WHATS_NEW_0_6_63_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
+    WHATS_NEW_0_6_64_1 = "The in-game plan now says when it is one save behind and when one more /reload brings the newer plan.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

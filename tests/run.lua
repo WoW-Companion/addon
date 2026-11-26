@@ -3830,7 +3830,7 @@ cases[#cases + 1] = { "no /reload in any current-locale player string (What's ne
     fresh_client(nil)
     local n = 0
     for k, v in pairs(WoWCompanion.L) do
-        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" then -- the one reload hint, shown once and only as a note
+        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" and k ~= "PLAN_LAG_NOTE" then -- the one reload hint, shown once and only as a note
             n = n + 1
             assert(not tostring(v):lower():find("/reload", 1, true), k)
         end
@@ -6860,6 +6860,32 @@ cases[#cases + 1] = { "stale note: an old plan that disagrees with the log says 
     QUESTS[77] = "ready"
     weaver(WC2)
     assert(WC2.StaleNote(7001) == nil, "a fresh plan gets no note")
+end }
+
+cases[#cases + 1] = { "plan lag: a plan made before the latest save says so once, merged with the stale note", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    local now = time()
+    WC.db.lastSave = now
+    assert(WC.ComputePlanBehind({ basis = { captured = now - 120 } }, now - 100) == true, "basis older than the save")
+    assert(WC.ComputePlanBehind({ basis = { captured = now - 10 } }, now - 5) == false, "fresh plan")
+    assert(WC.ComputePlanBehind({}, now - 3600) == true, "no basis: generated is used")
+    WC.plan.behind = true
+    WC.plan.generated = now - 7200 -- also old enough for the 30-minute note
+    QUESTS[77] = "ready"
+    local lag = WC.StaleNote(7001)
+    assert(lag and lag:find("newer plan", 1, true) and lag:find("/reload", 1, true), tostring(lag))
+    local n = 0
+    for _, r in ipairs(live_rows(WC)) do if r.text:find("/reload", 1, true) then n = n + 1 end end
+    assert(n == 1, "one note line, never two: " .. n)
+    WC.DismissPlanLag()
+    assert(WC.StaleNote(7001) == nil, "dismissed: no line, and no stale note either")
+    local WC2 = here_client()
+    weaver(WC2)
+    QUESTS[77] = "ready"
+    WC2.plan.generated = time()
+    assert(WC2.PlanBehind() == false and WC2.StaleNote(7001) == nil, "a fresh plan: no line")
 end }
 
 -- "Also doing": only what is near, a cap, the rest grouped by place behind one line.
