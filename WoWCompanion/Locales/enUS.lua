@@ -549,6 +549,7 @@ local L = {
     WHATS_NEW_0_2_0_2 = "Right-click a panel line (or type /ask) to queue a question, then /reload for the overlay to answer it.",
     WHATS_NEW_0_2_0_3 = "Item and quest tooltips now note upgrades and next steps from your digest (can be turned off in settings).",
     WHATS_NEW_0_2_0_4 = "You can delete the leftover WoWCompanion_Answers folder.",
+    WHATS_NEW_0_6_55_1 = "Fixed a Lua error after accepting some quests.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
