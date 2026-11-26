@@ -1,0 +1,1 @@
+- When you are already in the zone of a later step, the panel leads with it ("Here first"), a travel step there becomes its turn-in, and the line is drawn to it.

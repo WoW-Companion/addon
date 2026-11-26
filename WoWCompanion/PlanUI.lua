@@ -1061,8 +1061,7 @@ local function tick()
     local f = WC.planTracker
     local step = WC.PlanNext()
     local mapID, px, py = WC.PlayerPos()
-    if step and step.kind == "travel" and mapID == step.map and WC.plan.done then
-        WC.plan.done[step.n] = true -- arriving completes a travel stop
+    if WC.PlanArrive(mapID) then -- arriving completes a trip with no action
         WC.RefreshPlan()
         return
     end

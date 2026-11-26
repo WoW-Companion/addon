@@ -1231,6 +1231,51 @@ cases[#cases + 1] = { "plan: tracker text shows the step with distance, or anoth
     assert(WC.PlanText(nil) == "Plan complete (4 steps)")
 end }
 
+-- The Tarren Mill plan: step 2 is a trip to Silverpine, step 3 a trip to Hillsbrad with a turn-in.
+local function tarren_mill(playerMap)
+    local WC = plan_client(nil)
+    WC.plan = { steps = {
+        { n = 1, kind = "pickup", questID = 1, quest = "A", label = "Pick up A", map = 1420, x = 50, y = 50 },
+        { n = 2, kind = "travel", questID = 0, quest = "", label = "Fly to Silverpine Forest: turn in The Offering Stone", map = 1421, x = 40, y = 40 },
+        { n = 3, kind = "travel", questID = 0, quest = "", label = "Fly to Hillsbrad Foothills: turn in Elixir of Pain", map = 1424, x = 32.7, y = 35.3, place = "Hillsbrad Fields" },
+        { n = 4, kind = "travel", questID = 0, quest = "", label = "Travel to The Barrens", map = 17, x = 50, y = 50 },
+    }, done = { [1] = true }, generated = 1, live = {} }
+    C_Map = { GetBestMapForUnit = function() return playerMap end,
+        GetMapInfo = function(id) return { name = ({ [1421] = "Silverpine Forest", [1424] = "Hillsbrad Foothills" })[id] or "Elsewhere", parentMapID = 0 } end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.3, 0.3 end } end }
+    return WC
+end
+
+cases[#cases + 1] = { "plan: standing in a later step's zone leads with it, as the turn-in, aimed at its spot", function()
+    local realMap = C_Map
+    local WC = tarren_mill(1424)
+    local st = WC.PlanNext()
+    assert(st.n == 3 and st.hereFirst and st.skipped.n == 2, tostring(st.n))
+    assert(st.label == "Turn in Elixir of Pain (Hillsbrad Fields)", st.label)
+    assert(st.x == 32.7 and st.y == 35.3 and st.map == 1424)
+    local line = WC.NextStepLine(st, 1424, 30, 30)
+    assert(line:find("Here first: step 3 of 4", 1, true) and line:find("Silverpine Forest trip is still on the plan", 1, true), line)
+    assert(not line:find("another zone", 1, true))
+    assert(WC.PanelHeader().step == "Here first: step 3 of 4")
+    assert(not WC.PanelHeader().dist:find("another zone", 1, true))
+    WC.plan.done[3] = true
+    st = WC.PlanNext()
+    assert(st.n == 2 and not st.hereFirst, tostring(st.n))
+    C_Map = realMap
+end }
+
+cases[#cases + 1] = { "plan: a trip with no action is marked done on arrival; elsewhere nothing changes", function()
+    local realMap = C_Map
+    local WC = tarren_mill(17)
+    assert(WC.PlanArrive(17) and WC.plan.done[4])
+    assert(not WC.PlanArrive(17))
+    WC = tarren_mill(1420)
+    local st = WC.PlanNext()
+    assert(st.n == 2 and not st.hereFirst and not st.arrived)
+    assert(not WC.PlanArrive(1420) and not WC.plan.done[2] and not WC.plan.done[4])
+    C_Map = realMap
+end }
+
 cases[#cases + 1] = { "plan: /wowc plan toggles the tracker and /wowc plan map the pins", function()
     local WC = plan_client("full")
     assert(not WoWCompanionPlanTracker:IsShown())
