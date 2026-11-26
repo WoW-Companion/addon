@@ -1,1 +1,0 @@
-A name shown on a world-map badge that is too long to fit is now cut at a word where it can be and ends in an ellipsis, so it no longer looks like a mistake ("Source of Po"), and its tooltip still shows the full quest name.
