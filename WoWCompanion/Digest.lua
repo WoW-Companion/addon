@@ -244,6 +244,11 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     end
     local kind = line.kind
     if state == "ready" then kind = "turnin" elseif state == "active" then kind = "progress" end
+    local trip = state == "ready" and WC.TripLine and WC.TripLine(quest) or nil
+    if trip then -- ready, but the finisher is elsewhere: a trip, not a turn-in
+        local mapID, px, py = WC.PlayerPos()
+        if not WC.TripNear(quest, mapID, px, py) then kind = "progress" end
+    end
     local id = "q" .. tostring(quest or title)
     local closed = collapsed and collapsed[id] == true
     local tag = (level and WC.Setting("showLevels")) and string.format(LEVEL_TAG, math.floor(level)) or ""
@@ -289,7 +294,9 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
         end
     end
     local npc = (line.npc and WC.Setting("showNpcLines")) and plain(line.npc) or nil
-    if kind == "turnin" then
+    if trip then
+        out[#out + 1] = { kind = "status", indent = 2, text = trip, color = WC.COLORS.amber }
+    elseif kind == "turnin" then
         local ready = WC.Setting("readyColor")
         out[#out + 1] = { kind = "status", indent = 2, text = L.READY_LINE, color = ready }
         if npc then out[#out + 1] = { kind = "status", indent = 2, text = string.format(L.TURN_IN_TO, npc), color = WC.COLORS.grey } end

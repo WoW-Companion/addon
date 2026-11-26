@@ -31,6 +31,10 @@ local L = {
     CLASS = "Class",
     ELITE = "Elite",
     READY_LINE = "Ready to turn in",
+    TRIP_FIND = "Find %s",
+    TRIP_IN = "Find %s in %s",
+    TRIP_INSIDE = "Find %s inside %s",
+    TRIP_SOMEONE = "the finisher",
     TURN_IN_TO = "Turn in to %s",
     PICK_UP_FROM = "Pick up from %s",
     PICK_UP_FROM_IN = "Pick up from %s in %s",
@@ -567,6 +571,7 @@ local L = {
     WHATS_NEW_0_6_56_1 = "The panel's \"Also doing\" list now shows only nearby quests; the rest are one click away",
     WHATS_NEW_0_6_57_1 = "Live training: the panel now says \"Train now\" when a spell becomes available to train after you learn its first rank or level up, and leads with it beside the trainer.",
     WHATS_NEW_0_6_58_1 = "Ready turn-ins in the expanded quest list now stand out in your ready colour with a gold \"?\" marker, sort first in each zone, and zone headers show how many are ready. Places never read \"map 310\" any more: they use the real map name, or the parent zone with \"(instance)\".",
+    WHATS_NEW_0_6_59_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

@@ -194,7 +194,9 @@ local function row(text, color) return { text = text, color = color or GREY } en
 -- The facts a quest card shows live: its state and objectives with counts, or where to pick it up.
 local function quest_rows(entry, rows)
     local st = entry.quest and WC.PlanQuestState(entry.quest) or "none"
-    if st == "ready" then rows[#rows + 1] = row(L.READY_LINE, WC.Setting("readyColor")) end
+    local trip = st == "ready" and WC.TripLine and WC.TripLine(entry.quest) or nil
+    if trip then rows[#rows + 1] = row(trip, WC.COLORS.amber)
+    elseif st == "ready" then rows[#rows + 1] = row(L.READY_LINE, WC.Setting("readyColor")) end
     if st == "active" or st == "ready" then
         for _, o in ipairs(WC.QuestObjectives(entry.quest) or {}) do
             rows[#rows + 1] = row(o.text, WC.Setting(o.finished and "doneColor" or "objectiveColor"))
@@ -267,6 +269,10 @@ function WC.CardModel(entry)
     if kind == "quest" then
         local st = quest_rows(entry, rows)
         m.icon = WC.ICONS[st == "ready" and "turnin" or (st == "active" and "progress" or "pickup")]
+        if st == "ready" and WC.TripLine and WC.TripLine(entry.quest) then
+            local mapID, px, py = WC.PlayerPos()
+            if not WC.TripNear(entry.quest, mapID, px, py) then m.icon = WC.ICONS.progress end -- a trip: no "?" until at the finisher
+        end
         if st == "active" or st == "ready" then m.actions[#m.actions + 1] = { id = "quest", label = L.CARD_OPEN_QUEST } end
         if WC.HasMapPlace(entry) then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
     elseif kind == "training" then
