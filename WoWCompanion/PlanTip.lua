@@ -51,7 +51,8 @@ local function plain_text(t)
 end
 
 -- Lines for one step; each is { text =, color =, right =, rightColor =, small = true }.
-local function step_lines(lines, group, s, prevQuest, opts)
+local function step_lines(lines, group, orig, prevQuest, opts)
+    local s = WC.PlanTipStep and WC.PlanTipStep(orig) or orig
     local state = (s.questID or 0) > 0 and WC.PlanQuestState(s.questID) or "none"
     local q = s.quest or ""
     if q ~= "" and q ~= prevQuest then
@@ -88,7 +89,7 @@ local function step_lines(lines, group, s, prevQuest, opts)
     else
         foot = total and string.format(L.PLAN_TIP_STEP_OF, tostring(s.n), tostring(total)) or string.format(L.PLAN_TIP_STEP, tostring(s.n))
     end
-    if group.next == s then foot = foot .. L.PLAN_TIP_NEXT end
+    if group.next == orig then foot = foot .. L.PLAN_TIP_NEXT end
     if s.place then foot = foot .. " \194\183 " .. WC.PlaceName(s.place, s.map) end
     if opts and opts.dist then foot = foot .. " \194\183 " .. string.format(L.PLAN_TIP_DIST, math.floor(opts.dist + 0.5), opts.dir or "") end
     lines[#lines + 1] = { text = foot, color = DIM, small = true }

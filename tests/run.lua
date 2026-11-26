@@ -1276,6 +1276,65 @@ cases[#cases + 1] = { "plan: a trip with no action is marked done on arrival; el
     C_Map = realMap
 end }
 
+-- A plan whose step 2 is a flight that carries quest 501 (and step 3 a merged stop carrying 501 and 502).
+local function carried_trip(playerMap)
+    local WC = tarren_mill(playerMap)
+    WC.plan.steps[3].questID, WC.plan.steps[3].quest = 501, "Elixir of Pain"
+    WC.plan.steps[2].questID, WC.plan.steps[2].questIDs = 501, { 501, 502 }
+    WC.plan.steps[2].map = 1421
+    return WC
+end
+
+cases[#cases + 1] = { "plan: a travel step carrying a quest is done once it is turned in or gone, and clears on re-accept", function()
+    local realMap = C_Map
+    local WC = carried_trip(1420)
+    QUESTS[501] = "active"
+    WC.PlanScan()
+    assert(not WC.plan.done[3], "in the log: still to do")
+    QUESTS[501] = "turnedin"
+    assert(WC.PlanScan() and WC.plan.done[3])
+    assert(WC.PlanNext().n ~= 3 and WC.RouteNext().n ~= 3)
+    local groups = WC.PinGroups(WC.plan.steps, 1424, WC.plan.done, WC.PlanNext())
+    assert(#groups == 0, "no pin on its map")
+    QUESTS[501] = nil
+    WC.plan.done[3] = nil
+    WC.PlanScan()
+    assert(WC.plan.done[3], "abandoned: nothing to turn in")
+    QUESTS[501] = "active"
+    WC.PlanScan()
+    assert(not WC.plan.done[3], "re-accepted: undone")
+    WC.PlanScan(501)
+    QUESTS[501] = nil
+    WC.PlanScan(501)
+    assert(not WC.plan.done[3], "the keep id is left alone")
+    C_QuestLog = nil
+    WC.PlanScan()
+    assert(not WC.plan.done[3], "no log lookups: never done")
+    C_Map = realMap
+end }
+
+cases[#cases + 1] = { "plan: a merged travel stop is done only when every quest is, and the tooltip in-zone shows the action", function()
+    local realMap = C_Map
+    local WC = carried_trip(1421)
+    QUESTS[501], QUESTS[502] = "turnedin", "active"
+    WC.PlanScan()
+    assert(not WC.plan.done[2], "one of two still in the log")
+    assert(#WC.PinGroups(WC.plan.steps, 1421, WC.plan.done, WC.PlanNext()) == 1, "still shown")
+    QUESTS[502] = "turnedin"
+    WC.PlanScan()
+    assert(WC.plan.done[2])
+    -- the tooltip: in Hillsbrad the flight reads as its turn-in; elsewhere it keeps the plan's label
+    local function tip(map)
+        C_Map.GetBestMapForUnit = function() return map end
+        local t = {}
+        for _, l in ipairs(WC.PlanTipLines({ steps = { WC.plan.steps[3] }, total = 4 })) do t[#t + 1] = l.text end
+        return table.concat(t, "|")
+    end
+    assert(tip(1424):find("(Hillsbrad Fields)", 1, true) and not tip(1424):find("Fly to", 1, true), tip(1424))
+    assert(tip(1420):find("Fly to Hillsbrad Foothills", 1, true), tip(1420))
+    C_Map = realMap
+end }
+
 cases[#cases + 1] = { "plan: /wowc plan toggles the tracker and /wowc plan map the pins", function()
     local WC = plan_client("full")
     assert(not WoWCompanionPlanTracker:IsShown())

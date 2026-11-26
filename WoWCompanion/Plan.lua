@@ -521,6 +521,18 @@ local function lead_step(p, cur)
     return cur
 end
 
+-- The step as the map badge tooltip shows it: a travel step on the player's own map reads as its action. Guarded
+-- (ADDON-119): on any failure the plan's own step is shown.
+function WC.PlanTipStep(step)
+    if not (WC.plan and step and step.kind == "travel") then return step end
+    local ok, v = pcall(function()
+        local pm = WC.PlayerPos()
+        if pm and same_zone(pm, step.map) then return arrived_view(WC.plan, step) end
+    end)
+    if ok and v then return v end
+    return step
+end
+
 -- Marks every undone trip step with no action on the player's map as done: arriving completes it. True when any changed.
 function WC.PlanArrive(mapID)
     local p = WC.plan
@@ -730,6 +742,24 @@ function WC.StepTurnedIn(step)
     return true
 end
 
+-- The quest ids a step carries (a merged stop lists them in questIDs).
+local function step_ids(s)
+    if s.questIDs and #s.questIDs > 0 then return s.questIDs end
+    return { s.questID }
+end
+
+-- A travel step that carries quest(s) is finished once each is turned in, or gone from the log (abandoned) when
+-- the log is known; keep is a quest just accepted.
+local function travel_done(s, known, keep)
+    for _, id in ipairs(step_ids(s)) do
+        if id and id > 0 then
+            local st = WC.PlanQuestState(id)
+            if not (st == "turnedin" or (known and st == "none" and id ~= keep)) then return false end
+        end
+    end
+    return true
+end
+
 local function mark(step)
     if WC.plan.done[step.n] then return false end
     WC.plan.done[step.n] = true
@@ -745,7 +775,15 @@ function WC.PlanScan(keep)
     local changed = false
     local known = log_known()
     for _, s in ipairs(p.steps) do
-        if s.questID > 0 then
+        if s.kind == "travel" then
+            if (s.questID or 0) > 0 or (s.questIDs and #s.questIDs > 0) then
+                local ok, done = pcall(travel_done, s, known, keep) -- ADDON-119's live-path rule
+                if ok then
+                    if done and not p.done[s.n] then changed = mark(s) or changed
+                    elseif not done and p.done[s.n] then p.done[s.n] = nil changed = true end
+                end
+            end
+        elseif s.questID > 0 then
             local st = WC.PlanQuestState(s.questID)
             if not p.done[s.n] then
                 local done = (s.kind == "pickup" and st ~= "none")
