@@ -1311,8 +1311,8 @@ cases[#cases + 1] = { "plan: pin placement is normalised and filtered by map", f
     assert(x == 500 and y == -100)
     x, y = WC.PinOffset(50, 25, 1000, 400, 0.5) -- a pin scaled 0.5 shows its offset halved, so double it
     assert(x == 1000 and y == -200)
-    assert(WC.PinWanted({ map = 7, n = 1 }, 7, {}) and not WC.PinWanted({ map = 7, n = 1 }, 8, {}))
-    assert(not WC.PinWanted({ map = 7, n = 1 }, 7, { [1] = true }))
+    assert(WC.PinWanted({ map = 7, n = 1, x = 5, y = 5 }, 7, {}) and not WC.PinWanted({ map = 7, n = 1, x = 5, y = 5 }, 8, {}))
+    assert(not WC.PinWanted({ map = 7, n = 1, x = 5, y = 5 }, 7, { [1] = true }))
     local src = assert(io.open("WoWCompanion/PlanUI.lua")):read("*a")
     assert(not src:find("WorldMapFrame:GetWidth", 1, true) and not src:find("WorldMapFrame:GetHeight", 1, true))
 end }
@@ -7093,6 +7093,43 @@ cases[#cases + 1] = { "title bar: collapsed state persists per character across 
     WoWCompanion.TogglePanelCollapsed()
     assert(not WoWCompanion.PanelCollapsed() and WoWCompanion.panel.h == 320)
     assert(WoWCompanionOptionStartCollapsed, "the setting has its checkbox")
+end }
+
+cases[#cases + 1] = { "plan: stops with no real place are never drawn; approx fades; synthetic live steps are not numbered", function()
+    local WC = plan_client("full")
+    local function mk(n, x, y, extra)
+        local s = { n = n, kind = "objective", questID = 10, quest = "Quest 10", label = "Place vial", map = 7001, x = x, y = y }
+        for k, v in pairs(extra or {}) do s[k] = v end
+        return s
+    end
+    -- parsing: 0,0 and -1 are flagged, a normal step is not
+    local plan = { schema = "1.0", characters = { Thrall = { steps = { mk(1, 0, 0), mk(2, -1, -1), mk(3, 50, 50), mk(4, 20, 20, { approx = true }) } } } }
+    local steps = assert(WC.ParsePlan(plan, "Thrall"))
+    assert(steps[1].unplaced and steps[2].unplaced and not steps[3].unplaced and steps[4].approx)
+    -- no badge for 0,0 or -1; the normal and approx steps get one
+    assert(#WC.PinGroups(steps, 7001, {}, nil) == 2, "only the placed stops are grouped")
+    assert(not WC.PinWanted(steps[1], 7001, {}) and not WC.PinWanted(steps[2], 7001, {}) and WC.PinWanted(steps[3], 7001, {}))
+    assert(not WC.HasPlace({ map = 1, x = nil, y = 5 }) and not WC.HasPlace({ x = 5, y = 5, unplaced = true }) and WC.HasPlace({ x = 0, y = 5 }))
+    -- a text row in the panel
+    local model = WC.PanelModel({ steps = steps, done = {}, allZones = true })
+    assert(#model.rows == 4 and model.rows[1].sub:find("(location unknown)", 1, true) and not model.rows[3].sub:find("location unknown", 1, true))
+    -- approx: faded badge and "approx." in the tooltip
+    local g = WC.PinGroups({ steps[4] }, 7001, {}, nil)[1]
+    assert(WC.GroupApprox(g) and not WC.GroupApprox(WC.PinGroups({ steps[3] }, 7001, {}, nil)[1]))
+    local tip = {}
+    for _, l in ipairs(WC.PlanTipLines(g)) do tip[#tip + 1] = l.text end
+    assert(table.concat(tip, "|"):find("approx.", 1, true))
+    -- a synthetic live step never reads "Step 198095"
+    local live = mk(198095, 10, 10, { synthetic = true, live = true, questID = 98095 })
+    live.n = 198095
+    local out = {}
+    for _, l in ipairs(WC.PlanTipLines({ steps = { live } })) do out[#out + 1] = l.text end
+    local text = table.concat(out, "|")
+    assert(not text:find("198095", 1, true) and not text:find("Step ", 1, true) and text:find("Also doing", 1, true))
+    -- a normal step is unchanged
+    out = {}
+    for _, l in ipairs(WC.PlanTipLines({ steps = { steps[3] }, total = 4 })) do out[#out + 1] = l.text end
+    assert(table.concat(out, "|"):find("Step 3 of 4", 1, true))
 end }
 
 local failed = 0

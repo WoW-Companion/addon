@@ -71,6 +71,9 @@ function WC.PanelModel(opts)
             local row = { step = s, n = s.n, kind = s.kind, icon = KIND_ICON[s.kind] and WC.ICONS[KIND_ICON[s.kind]] or nil,
                 title = WC.StepTitle(s), sub = WC.StepSubLine(s), isNext = opts.nextStep == s or (opts.nextStep ~= nil and opts.nextStep.live == true and opts.nextStep.n == s.n),
                 done = isDone }
+            if not WC.HasPlace(s) and not (s.place and s.place ~= "") then
+                row.sub = ((row.sub and row.sub ~= "") and (row.sub .. " ") or "") .. L.PLAN_LOCATION_UNKNOWN
+            end
             if s.kind == "turnin" and not isDone and WC.StepUnready(s) then
                 row.unready = true
                 row.sub = WC.StepAfterText(s) or row.sub
