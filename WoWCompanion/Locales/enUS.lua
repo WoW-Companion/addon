@@ -566,6 +566,7 @@ local L = {
     WHATS_NEW_0_6_55_1 = "Fixed a Lua error after accepting some quests.",
     WHATS_NEW_0_6_56_1 = "The panel's \"Also doing\" list now shows only nearby quests; the rest are one click away",
     WHATS_NEW_0_6_57_1 = "Live training: the panel now says \"Train now\" when a spell becomes available to train after you learn its first rank or level up, and leads with it beside the trainer.",
+    WHATS_NEW_0_6_58_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

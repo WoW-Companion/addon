@@ -1,1 +1,0 @@
-- Quests that end somewhere else, like Deathstalkers in Shadowfang, now say "Find Deathstalker Vincent inside Shadowfang Keep" instead of "Ready to turn in".
