@@ -790,6 +790,23 @@ function WC.DrawZoneChain(canvas, mapID, groups, used, w, h, scale, base, where,
 end
 
 -- Redraws the pins and lines for the map the world map is showing.
+-- The badges the map draws for mapID, in order: the plan's shown steps plus live steps and live turn-ins. The panel's
+-- HERE list is built from this same call, so the two always agree.
+function WC.MapBadgeGroups(mapID)
+    local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
+    if #(WC.plan.live or {}) > 0 then
+        local withLive = { unpack(shown) }
+        for _, st in ipairs(WC.plan.live) do withLive[#withLive + 1] = st end
+        shown = withLive
+    end
+    local extras = WC.LiveTurnInSteps and WC.LiveTurnInSteps() or {}
+    if #extras > 0 then
+        shown = { unpack(shown) }
+        for _, st in ipairs(extras) do shown[#shown + 1] = st end
+    end
+    return WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext()), shown
+end
+
 function WC.RefreshMapPins()
     nextLine = nil
     nearPins = {}
@@ -807,18 +824,7 @@ function WC.RefreshMapPins()
     local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
     local setting = WC.db.settings.planSize
     stepPin = {}
-    local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
-    if #(WC.plan.live or {}) > 0 then
-        local withLive = { unpack(shown) }
-        for _, st in ipairs(WC.plan.live) do withLive[#withLive + 1] = st end
-        shown = withLive
-    end
-    local extras = WC.LiveTurnInSteps and WC.LiveTurnInSteps() or {}
-    if #extras > 0 then
-        shown = { unpack(shown) }
-        for _, st in ipairs(extras) do shown[#shown + 1] = st end
-    end
-    local groups = WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext())
+    local groups, shown = WC.MapBadgeGroups(mapID)
     local markers = #groups > 0 and WC.ClientMarkers(mapID) or {}
     local radius = WC.MarkerRadius(WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale())
     local base = (canvas.GetFrameLevel and canvas:GetFrameLevel() or 0)
