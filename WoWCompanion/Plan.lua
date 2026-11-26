@@ -68,6 +68,42 @@ function WC.ParseGuidance(g)
     return any and out or nil
 end
 
+-- Plan.lua `finishers`: where each logged quest is turned in. Either { [questID] = { spot... } } or a list of
+-- { questID, quest, places = { spot... } }; a spot is { npc, map, x, y, place }. Returns { [questID] = { quest, spots } }
+-- or nil when the plan has none (an older plan).
+function WC.ParseFinishers(list)
+    if type(list) ~= "table" then return nil end
+    local out, any = {}, false
+    local function spots_of(v)
+        if type(v) ~= "table" then return {} end
+        if tonumber(v.map) then v = { v } end
+        local spots = {}
+        for _, e in ipairs(v) do
+            if type(e) == "table" and tonumber(e.map) and tonumber(e.x) and tonumber(e.y) then
+                spots[#spots + 1] = { npc = type(e.npc) == "string" and plain(e.npc) or "", map = tonumber(e.map),
+                    x = clamp(tonumber(e.x), 0, 100), y = clamp(tonumber(e.y), 0, 100),
+                    place = type(e.place) == "string" and e.place ~= "" and plain(e.place) or nil }
+            end
+        end
+        return spots
+    end
+    for key, v in pairs(list) do
+        local id, name, spots = tonumber(key), "", nil
+        if type(v) == "table" and tonumber(v.questID) then
+            id, name = tonumber(v.questID), plain(v.quest or "")
+            spots = spots_of(v.places or v.spots or v.finishers or v)
+        elseif id then
+            name = type(v) == "table" and type(v.quest) == "string" and plain(v.quest) or ""
+            spots = spots_of(type(v) == "table" and (v.places or v.spots) or v)
+        end
+        if id and id > 0 and spots and #spots > 0 then
+            out[id] = { quest = name, spots = spots }
+            any = true
+        end
+    end
+    return any and out or nil
+end
+
 -- Plan.lua 1.3 per-NPC "here" blocks: { npc, npcID, map, x, y, place, steps = {n}, can = {text}, quests = { { questID, quest,
 -- role, desc, missing = {spot} } }, nearby = { [questID] = guidance } }. nil when the plan has none (an older plan).
 function WC.ParseHere(list)
@@ -157,7 +193,8 @@ function WC.ParsePlan(plan, player)
         end
     end
     if #steps == 0 then return nil, "character" end
-    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later)
+    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
+        WC.ParseFinishers(entry.finishers)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -261,7 +298,7 @@ end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -271,7 +308,7 @@ function WC.PlanInit()
         WC.db.plan[charKey()] = saved
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
-        guidance = guidance, here = here, later = later or {}, live = {}, liveSig = "" }
+        guidance = guidance, here = here, later = later or {}, finishers = finishers, live = {}, liveSig = "" }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
@@ -689,7 +726,10 @@ end
 
 -- Everything that follows the quest log and talents: plan marks, the map, the panel.
 function WC.LiveUpdate(event, a, b)
-    WC.PlanOnQuestEvent(event, a, b)
+    if event ~= "ZONE_CHANGED" and event ~= "ZONE_CHANGED_INDOORS" and event ~= "ZONE_CHANGED_NEW_AREA"
+        and event ~= "PLAYER_ENTERING_WORLD" then
+        WC.PlanOnQuestEvent(event, a, b)
+    end
     refresh_panel()
     if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end
 end
@@ -902,9 +942,165 @@ function WC.AlsoDoing()
     return out
 end
 
+-- ---------------------------------------------------------------- live turn-ins (read from the log, no reload)
+
+WC.TURNIN_YARDS = 300 -- a ready quest's finisher this close on the same continent still counts as "here"
+WC.STALE_SECONDS = 1800 -- a plan older than this may be out of step with the log
+
+-- True when the quest is in the log and ready to hand in: ReadyForTurnIn, then IsComplete, then the legacy flag.
+local function log_ready(id)
+    local q = C_QuestLog
+    if not q then return false end
+    if q.IsQuestFlaggedCompleted and q.IsQuestFlaggedCompleted(id) then return false end
+    if q.GetLogIndexForQuestID and not q.GetLogIndexForQuestID(id) then return false end
+    if q.ReadyForTurnIn and q.ReadyForTurnIn(id) then return true end
+    if q.IsComplete and q.IsComplete(id) then return true end
+    local idx = q.GetLogIndexForQuestID and q.GetLogIndexForQuestID(id)
+    if idx and GetQuestLogTitle then
+        local ok, _, _, _, header, _, isComplete = pcall(GetQuestLogTitle, idx)
+        return ok and not header and (isComplete == 1 or isComplete == true)
+    end
+    return false
+end
+
+-- The quest ids in the log that are ready, sorted. Walks the log when the client lists it, else the plan's own ids.
+local function ready_ids(p)
+    local seen, ids = {}, {}
+    local function add(id)
+        if id and id > 0 and not seen[id] and log_ready(id) then seen[id] = true ids[#ids + 1] = id end
+    end
+    local q = C_QuestLog
+    if q and q.GetNumQuestLogEntries and q.GetInfo then
+        for i = 1, (q.GetNumQuestLogEntries()) or 0 do
+            local info = q.GetInfo(i)
+            if type(info) == "table" and not info.isHeader then add(tonumber(info.questID)) end
+        end
+    end
+    for id in pairs(p.finishers or {}) do add(id) end
+    for _, s in ipairs(p.steps) do
+        if s.kind == "turnin" then
+            add(s.questID)
+            for _, id in ipairs(s.questIDs or {}) do add(id) end
+        end
+    end
+    for id in pairs(p.guidance or {}) do add(id) end
+    table.sort(ids)
+    return ids
+end
+
+-- Where a quest is handed in: the plan's finishers row, else (an older plan) its own turn-in steps, guidance and
+-- here blocks. { { npc, map, x, y, place } } or {}.
+local function finisher_spots(p, id)
+    local f = p.finishers and p.finishers[id]
+    if f then return f.spots, f.quest end
+    local spots, name = {}, ""
+    for _, s in ipairs(p.steps) do
+        if s.kind == "turnin" and (s.questID == id or step_has_quest(s, id)) then
+            spots[#spots + 1] = { npc = s.label:match("^Turn in .- to (.+)$") or "", map = s.map, x = s.x, y = s.y, place = s.place }
+            if name == "" then name = s.quest end
+        end
+    end
+    local g = p.guidance and p.guidance[id]
+    if g and g.turnin then
+        spots[#spots + 1] = { npc = "", map = g.turnin.map, x = g.turnin.x, y = g.turnin.y, place = g.turnin.place }
+        if name == "" then name = g.quest end
+    end
+    for _, b in ipairs(p.here or {}) do
+        for _, hq in ipairs(b.quests) do
+            if hq.questID == id and hq.role == "turnin" then
+                spots[#spots + 1] = { npc = b.npc, map = b.map, x = b.x, y = b.y, place = b.place }
+                if name == "" then name = hq.quest end
+            end
+        end
+    end
+    return spots, name
+end
+
+-- Yards from the player to a spot: on the same map straight, on another map of the same continent through world
+-- positions; nil when the two cannot be compared.
+local function spot_yards(mapID, px, py, spot)
+    if spot.map == mapID then return (WC.PlanDistance(px, py, spot.x, spot.y, WC.MapYards(mapID))) end
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return nil end
+    local ok, c1, w1, c2, w2 = pcall(function()
+        local a, wa = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(px / 100, py / 100))
+        local b, wb = C_Map.GetWorldPosFromMapPos(spot.map, CreateVector2D(spot.x / 100, spot.y / 100))
+        return a, wa, b, wb
+    end)
+    if not (ok and c1 and c1 == c2 and w1 and w2 and w1.GetXY and w2.GetXY) then return nil end
+    local ax, ay = w1:GetXY()
+    local bx, by = w2:GetXY()
+    return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
+end
+
+-- Ready quests whose finisher is here (the player's map, or within TURNIN_YARDS on the continent), nearest first:
+-- { { questID, quest, spot, yards } }. Live extras: they are not plan steps and change no counter.
+function WC.LiveTurnIns(mapID, px, py)
+    local p = WC.plan
+    local out = {}
+    if not (p and mapID and px) then return out end
+    for _, id in ipairs(ready_ids(p)) do
+        local spots, name = finisher_spots(p, id)
+        local best, bestD
+        for _, sp in ipairs(spots) do
+            local d = spot_yards(mapID, px, py, sp)
+            if d and (sp.map == mapID or d <= WC.TURNIN_YARDS) and (not bestD or d < bestD) then best, bestD = sp, d end
+        end
+        if best then
+            local title = (name and name ~= "" and name) or WC.QuestTitle(id) or "?"
+            out[#out + 1] = { questID = id, quest = title, spot = best, yards = bestD }
+        end
+    end
+    table.sort(out, function(a, b) if a.yards ~= b.yards then return a.yards < b.yards end return a.questID < b.questID end)
+    return out
+end
+
+-- Map badges for those turn-ins: synthetic steps shaped like the live steps, so the map draws them the same way.
+function WC.LiveTurnInSteps()
+    local out = {}
+    if not (WC.plan and WC.PlayerPos) then return out end
+    local mapID, px, py = WC.PlayerPos()
+    local have = {}
+    for _, st in ipairs(WC.plan.live or {}) do have[st.questID] = true end
+    for _, t in ipairs(WC.LiveTurnIns(mapID, px, py)) do
+        if not have[t.questID] and t.spot.map == mapID then
+            out[#out + 1] = { n = 200000 + t.questID, synthetic = true, kind = "turnin", questID = t.questID, questIDs = {},
+                quest = t.quest, label = string.format(L.HERE_TURNIN, t.quest), approx = false, map = t.spot.map, x = t.spot.x,
+                y = t.spot.y, unlockedBy = {}, unlocks = {}, live = true, place = t.spot.place }
+        end
+    end
+    return out
+end
+
+-- "Plan from 4:38 PM; /reload to refresh it" once the plan is old and the live log disagrees with it, else nil.
+-- Latched: once shown it stays the one line for this session, and nothing ever asks for or triggers a reload.
+function WC.StaleNote(mapID)
+    local p = WC.plan
+    if not p then return nil end
+    if WC.staleNoted then return WC.staleNoted end
+    if not (p.generated and p.generated > 0 and time() - p.generated > WC.STALE_SECONDS) then return nil end
+    local differs = false
+    for _, id in ipairs(ready_ids(p)) do
+        local listed = false
+        for _, s in ipairs(p.steps) do
+            if s.kind == "turnin" and step_has_quest(s, id) then listed = true break end
+        end
+        if not listed then differs = true break end
+    end
+    local cur = WC.PlanNext()
+    if not differs and cur and mapID and cur.map and cur.map ~= mapID then differs = true end
+    if not differs then return nil end
+    WC.staleNoted = string.format(L.PLAN_STALE_NOTE, WC.FormatClock(p.generated))
+    return WC.staleNoted
+end
+
 -- Panel rows for the card and the "Also doing" section, to sit above the digest rows. Plain rows, data only.
 function WC.HereRows(mapID, px, py)
     local rows = {}
+    for _, t in ipairs(WC.LiveTurnIns(mapID, px, py)) do
+        local who = t.spot.npc ~= "" and (t.quest .. ": " .. t.spot.npc) or t.quest
+        rows[#rows + 1] = { kind = "line", color = WC.COLORS.gold,
+            text = string.format(L.HERE_LIVE_TURNIN, who, math.floor(t.spot.x + 0.5), math.floor(t.spot.y + 0.5)) }
+    end
     local card = WC.HereCard(mapID, px, py)
     if card then
         rows[#rows + 1] = { kind = "line", text = string.format(L.HERE_TITLE, card.title), color = WC.COLORS.gold }
@@ -922,6 +1118,8 @@ function WC.HereRows(mapID, px, py)
             rows[#rows + 1] = { kind = "line", indent = 1, text = t }
         end
     end
+    local note = WC.StaleNote(mapID)
+    if note then rows[#rows + 1] = { kind = "line", text = note, color = WC.COLORS.dim } end
     return rows
 end
 
@@ -939,16 +1137,18 @@ function WC.HereTick(mapID, px, py)
     if WC.Refresh and WC.panel and WC.panel:IsShown() then WC.Refresh() end
 end
 
+local ZONE_EVENTS = { ZONE_CHANGED = true, ZONE_CHANGED_INDOORS = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true }
 local events = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
-    "PLAYER_LEVEL_UP", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED" }) do events:RegisterEvent(e) end
+    "PLAYER_LEVEL_UP", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED",
+    "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do pcall(events.RegisterEvent, events, e) end
 events:SetScript("OnEvent", function(_, event, a, b)
     if not WC.db then return end
     if event == "PLAYER_LOGIN" then
         WC.PlanInit()
         if WC.RefreshPlan then WC.RefreshPlan() end
         refresh_panel()
-    elseif event == "QUEST_LOG_UPDATE" then
+    elseif event == "QUEST_LOG_UPDATE" or ZONE_EVENTS[event] then
         WC.LiveUpdateSoon(event)
     else
         WC.LiveUpdate(event, a, b)

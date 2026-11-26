@@ -6479,6 +6479,87 @@ cases[#cases + 1] = { "here card: an older Plan.lua shows no card and keeps the 
     assert(WC.plan.here == nil and WC.HereCard(WC.PlayerPos()) == nil)
 end }
 
+-- Live "Here: turn in" lines: read from the quest log, no reload.
+local function weaver(WC)
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "The Weaver", places = { { npc = "Shadow Priest Allister", map = 7001, x = 45.2, y = 42.1 } } } })
+end
+local function live_rows(WC)
+    local mapID, px, py = WC.PlayerPos()
+    return WC.HereRows(mapID, px, py)
+end
+
+cases[#cases + 1] = { "live turn-in: a ready quest with a finisher in the zone leads the panel", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    local rows = live_rows(WC)
+    assert(rows[1].text == "Here: turn in The Weaver: Shadow Priest Allister (45, 42)", rows[1].text)
+    assert(WC.plan.steps[1].n == 1 and WC.PlanCounts, "the plan's own steps are untouched")
+    local pins = WC.LiveTurnInSteps()
+    assert(#pins == 1 and pins[1].questID == 77 and pins[1].x == 45.2, "a map badge step")
+end }
+
+cases[#cases + 1] = { "live turn-in: a quest that is not ready shows no line", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "active"
+    assert(not here_text(WC):find("turn in The Weaver", 1, true))
+end }
+
+cases[#cases + 1] = { "live turn-in: the line is gone once the quest is turned in", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "ready"
+    assert(here_text(WC):find("turn in The Weaver", 1, true))
+    QUESTS[77] = "turnedin"
+    WC.LiveUpdate("QUEST_TURNED_IN", 77)
+    assert(not here_text(WC):find("The Weaver", 1, true) and #WC.LiveTurnInSteps() == 0)
+end }
+
+cases[#cases + 1] = { "live turn-in: an older Plan.lua falls back to the plan's own turn-ins, else nothing", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    assert(WC.plan.finishers == nil)
+    QUESTS[50] = "ready"; QUESTS[999] = "ready"
+    local rows = live_rows(WC)
+    assert(rows[1].text == "Here: turn in Quest 50: Test Windshaper (50, 50)", rows[1].text)
+    assert(not here_text(WC):find("999", 1, true))
+    QUESTS[50] = nil
+    assert(not here_text(WC):find("Here: turn in", 1, true))
+end }
+
+cases[#cases + 1] = { "live turn-in: a far finisher on another map is skipped without a continent", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "The Weaver", places = { { npc = "X", map = 7002, x = 45, y = 42 } } } })
+    QUESTS[77] = "ready"
+    assert(not here_text(WC):find("The Weaver", 1, true))
+end }
+
+cases[#cases + 1] = { "stale note: an old plan that disagrees with the log says so once", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    assert(WC.StaleNote(7001) == nil, "log agrees: no note")
+    QUESTS[77] = "ready"
+    local note = WC.StaleNote(7001)
+    assert(note and note:find("Plan from ", 1, true) and note:find("/reload to refresh it", 1, true), tostring(note))
+    local n = 0
+    for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
+    for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
+    assert(n == 2 and WC.StaleNote(7001) == note, "one line per render, the same single note")
+    WC.plan.generated = os.time()
+    local WC2 = here_client()
+    WC2.plan.generated = os.time()
+    QUESTS[77] = "ready"
+    weaver(WC2)
+    assert(WC2.StaleNote(7001) == nil, "a fresh plan gets no note")
+end }
+
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])
