@@ -7517,6 +7517,72 @@ cases[#cases + 1] = { "panel plan: no quest appears twice", function()
     assert(n10 <= 2, "Quest 10 shows as the NOW step and at most its HERE turn-in step")
 end }
 
+cases[#cases + 1] = { "panel plan: a single-stop HERE does not repeat NOW, and an empty HERE says so with its exit", function()
+    local WC = panel_client("lone")
+    local lines = panel_lines(WC)
+    assert(count_of(lines, "Turn in Quest 10") == 1, table.concat(lines, "|"))
+    local text = table.concat(lines, "\n")
+    assert(text:find("HERE · ", 1, true) and text:find("nothing else here", 1, true), text)
+    assert(text:find("Then: Take the boat to Otherisle", 1, true), text)
+    local two = panel_client("verbs")
+    local S = two.PanelSections(7001, 50, 50)
+    assert(#S.here.stops == 1 and S.here.stops[1].step.n == 2)
+    assert(count_of(panel_lines(two), "Turn in Quest 10") == 1)
+end }
+
+cases[#cases + 1] = { "panel plan: a ready turn-in row has no red level and says ready in green", function()
+    local WC = panel_client("verbs")
+    QUESTS[20] = "ready"
+    C_QuestLog.GetLogIndexForQuestID = function(id) return QUESTS[id] and 1 or nil end
+    C_QuestLog.GetInfo = function() return { level = 40 } end
+    WC.view.tripOpen["7002:1"] = true
+    WC.Refresh()
+    local row
+    for _, r in ipairs(WC.panel.rows) do
+        if r:IsShown() and r.label:GetText():find("Quest 20", 1, true) then row = r end
+    end
+    assert(row, table.concat(panel_lines(WC), "|"))
+    local text = row.label:GetText()
+    assert(text:find("Turn in Quest 20", 1, true) and text:find("ready", 1, true) and not text:find("[40]", 1, true), text)
+    local green = WC.Setting("readyColor")
+    assert(row.baseColor[1] == green[1] and row.baseColor[2] == green[2], "ready is green, not the red difficulty colour")
+end }
+
+cases[#cases + 1] = { "panel plan: a find entry renders in FIND with its hint, after HERE and before TRIPS, never unplanned", function()
+    local WC = panel_client("verbs")
+    local text = table.concat(panel_lines(WC), "\n")
+    local at = text:find("FIND · 2", 1, true)
+    assert(at, text)
+    assert(text:find("Find: Anyone Can Cook: Find an ogre who can read the Illegible Recipe · Undercity", 1, true), text)
+    assert(at > text:find("HERE · ", 1, true) and at < text:find("TRIPS · 1", 1, true), text)
+    assert(not text:find("Unplanned", 1, true) and not text:find("routes after your next save", 1, true), text)
+    QUESTS[50] = "active"
+    assert(#WC.UnplannedQuests() == 0)
+end }
+
+cases[#cases + 1] = { "panel plan: an errand-tagged stop shows its errand label, and the bank note becomes an errand row", function()
+    local WC = panel_client("verbs")
+    local text = table.concat(panel_lines(WC), "\n")
+    assert(text:find("Open the bank · errand: Bank", 1, true), text)
+    assert(#WC.plan.errands == 1, "an unknown errand kind is dropped")
+    local S = WC.PanelSections(7001, 50, 50)
+    local rows = { { kind = "header", id = "notes", text = "Notes" }, { kind = "text", text = "Bank not captured: open your bank once" } }
+    local out, errand = WC.BankErrand(rows, S, 7001, 50, 50)
+    assert(#out == 0 and errand and errand.text:find("Open the bank once, so the advisor can see it", 1, true))
+    -- away from a bank the note stays a note
+    local far = panel_client("full")
+    local kept, none = far.BankErrand(rows, far.PanelSections(7001, 50, 50), 7001, 50, 50)
+    assert(#kept == 2 and none == nil)
+end }
+
+cases[#cases + 1] = { "panel plan: an old plan with no find or errands renders as before", function()
+    local WC = panel_client("full")
+    local text = table.concat(panel_lines(WC), "\n")
+    assert(not text:find("FIND", 1, true) and not text:find("errand", 1, true))
+    assert(WC.plan.find == nil and WC.plan.errands == nil)
+    assert(text:find("Pick up Quest 10", 1, true))
+end }
+
 cases[#cases + 1] = { "panel plan: HERE and the map's badges agree in numbers, labels and order, and hide trips and later", function()
     local WC = panel_client()
     local S = WC.PanelSections(7001, 50, 50)

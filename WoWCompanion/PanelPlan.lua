@@ -36,6 +36,12 @@ local function trip_zone(t)
     return t.zone or zone_name(t.map)
 end
 
+local function errand_of(plan, step)
+    for _, e in ipairs(plan and plan.errands or {}) do
+        if (e.n and e.n == step.n) or (e.questID and not e.n and e.questID == step.questID) then return e.kind end
+    end
+end
+
 -- A merged stop's turn-in line: "Turn in Quest (Giver)" from the step's "Turn in Quest to Giver".
 local function merged_text(step, id)
     local title = WC.QuestTitle(id)
@@ -80,6 +86,7 @@ local function stop_of(group)
     end
     local stop = { label = WC.PinLabel(group.steps), plabel = panel_label(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
         isNext = group.isNext == true }
+    for _, st in ipairs(group.steps) do stop.errand = stop.errand or errand_of(WC.plan, st) end
     if #items > 1 then
         for _, it in ipairs(items) do
             local st = it.step
@@ -146,8 +153,16 @@ function WC.PanelSections(mapID, px, py)
 
     -- HERE: every other badge on this map, in the map's order, with the walk length from NOW through the last.
     local prev = S.now and S.now.step and hereMap == S.now.step.map and S.now.step or (px and { x = px, y = py }) or nil
+    -- A stop is NOW's when one of its steps is the current step (or repeats it): it is never listed twice.
+    local function is_now(g)
+        if not cur then return false end
+        for _, s in ipairs(g.steps) do
+            if s.n == cur.n or (s.questID == cur.questID and s.kind == cur.kind and (cur.questID or 0) > 0) then return true end
+        end
+        return false
+    end
     for _, g in ipairs(groups) do
-        if not g.isNext then
+        if not g.isNext and not is_now(g) then
             local stop = stop_of(g)
             if prev and prev.x then stop.yards = yards_between(hereMap, prev, stop) S.here.yards = S.here.yards + stop.yards end
             prev = stop
@@ -156,8 +171,21 @@ function WC.PanelSections(mapID, px, py)
         end
     end
     local nowOnHere = false
-    for _, g in ipairs(groups) do if g.isNext then nowOnHere = true end end
+    for _, g in ipairs(groups) do if g.isNext or is_now(g) then nowOnHere = true end end
     S.here.done = #S.here.stops == 0 and not nowOnHere
+
+    -- FIND: quests that are a hunt, each with the plan's hint. Never unplanned; each quest has this one home.
+    S.find = {}
+    for _, q in ipairs(p.find or {}) do
+        if not seen[q.questID] and WC.PlanQuestState(q.questID) ~= "turnedin" then
+            seen[q.questID] = true
+            local name = q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or L.QUEST_UNKNOWN:format(q.questID))
+            local text = q.hint and string.format(L.FIND_LINE, name, q.hint) or string.format(L.FIND_LINE_NOHINT, name)
+            local zone = q.zone or (q.map and WC.PlaceName(nil, q.map) ~= L.PLACE_UNKNOWN and WC.PlaceName(nil, q.map)) or nil
+            if zone then text = string.format(L.FIND_ZONE, text, zone) end
+            S.find[#S.find + 1] = { id = q.questID, name = name, text = text }
+        end
+    end
 
     -- TRIPS: each quest once, ready counted from the live log when the plan lists the quests.
     local firstTrip
@@ -249,7 +277,11 @@ local function now_text(S)
 end
 
 local function stop_text(stop)
-    return labelled(L.PANEL_STOP_LINE, stop.plabel, stop.text)
+    local text = labelled(L.PANEL_STOP_LINE, stop.plabel, stop.text)
+    if stop.errand and L["ERRAND_" .. stop.errand] then
+        text = text .. " \194\183 " .. string.format(L.ERRAND_TAG, L["ERRAND_" .. stop.errand])
+    end
+    return text
 end
 
 local function header(id, text, click)
@@ -270,21 +302,22 @@ local function digest_line(id)
 end
 
 -- Gives a quest row the entry, group and question of the quest's card, so hover, click and the card work on it.
-local function with_card(row, id, title)
+local function with_card(row, id, title, verbFirst)
     if not (id and id > 0 and WC.QuestEntryRows) then return row end
     local line = digest_line(id) or { kind = "progress", title = title }
-    local rows = guarded(WC.QuestEntryRows, nil, line, id, {}, UnitLevel and UnitLevel("player") or nil)
+    local rows = guarded(WC.QuestEntryRows, nil, line, id, {}, UnitLevel and UnitLevel("player") or nil, verbFirst and { verbFirst = true } or nil)
     local head = rows and rows[1]
     if head then
         row.entry, row.group, row.ask, row.quest = head.entry, head.group, head.ask, id
         row.color = row.color or head.color -- the quest's difficulty colour, as the old list had
+        if row.useHead then row.text = head.text end -- the verb-first title (a ready turn-in: no level, "ready" in green)
     end
     return row, rows
 end
 
 -- Adds a quest row, then (for a quest in the log) its objective rows, so the quest's lines light together on hover.
 local function add_quest(out, row, id, title, step)
-    local r, rows = with_card(row, id, title)
+    local r, rows = with_card(row, id, title, true)
     out[#out + 1] = r
     local state = id and id > 0 and WC.PlanQuestState(id)
     if step and step.kind == "turnin" then
@@ -316,8 +349,13 @@ function WC.PanelSectionRows(S, mapID, px, py)
     if S.here.done and h.next then
         rows[#rows + 1] = header("panel_here", string.format(L.PANEL_ZONE_DONE, h.zone, h.next))
     else
-        local title = string.format(h.stops and #h.stops == 1 and L.PANEL_HERE_ONE or L.PANEL_HERE, h.zone, #h.stops)
-        if h.yards > 0 then title = title .. string.format(L.PANEL_HERE_YARDS, math.floor(h.yards + 0.5)) end
+        local title
+        if #h.stops == 0 then
+            title = string.format(L.PANEL_HERE_NONE, h.zone)
+        else
+            title = string.format(#h.stops == 1 and L.PANEL_HERE_ONE or L.PANEL_HERE, h.zone, #h.stops)
+            if h.yards > 0 then title = title .. string.format(L.PANEL_HERE_YARDS, math.floor(h.yards + 0.5)) end
+        end
         rows[#rows + 1] = header("panel_here", title)
     end
     for _, stop in ipairs(h.stops) do
@@ -337,6 +375,12 @@ function WC.PanelSectionRows(S, mapID, px, py)
         rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.PANEL_THEN, h.exit), color = WC.COLORS.dim }
     end
     for _, r in ipairs(guarded(action_rows, {}, S, mapID, px, py)) do rows[#rows + 1] = r end
+    if #(S.find or {}) > 0 then
+        rows[#rows + 1] = header("panel_find", string.format(L.PANEL_FIND, #S.find))
+        for _, q in ipairs(S.find) do
+            rows[#rows + 1] = with_card({ kind = "line", indent = 1, text = q.text, color = WC.COLORS.gold }, q.id, q.name)
+        end
+    end
     if #S.trips > 0 then
         rows[#rows + 1] = header("panel_trips", string.format(L.PANEL_TRIPS, #S.trips))
         for _, t in ipairs(S.trips) do
@@ -346,7 +390,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
             if open then
                 if t.reason then rows[#rows + 1] = { kind = "line", indent = 2, text = t.reason, color = WC.COLORS.dim } end
                 for _, q in ipairs(t.quests) do
-                    add_quest(rows, { kind = "line", indent = 2, text = q.ready and WC.ReadyMark(q.name) or q.name,
+                    add_quest(rows, { kind = "line", indent = 2, useHead = true, text = q.ready and WC.ReadyMark(q.name) or q.name,
                         color = q.ready and WC.Setting("readyColor") or nil }, q.id, q.name)
                 end
                 for _, leg in ipairs(t.travel) do
@@ -367,6 +411,41 @@ function WC.PanelSectionRows(S, mapID, px, py)
         end
     end
     return rows
+end
+
+local function is_bank_note(text)
+    text = tostring(text or ""):lower()
+    return text:find("bank", 1, true) ~= nil and text:find("captured", 1, true) ~= nil
+end
+
+-- True when the player stands where a bank is: a here block that lists one, or a plan errand for the bank on this map.
+local function at_bank(S, mapID, px, py)
+    local b = WC.HereBlock and WC.HereBlock(mapID, px, py)
+    for _, c in ipairs(b and b.can or {}) do
+        if c:find("bank", 1, true) then return true end
+    end
+    for _, stop in ipairs(S and S.here and S.here.stops or {}) do if stop.errand == "bank" then return true end end
+    if S and S.now and S.now.step and errand_of(WC.plan, S.now.step) == "bank" then return true end
+    return false
+end
+
+-- "Bank not captured" is a passive note; in a city with a bank it becomes an errand row of the plan sections. Returns the
+-- rows without the note and the errand row (nil when the note stays or is absent).
+function WC.BankErrand(rows, S, mapID, px, py)
+    local found
+    for _, r in ipairs(rows) do if r.kind ~= "header" and is_bank_note(r.text) then found = true end end
+    if not (found and S and at_bank(S, mapID, px, py)) then return rows, nil end
+    local out = {}
+    for _, r in ipairs(rows) do
+        if not (r.kind ~= "header" and is_bank_note(r.text)) then out[#out + 1] = r end
+    end
+    -- a Notes header left with nothing under it goes too
+    local clean = {}
+    for i, r in ipairs(out) do
+        local nxt = out[i + 1]
+        if not (r.kind == "header" and r.id == "notes" and (not nxt or nxt.kind == "header")) then clean[#clean + 1] = r end
+    end
+    return clean, { kind = "line", indent = 1, text = L.BANK_ERRAND .. " \194\183 " .. string.format(L.ERRAND_TAG, L.ERRAND_bank), color = WC.COLORS.gold }
 end
 
 -- The collapsed panel's lines: NOW and the next two HERE stops, as plain text lines.

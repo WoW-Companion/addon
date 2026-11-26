@@ -255,7 +255,25 @@ function WC.ParsePanelFields(entry)
             parked[#parked + 1] = { questID = id, quest = str(q.quest) or "", why = str(q.why), kind = str(q.kind) }
         end
     end
-    return exit, #trips > 0 and trips or nil, #parked > 0 and parked or nil
+    -- `find`: quests whose next move is a hunt, { questID, quest, hint, zone, map }; a hint or a name is enough.
+    local find = {}
+    for _, q in ipairs(type(entry.find) == "table" and entry.find or {}) do
+        local id = type(q) == "table" and tonumber(q.questID)
+        if id and id > 0 and (str(q.hint) or str(q.quest)) then
+            find[#find + 1] = { questID = id, quest = str(q.quest) or "", hint = str(q.hint), zone = str(q.zone), map = tonumber(q.map) }
+        end
+    end
+    -- `errands`: stops that are chores, { n = step number and/or questID, kind = train | bank | class | profession }.
+    local errands = {}
+    for _, e in ipairs(type(entry.errands) == "table" and entry.errands or {}) do
+        local kind = type(e) == "table" and str(e.kind or e.type)
+        kind = kind and kind:lower()
+        if kind and L["ERRAND_" .. kind] then
+            local n, id = tonumber(e.n or e.step), tonumber(e.questID)
+            if n or (id and id > 0) then errands[#errands + 1] = { n = n, questID = id, kind = kind, map = tonumber(e.map) } end
+        end
+    end
+    return exit, #trips > 0 and trips or nil, #parked > 0 and parked or nil, #find > 0 and find or nil, #errands > 0 and errands or nil
 end
 
 -- True when a stop has a real place on its map: x and y are numbers, not negative, not both exactly 0 (the plan's
@@ -429,7 +447,7 @@ function WC.DismissPlanLag() WC.lagDismissed = true end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -440,7 +458,7 @@ function WC.PlanInit()
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
         guidance = guidance, here = here, later = later or {}, finishers = finishers, zones = zones, live = {}, liveSig = "",
-        exit = exit, trips = trips, parked = parked }
+        exit = exit, trips = trips, parked = parked, find = find, errands = errands }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
