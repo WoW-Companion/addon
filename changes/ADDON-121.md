@@ -1,1 +1,0 @@
-- Live training: the panel now says "Train now" when a spell becomes available to train after you learn its first rank or level up, and leads with it beside the trainer.
