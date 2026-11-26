@@ -29,6 +29,7 @@ local D = {
     -- Panel
     { key = "locked", type = "bool", default = false, page = "panel", box = "window", label = "LOCK_PANEL", name = "Lock" },
     { key = "openOnLogin", type = "bool", default = false, page = "panel", box = "window", label = "OPEN_ON_LOGIN", name = "Login" },
+    { key = "startCollapsed", type = "bool", default = false, page = "panel", box = "window", label = "START_COLLAPSED", name = "StartCollapsed" },
     { key = "view", type = "choice", default = "full", choices = { "full", "compact", "next" }, page = "panel", box = "window", label = "VIEW_LABEL", name = "View", choiceKey = "VIEW_", widget = "dropdown", apply = "compact" },
     { key = "hideInCombat.panel", type = "bool", default = false, page = "panel", box = "window", label = "HIDE_PANEL_COMBAT", name = "HidePanel" },
     { key = "showWhatsNew", type = "bool", default = true, page = "panel", box = "window", label = "SHOW_WHATS_NEW", name = "WhatsNew" },
