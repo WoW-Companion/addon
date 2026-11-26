@@ -1,1 +1,0 @@
-- Stops with no real position (0,0 or -1) are no longer drawn on the map or minimap: they show as text with "(location unknown)", approximate stops are drawn faded, and live extra steps read "Also doing" instead of "Step 198095 of 4".

@@ -580,6 +580,7 @@ local L = {
     WHATS_NEW_0_6_59_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
     WHATS_NEW_0_6_60_1 = "Another zone's map now draws one connected route that starts at a flight-master marker where you arrive.",
     WHATS_NEW_0_6_61_1 = "When you are already in the zone of a later step, the panel leads with it (\"Here first\"), a travel step there becomes its turn-in, and the line is drawn to it.",
+    WHATS_NEW_0_6_62_1 = "Stops with no real position (0,0 or -1) are no longer drawn on the map or minimap: they show as text with \"(location unknown)\", approximate stops are drawn faded, and live extra steps read \"Also doing\" instead of \"Step 198095 of 4\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
