@@ -239,8 +239,8 @@ local LEVEL_TAG = "[%d] "
 local function quest_verb(ready, objs)
     if ready then return L.VERB_TURNIN end
     for _, o in ipairs(objs or {}) do
-        local text = type(o) == "table" and tostring(o.text or ""):lower() or ""
-        if text:find("slain", 1, true) or text:find("killed", 1, true) then return L.VERB_KILL end
+        local low = type(o) == "table" and tostring(o.text or ""):lower() or ""
+        if low:find("slain", 1, true) or low:find("killed", 1, true) then return L.VERB_KILL end
     end
     for _, o in ipairs(objs or {}) do
         if type(o) == "table" and tonumber(o.need) and tonumber(o.need) > 0 then return L.VERB_COLLECT end
@@ -340,7 +340,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel, opts)
 end
 
 -- The "Unplanned" entries: quests accepted that the plan does not hold yet, live objectives and a hint that the
--- overlay routes them after the next save. Returns rows (possibly none).
+-- overlay routes them after the next save (a quest the plan's save already had says it is not in this plan). Returns rows (possibly none).
 function WC.UnplannedRows(collapsed, playerLevel)
     local out = {}
     for _, q in ipairs(WC.UnplannedQuests and WC.UnplannedQuests() or {}) do
@@ -348,7 +348,7 @@ function WC.UnplannedRows(collapsed, playerLevel)
         if rows then
             rows[1].right = L.NEW_TAG
             rows[1].id = "u" .. q.id
-            rows[#rows + 1] = { kind = "status", indent = 2, text = L.UNPLANNED_HINT, color = WC.COLORS.dim, group = rows[1].group }
+            rows[#rows + 1] = { kind = "status", indent = 2, text = q.new and L.UNPLANNED_HINT or L.UNPLANNED_OLD, color = WC.COLORS.dim, group = rows[1].group }
             for _, r in ipairs(rows) do out[#out + 1] = r end
         end
     end
