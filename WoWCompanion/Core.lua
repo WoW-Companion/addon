@@ -197,7 +197,7 @@ end)
 
 SLASH_WOWC1 = "/wowc"
 WC.HELP = {
-    L.HELP_TITLE, L.HELP_PANEL, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_RESET, L.HELP_RESET_VISUALS, L.HELP_RESET_ALL, L.HELP_STATUS, L.HELP_HELP,
+    L.HELP_TITLE, L.HELP_PANEL, L.HELP_PLAN, L.HELP_SETTINGS, L.HELP_COLLAPSE, L.HELP_RESET, L.HELP_RESET_VISUALS, L.HELP_RESET_ALL, L.HELP_STATUS, L.HELP_HELP,
 }
 
 SlashCmdList["WOWC"] = function(msg)
@@ -207,6 +207,8 @@ SlashCmdList["WOWC"] = function(msg)
         WC.TogglePanel()
     elseif cmd == "settings" or cmd == "options" or cmd == "config" then
         WC.OpenOptions()
+    elseif cmd == "collapse" then
+        WC.TogglePanelCollapsed()
     elseif cmd == "plan" then
         WC.TogglePlan((msg:match("^%s*%S+%s+(%S+)") or ""):lower(), (msg:match("^%s*%S+%s+%S+%s+(%S+)") or ""):lower())
     elseif cmd == "status" then
