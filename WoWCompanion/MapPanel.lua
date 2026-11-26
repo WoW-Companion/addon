@@ -132,7 +132,7 @@ function WC.PanelHeader()
     local step = WC.PlanNext()
     local h = { title = L.ADDON_NAME, advice = string.format(L.PANEL_ADVICE_TIME, WC.FormatClock(p.generated or 0)) }
     if not step then h.step, h.dist = string.format(L.PLAN_DONE, total), "" return h end
-    h.step = string.format(L.PANEL_STEP, WC.StepNumber(step), total)
+    h.step = string.format(step.hereFirst and L.HERE_FIRST or L.PANEL_STEP, WC.StepNumber(step), total)
     local mapID, px, py = WC.PlayerPos()
     if mapID == step.map and px then
         local d, dir = WC.PlanDistance(px, py, step.x, step.y, WC.MapYards(mapID))

@@ -415,10 +415,102 @@ end
 WC.RouteNext = route_next
 
 -- The step to show now: the live step of the quest being followed (see PlanLiveRefresh), else the route's next step.
-function WC.PlanNext()
+function WC.PlanBaseNext()
     local p = WC.plan
     if not p then return end
     return p.liveNow or route_next()
+end
+
+-- True when the step's map is the player's map or its parent zone.
+local function same_zone(playerMap, stepMap)
+    if not (playerMap and stepMap) then return false end
+    if playerMap == stepMap then return true end
+    local ok, info = pcall(function() return C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(playerMap) end)
+    return ok and type(info) == "table" and tonumber(info.parentMapID) == stepMap
+end
+
+-- The action part of a travel step ("Turn in Elixir of Pain to Stanley (Hillsbrad Fields)"), from the label after the
+-- colon, else from the step's quest; nil when the step is only a trip ("Travel to The Barrens").
+local function travel_action(p, step)
+    local a = (step.label or ""):match(":%s*(.-)%s*$")
+    if not a or a == "" then
+        if (step.quest or "") ~= "" then a = "turn in " .. step.quest end
+    end
+    if not a or a == "" then return nil end
+    a = a:sub(1, 1):upper() .. a:sub(2)
+    local f = p.finishers and step.questID and p.finishers[step.questID]
+    local spot
+    for _, sp in ipairs(f and f.spots or {}) do
+        if sp.map == step.map then spot = sp break end
+    end
+    local npc = spot and spot.npc ~= "" and spot.npc or nil
+    local place = (spot and spot.place) or step.place
+    if npc and not a:find(npc, 1, true) then
+        a = a .. " to " .. npc
+        if place then a = a .. " (" .. place .. ")" end
+    elseif place and not a:find(place, 1, true) then
+        a = a .. " (" .. place .. ")"
+    end
+    return a
+end
+
+-- The step as shown when the player stands on its map: a travel step becomes its action; a trip with no action is
+-- not shown (it is marked done on arrival). A copy; the plan's own step is untouched.
+local function arrived_view(p, step)
+    if step.kind ~= "travel" then return step end
+    local action = travel_action(p, step)
+    if not action then return nil end
+    local v = {}
+    for k, val in pairs(step) do v[k] = val end
+    v.label, v.arrived = action, true
+    return v
+end
+
+local function lead_step(p, cur)
+    local pm = WC.PlayerPos()
+    if not pm then return cur end
+    if same_zone(pm, cur.map) then return arrived_view(p, cur) or cur end
+    for _, s in ipairs(p.steps) do
+        if (cur.n >= 100000 or s.n > cur.n) and not p.done[s.n] and same_zone(pm, s.map)
+            and not WC.StepLocked(s) and not WC.StepUnready(s) then
+            local v = arrived_view(p, s)
+            if v then
+                if v == s then
+                    v = {}
+                    for k, val in pairs(s) do v[k] = val end
+                end
+                v.hereFirst, v.skipped = true, cur
+                return v
+            end
+        end
+    end
+    return cur
+end
+
+-- Marks every undone trip step with no action on the player's map as done: arriving completes it. True when any changed.
+function WC.PlanArrive(mapID)
+    local p = WC.plan
+    if not (p and p.done and mapID) then return false end
+    local changed = false
+    for _, s in ipairs(p.steps) do
+        if s.kind == "travel" and not p.done[s.n] and s.map == mapID and not travel_action(p, s) then
+            p.done[s.n] = true
+            changed = true
+        end
+    end
+    return changed
+end
+
+-- What to show now: the base step, or, when the player is already in the zone of a later step, that step (a travel
+-- step as its action). Plan order returns once the zone's steps are done or the player leaves.
+function WC.PlanNext()
+    local p = WC.plan
+    if not p then return end
+    local cur = WC.PlanBaseNext()
+    if not cur then return end
+    local ok, v = pcall(lead_step, p, cur) -- ADDON-119's live-path rule: a failure here shows the plan's own step
+    if ok and v then return v end
+    return cur
 end
 
 -- ---------------------------------------------------------------- chains: locked steps, unlocks, "New"
@@ -851,6 +943,11 @@ function WC.NextStepLine(step, mapID, px, py)
     if not step then return string.format(L.PLAN_DONE, total) end
     local label = WC.PlanLiveText(step, step.label)
     local text = string.format(L.NEXT_STEP_LINE, WC.StepNumber(step), total, label)
+    if step.hereFirst then
+        text = string.format(L.HERE_FIRST, WC.StepNumber(step), total) .. " · " .. label
+        local sk = step.skipped and WC.PlaceName(nil, step.skipped.map)
+        if sk then text = text .. " · " .. string.format(L.HERE_FIRST_SKIPPED, sk) end
+    end
     local place = step.place and WC.PlaceName(step.place, step.map)
     if place and not label:find(place, 1, true) then text = text .. string.format(L.NEXT_STEP_PLACE, place) end
     if mapID == step.map and px then
