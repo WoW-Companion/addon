@@ -105,6 +105,72 @@ local function shadow(fs)
     if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, 1) end
 end
 
+-- Collapsed: the panel shows only its title line (clicking the title bar toggles it). Remembered per character in
+-- WC.db.panelCollapsed["<realm>:<name>"]; with nothing saved yet the "Panel starts collapsed" setting decides.
+local COLLAPSED_HEIGHT = 26
+local CHEVRON_W = 14 -- room for the state icon before the title
+
+local function collapse_key()
+    return (GetRealmName and GetRealmName() or "") .. ":" .. (UnitName and UnitName("player") or "?")
+end
+
+function WC.PanelCollapsed()
+    local saved
+    if WC.db and type(WC.db.panelCollapsed) == "table" then saved = WC.db.panelCollapsed[collapse_key()] end
+    if saved ~= nil then return saved == true end
+    return WC.db ~= nil and WC.Setting("startCollapsed") == true
+end
+
+function WC.SetPanelCollapsed(on)
+    if not WC.db then return end
+    if type(WC.db.panelCollapsed) ~= "table" then WC.db.panelCollapsed = {} end
+    WC.db.panelCollapsed[collapse_key()] = on == true
+    WC.Refresh()
+end
+
+function WC.TogglePanelCollapsed()
+    WC.SetPanelCollapsed(not WC.PanelCollapsed())
+end
+
+-- The one-line hint after the title: "Here: turn in..." while a turn-in is live, else the current step's short label.
+function WC.CollapsedHint()
+    local mapID, px, py
+    if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
+    if WC.HereRows then
+        local lead = L.HERE_LIVE_TURNIN:match("^[^%%]*")
+        for _, r in ipairs(WC.HereRows(mapID, px, py)) do
+            if r.text and r.text:sub(1, #lead) == lead then return L.HINT_HERE_TURNIN end
+        end
+    end
+    local step = WC.PlanNext()
+    if step and step.label and step.label ~= "" then return WC.PlanLiveText(step, step.label) end
+    return ""
+end
+
+-- The tooltip lines of the title bar.
+function WC.TitleBarTipLines()
+    return { WC.PanelCollapsed() and L.TITLE_TIP_EXPAND or L.TITLE_TIP_COLLAPSE }
+end
+
+-- Shows or hides the body for the collapsed state; the chevron, hint and title bar follow it.
+function WC.ApplyCollapsed()
+    local f = WC.panel
+    if not f then return end
+    local c = WC.PanelCollapsed()
+    f.scroll:SetShown(not c)
+    f.step:SetShown(not c)
+    f.header:SetShown(not c)
+    f.headerTip:SetShown(not c)
+    if f.grip then f.grip:SetShown(not c and not WC.Setting("locked")) end
+    if c then
+        for _, b in ipairs(f.chipButtons or {}) do b:Hide() end
+        for _, r in ipairs(f.rows) do r:Hide() end
+    end
+    if f.chevron then f.chevron:SetTexture(c and WC.ICONS.closed or WC.ICONS.open) end
+    f.hint:SetShown(c)
+    f.hint:SetText(c and WC.SafeText(WC.CollapsedHint()) or "")
+end
+
 -- Applies the look settings (background, border, header colour, padding) to the panel; called on every redraw.
 function WC.ApplyPanelLook()
     local f = WC.panel
@@ -116,11 +182,13 @@ function WC.ApplyPanelLook()
         local bc = WC.Setting("borderColor")
         f:SetBackdropBorderColor(bc[1], bc[2], bc[3], WC.Setting("borderShow") and WC.Setting("borderOpacity") or 0)
     end
-    if f.grip then f.grip:SetShown(not WC.Setting("locked")) end
+    if f.grip then f.grip:SetShown(not WC.Setting("locked") and not WC.PanelCollapsed()) end
     local hc = WC.Setting("headerColor")
     f.title:SetTextColor(hc[1], hc[2], hc[3])
     f.title:ClearAllPoints()
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -8)
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", pad + CHEVRON_W, -8)
+    f.chevron:ClearAllPoints()
+    f.chevron:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -9)
     WC.LayoutPanelHeader()
 end
 
@@ -138,6 +206,17 @@ function WC.LayoutHeaderButtons()
     g:ClearAllPoints()
     g:SetPoint("RIGHT", c, "LEFT", -6, 0)
     g:SetFrameLevel(f:GetFrameLevel() + 5)
+    if f.hint then
+        f.hint:ClearAllPoints()
+        f.hint:SetPoint("LEFT", f.title, "RIGHT", 8, 0)
+        f.hint:SetPoint("RIGHT", g, "LEFT", -6, 0)
+    end
+    if f.titleBar then -- the title bar ends where the buttons begin, so their clicks stay theirs
+        f.titleBar:ClearAllPoints()
+        f.titleBar:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        f.titleBar:SetPoint("TOPRIGHT", g, "TOPLEFT", -4, 2)
+        f.titleBar:SetHeight(COLLAPSED_HEIGHT - 4)
+    end
 end
 
 -- Places the next-step line under the title (it wraps), the advice time under it and the scroll area below both.
@@ -169,6 +248,7 @@ function WC.LayoutPanelHeader()
     f.scroll:ClearAllPoints()
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -f.scrollTop)
     f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(pad + 18), pad)
+    if WC.PanelCollapsed() then WC.ApplyCollapsed() end -- the placing above shows the chips again
 end
 
 -- The pooled chip button at index i.
@@ -265,6 +345,7 @@ function WC.RefreshNextLine()
     if f.step:GetText() == text then return end
     f.step:SetText(WC.SafeText(text))
     WC.LayoutPanelHeader()
+    if WC.PanelCollapsed() then WC.ApplyCollapsed() end
     if f:IsShown() and WC.view.mode == "next" then WC.Refresh() end
 end
 
@@ -282,14 +363,16 @@ function WC.CreatePanel()
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self)
-        if not WC.db.settings.locked then self:StartMoving() end
-    end)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, relPoint, x, y = self:GetPoint()
+    local function drag_start()
+        if not WC.db.settings.locked then f:StartMoving() end
+    end
+    local function drag_stop()
+        f:StopMovingOrSizing()
+        local point, _, relPoint, x, y = f:GetPoint()
         WC.db.position = { point = point, relPoint = relPoint, x = x, y = y }
-    end)
+    end
+    f:SetScript("OnDragStart", drag_start)
+    f:SetScript("OnDragStop", drag_stop)
 
     local pos = WC.db.position
     if pos then
@@ -301,6 +384,36 @@ function WC.CreatePanel()
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal") -- gold
     f.title:SetText(L.ADDON_NAME)
     shadow(f.title)
+
+    f.chevron = f:CreateTexture(nil, "OVERLAY") -- the collapsed/expanded state, before the title
+    f.chevron:SetSize(12, 12)
+    f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") -- collapsed: what to do next, after the title
+    f.hint:SetTextColor(unpack(WC.COLORS.grey))
+    f.hint:SetJustifyH("LEFT")
+    if f.hint.SetWordWrap then f.hint:SetWordWrap(false) end
+    shadow(f.hint)
+    f.hint:Hide()
+
+    -- The title bar: a click (press and release without a drag) collapses or expands the panel; a drag moves it.
+    local tb = CreateFrame("Button", "WoWCompanionPanelTitleBar", f)
+    tb:SetFrameLevel(f:GetFrameLevel() + 1)
+    tb:RegisterForClicks("LeftButtonUp")
+    tb:RegisterForDrag("LeftButton")
+    tb:SetScript("OnMouseDown", function() f.titleDragged = false end)
+    tb:SetScript("OnDragStart", function() f.titleDragged = true; drag_start() end)
+    tb:SetScript("OnDragStop", drag_stop)
+    tb:SetScript("OnClick", function(_, button)
+        if f.titleDragged then f.titleDragged = false return end
+        if button == "RightButton" then return end
+        WC.TogglePanelCollapsed()
+    end)
+    tb:SetScript("OnEnter", function(self)
+        WC.TipOpen(GameTooltip, self, "ANCHOR_BOTTOM")
+        for _, line in ipairs(WC.TitleBarTipLines()) do WC.TipLine(GameTooltip, line, 1, 1, 1) end
+        GameTooltip:Show()
+    end)
+    tb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f.titleBar = tb
 
     f.step = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.step:SetTextColor(unpack(WC.COLORS.grey))
@@ -616,9 +729,29 @@ function WC.Refresh()
     WC.HoverCheck()
     if WC.RefreshCard then WC.RefreshCard() end
     f.content:SetHeight(y)
+    local collapsedNow = WC.PanelCollapsed()
     if not f.sizing then -- the client sizes the frame itself while the grip is held
-        f:SetSize(WC.PanelSize(compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT))
+        local oldH = f:GetHeight()
+        if collapsedNow then
+            f:SetSize(panel_width(), COLLAPSED_HEIGHT)
+        else
+            f:SetSize(WC.PanelSize(compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT))
+        end
+        -- the top edge stays where it was when the state flips: move the anchor by the height that went
+        if f.wasCollapsed ~= nil and f.wasCollapsed ~= collapsedNow and oldH > 0 then
+            local point, rel, relPoint, x, py2 = f:GetPoint()
+            if point then
+                local dh = oldH - f:GetHeight()
+                if point:find("TOP", 1, true) then dh = 0 elseif not point:find("BOTTOM", 1, true) then dh = dh / 2 end
+                f:ClearAllPoints()
+                f:SetPoint(point, rel, relPoint, x, py2 + dh)
+                local saved = WC.db.position -- a saved position moves with it, so a reload puts the top edge in the same place
+                if type(saved) == "table" and saved.point == point and type(saved.y) == "number" then saved.y = saved.y + dh end
+            end
+        end
     end
+    f.wasCollapsed = collapsedNow
+    WC.ApplyCollapsed()
     f.scrollRange = math.max(0, y - f.scroll:GetHeight())
     f.scroll:UpdateScrollChildRect()
 end

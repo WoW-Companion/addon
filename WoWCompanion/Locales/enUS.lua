@@ -357,6 +357,11 @@ local L = {
     -- Settings
     SCALE_LABEL = "Panel scale: %.2f",
     LOCK_PANEL = "Lock panel position",
+    START_COLLAPSED = "Panel starts collapsed",
+    TITLE_TIP_COLLAPSE = "Click to collapse",
+    TITLE_TIP_EXPAND = "Click to expand",
+    HINT_HERE_TURNIN = "Here: turn in...",
+    HELP_COLLAPSE = "  /wowc collapse - collapse the panel to its title, or expand it",
     OPEN_ON_LOGIN = "Open on login",
     SHOW_SECTION = "Show %s",
     SECTION_quests = "Next quests",
@@ -584,7 +589,8 @@ local L = {
     WHATS_NEW_0_6_60_1 = "Another zone's map now draws one connected route that starts at a flight-master marker where you arrive.",
     WHATS_NEW_0_6_61_1 = "When you are already in the zone of a later step, the panel leads with it (\"Here first\"), a travel step there becomes its turn-in, and the line is drawn to it.",
     WHATS_NEW_0_6_62_1 = "Stops with no real position (0,0 or -1) are no longer drawn on the map or minimap: they show as text with \"(location unknown)\", approximate stops are drawn faded, and live extra steps read \"Also doing\" instead of \"Step 198095 of 4\".",
-    WHATS_NEW_0_6_63_1 = "The in-game plan now says when it is one save behind and when one more /reload brings the newer plan.",
+    WHATS_NEW_0_6_63_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
+    WHATS_NEW_0_6_64_1 = "The in-game plan now says when it is one save behind and when one more /reload brings the newer plan.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
