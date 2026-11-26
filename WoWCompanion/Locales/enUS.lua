@@ -456,6 +456,8 @@ local L = {
     PLAN_DISTANCE = " · %d yd %s",
     PLAN_ELSEWHERE = " · another zone",
     PLAN_DONE = "Plan complete (%d steps)",
+    ARRIVE_AT = "Arrive: %s",
+    ARRIVE_AT_NPC = "Arrive: %s (%s)",
     PLAN_TIP_STEP = "Step %s",
     PLAN_TIP_STEP_OF = "Step %s of %s",
     PLAN_TIP_TURNIN_TO = "Turn in to %s",
@@ -577,7 +579,8 @@ local L = {
     WHATS_NEW_0_6_57_1 = "Live training: the panel now says \"Train now\" when a spell becomes available to train after you learn its first rank or level up, and leads with it beside the trainer.",
     WHATS_NEW_0_6_58_1 = "Ready turn-ins in the expanded quest list now stand out in your ready colour with a gold \"?\" marker, sort first in each zone, and zone headers show how many are ready. Places never read \"map 310\" any more: they use the real map name, or the parent zone with \"(instance)\".",
     WHATS_NEW_0_6_59_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
-    WHATS_NEW_0_6_60_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
+    WHATS_NEW_0_6_60_1 = "Another zone's map now draws one connected route that starts at a flight-master marker where you arrive.",
+    WHATS_NEW_0_6_61_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

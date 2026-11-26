@@ -26,6 +26,8 @@ local LONG_SEGMENT = 0.12 -- segments longer than this share of the map width ge
 -- A plain round disc the client already ships (the minimap's backdrop); tinted and layered it makes the ring and fill.
 -- A white, soft-edged circle: SetVertexColor multiplies, so every tinted badge part needs a white base.
 -- (The old minimap-background art is near black, which tinted every badge black and hid the ring.)
+local ARRIVE_FLIGHT_ICON = "Interface\\MINIMAP\\TRACKING\\FlightMaster"
+local ARRIVE_WALK_ICON = "Interface\\MINIMAP\\TRACKING\\Target"
 local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 WC.DISC = DISC
 local TICK = 0.2 -- the tracker and minimap update about 5 times a second
@@ -236,7 +238,7 @@ local function pinFor(i, canvas)
     p.selRing:Hide()
     p:SetScript("OnClick", function(self)
         local g = self.planGroup
-        if not g or g.ghost or not WC.SelectStep then return end
+        if not g or g.ghost or g.arrival or not WC.SelectStep then return end
         WC.SelectStep(g.next or g.steps[1])
     end)
     pins[i] = p
@@ -501,6 +503,8 @@ function WC.DrawGhosts(canvas, mapID, first, w, h, scale, where, spot)
             local rc = WC.Setting("ringColor")
             p.ring:SetVertexColor(rc[1], rc[2], rc[3], GHOST_RING)
             p.fill:Hide() -- hollow
+            p.ring:Show()
+            if p.icon then p.icon:Hide() end
             p.num:SetText(tostring(s.n))
             p.num:SetTextColor(0.6, 0.6, 0.6)
             p.glow:Hide()
@@ -710,6 +714,73 @@ end
 -- The temporary pin the last Show on map drew, or nil (for tests).
 function WC.TempPin() return tempShown and tempPin or nil end
 
+-- Another zone's map (the player is somewhere else): the zone's stops are numbered by the plan's own order for the
+-- zone, and an arrival marker (flight master or walking icon) is drawn where the player lands. Returns foreign (true
+-- on another zone), the arrival marker's key in where/spot/rad or nil, and the chain: the key (a step n) of each badge
+-- in order. Without `zones` in the plan (an older one) the chain is empty: badges only, no legs.
+function WC.DrawZoneChain(canvas, mapID, groups, used, w, h, scale, base, where, spot, rad)
+    local pm = WC.PlayerPos()
+    local foreign = pm ~= nil and pm ~= mapID
+    local chain = {}
+    if not foreign then return false, nil, chain end
+    local z = WC.plan.zones and WC.plan.zones[mapID]
+    if not z then return true, nil, chain end
+    local owner = {}
+    for _, g in ipairs(groups) do
+        for _, st in ipairs(g.steps) do owner[st.n] = owner[st.n] or g end
+    end
+    local used_g = {}
+    for _, n in ipairs(z.order) do
+        local g = owner[n]
+        if g and not used_g[g] then
+            used_g[g] = true
+            chain[#chain + 1] = n
+            for _, p in ipairs(pins) do
+                if p.planGroup == g and p:IsShown() then p.num:SetText(tostring(#chain)) end
+            end
+        end
+    end
+    local a = z.arrival
+    if a.map ~= mapID then return true, nil, chain end
+    local p = pinFor(used + 1, canvas)
+    local size = WC.PinSize(WC.db.settings.planSize, false)
+    local ox, oy = WC.PinOffset(a.x, a.y, w, h, scale)
+    local an = p.anchor
+    an:SetScale(scale)
+    an:ClearAllPoints()
+    an:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+    p:SetScale(scale)
+    p:ClearAllPoints()
+    p:SetSize(size, size)
+    if p.SetFrameLevel then p:SetFrameLevel(layer_level(base, PIN_LEVEL)) end
+    p:SetPoint("CENTER", an, "CENTER", 0, 0)
+    local label = a.npc and a.name and string.format(L.ARRIVE_AT_NPC, a.name, a.npc)
+        or string.format(L.ARRIVE_AT, a.name or a.npc or "?")
+    p.planGroup = { steps = {}, arrival = a, arrivalLabel = label }
+    p.isTag = false
+    p.ring:Hide()
+    p.fill:Hide()
+    p.glow:Hide()
+    p.notchBg:Hide()
+    p.mark:SetText("")
+    p.num:SetText("")
+    if p.pulse then p.pulse:Stop() end
+    if p.lock then p.lock:Hide() end
+    if p.SetAlpha then p:SetAlpha(1) end
+    if not p.icon and p.CreateTexture then
+        p.icon = p:CreateTexture(nil, "OVERLAY")
+        p.icon:SetAllPoints()
+    end
+    if p.icon then
+        p.icon:SetTexture(a.kind == "walk" and ARRIVE_WALK_ICON or ARRIVE_FLIGHT_ICON)
+        p.icon:Show()
+    end
+    an:Show()
+    p:Show()
+    where.arrival, spot.arrival, rad.arrival = an, { ox * scale, oy * scale }, size * scale / 2
+    return true, "arrival", chain
+end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     nextLine = nil
@@ -775,6 +846,8 @@ function WC.RefreshMapPins()
         end
         p.isTag = marker ~= nil
         p.fill:Show() -- a ghost badge reuses these frames hollow; a real step is solid again
+        p.ring:Show()
+        if p.icon then p.icon:Hide() end
         if p.SetAlpha then p:SetAlpha(1) end
         if p.lock then p.lock:Hide() end
         local rc = WC.Setting(g.isNext and "nextRingColor" or "ringColor")
@@ -808,6 +881,7 @@ function WC.RefreshMapPins()
         WC.UpdateNearPlayer(pm, px, py)
     end
     local ghosts = WC.DrawGhosts(canvas, mapID, #groups, w, h, scale, where, spot)
+    local foreign, arrival, chainGroups = WC.DrawZoneChain(canvas, mapID, groups, #groups + #ghosts, w, h, scale, base, where, spot, rad)
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
     if not lineLayer then
         lineLayer = CreateFrame("Frame", nil, canvas)
@@ -828,50 +902,61 @@ function WC.RefreshMapPins()
     local outline = { outC[1], outC[2], outC[3], outA }
     -- Lines join consecutive undone steps (plan order) that are both on this map. Each is a dark outline with
     -- the gold line on top, drawn between the true spots so joints meet with no gap at any zoom.
-    local prev, n, na = nil, 0, 0
-    for _, s in ipairs(shown) do
-        if not (WC.plan.done and WC.plan.done[s.n]) then
-            if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then
-                for k = 1, 2 do
-                    n = n + 1
-                    local ln = lines[n] or lineLayer:CreateLine()
-                    lines[n] = ln
-                    if k == 1 then
-                        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
-                        ln:SetThickness(lineW + OUTLINE_PAD)
-                        ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
-                    else
-                        if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
-                        ln:SetThickness(lineW)
-                        ln:SetColorTexture(lineC[1], lineC[2], lineC[3], lineA)
-                    end
-                    ln:SetStartPoint("CENTER", where[prev.n])
-                    ln:SetEndPoint("CENTER", where[s.n])
-                    ln:Show()
+    local n, na = 0, 0
+    local function leg(ka, kb)
+        for k = 1, 2 do
+            n = n + 1
+            local ln = lines[n] or lineLayer:CreateLine()
+            lines[n] = ln
+            if k == 1 then
+                if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 1) end
+                ln:SetThickness(lineW + OUTLINE_PAD)
+                ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
+            else
+                if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", 2) end
+                ln:SetThickness(lineW)
+                ln:SetColorTexture(lineC[1], lineC[2], lineC[3], lineA)
+            end
+            ln:SetStartPoint("CENTER", where[ka])
+            ln:SetEndPoint("CENTER", where[kb])
+            ln:Show()
+        end
+        if wantArrows and arrowLayer.CreateTexture then
+            local a, b = spot[ka], spot[kb]
+            -- spots are offsets from the canvas's top left (y up, so negative below it): the maths' own frame
+            local ang, tx, ty, len = WC.ArrowPlace(a[1], a[2], b[1], b[2], rad[kb], ARROW_GAP + arrowSize / 2)
+            if ang then
+                local headC = { lineC[1], lineC[2], lineC[3], 1 }
+                local function put(cx, cy, size, sub)
+                    placeArrow(arrowLayer, arrows, na + 1, cx, cy, size * scale, ang, outline, sub, (lineW + OUTLINE_PAD + 1) * scale)
+                    placeArrow(arrowLayer, arrows, na + 3, cx, cy, size * scale, ang, headC, sub + 1, (lineW + 1) * scale)
+                    na = na + 4
                 end
-                if wantArrows and arrowLayer.CreateTexture then
-                    local a, b = spot[prev.n], spot[s.n]
-                    -- spots are offsets from the canvas's top left (y up, so negative below it): the maths' own frame
-                    local ang, tx, ty, len = WC.ArrowPlace(a[1], a[2], b[1], b[2], rad[s.n], ARROW_GAP + arrowSize / 2)
-                    if ang then
-                        local headC = { lineC[1], lineC[2], lineC[3], 1 }
-                        local function put(cx, cy, size, sub)
-                            placeArrow(arrowLayer, arrows, na + 1, cx, cy, size * scale, ang, outline, sub, (lineW + OUTLINE_PAD + 1) * scale)
-                            placeArrow(arrowLayer, arrows, na + 3, cx, cy, size * scale, ang, headC, sub + 1, (lineW + 1) * scale)
-                            na = na + 4
-                        end
-                        put(tx, ty, arrowSize, 3)
-                        local chevrons = WC.Setting("planChevrons") and WC.ChevronCount(len, w) or 0
-                        for _, f in ipairs(WC.ChevronSpots(chevrons)) do
-                            put(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, chevronSize, 3)
-                        end
-                    end
+                put(tx, ty, arrowSize, 3)
+                local chevrons = WC.Setting("planChevrons") and WC.ChevronCount(len, w) or 0
+                for _, f in ipairs(WC.ChevronSpots(chevrons)) do
+                    put(a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f, chevronSize, 3)
                 end
             end
-            prev = s
         end
     end
-    n = drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline)
+    if foreign then
+        -- Another zone: one chain from the arrival marker through the zone's own stop order, never from the player.
+        local seq = arrival and { arrival } or {}
+        for _, k in ipairs(chainGroups) do seq[#seq + 1] = k end
+        for k = 2, #seq do
+            if where[seq[k - 1]] ~= where[seq[k]] then leg(seq[k - 1], seq[k]) end
+        end
+    else
+        local prev
+        for _, s in ipairs(shown) do
+            if not (WC.plan.done and WC.plan.done[s.n]) then
+                if prev and prev.map == mapID and s.map == mapID and where[prev.n] ~= where[s.n] then leg(prev.n, s.n) end
+                prev = s
+            end
+        end
+    end
+    if not foreign then n = drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, lineA, outline) end
     WC.DrawGhostLines(ghosts, canvas, lineLayer, n, lineW, outline, spot, where)
 end
 
@@ -997,7 +1082,7 @@ end
 function WC.ApplyPinSelection(p)
     if not p.selRing then return end
     local g, sel, on = p.planGroup, WC.panelState and WC.panelState.selectedStep, false
-    if g and not g.ghost and sel then
+    if g and not g.ghost and not g.arrival and sel then
         for _, s in ipairs(g.steps) do if s.n == sel then on = true end end
     end
     p.selRing:SetShown(on)
