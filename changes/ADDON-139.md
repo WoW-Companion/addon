@@ -1,1 +1,0 @@
-The panel names every quest in a merged stop (for example two turn-ins at one spot) with its own ready state, a turn-in no longer repeats the quest's progress and says what it waits on, and a quest the plan already had no longer claims the overlay will route it after your next save.

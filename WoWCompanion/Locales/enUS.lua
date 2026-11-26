@@ -640,6 +640,13 @@ local L = {
     WHATS_NEW_0_6_66_1 = "The addon now records each equipped and bagged gear item's own stats (armor, strength, agility, stamina, intellect, spirit and the rest), so the advisor can compare items it has no other data for.",
     WHATS_NEW_0_6_67_1 = "The panel now agrees with the map: NOW is the current step, HERE is the numbered run on this map with its exit, TRIPS groups the other zones (with Show on map) and LATER holds parked quests. HERE rebuilds live as you accept, turn in, change zone or finish objectives, each quest shows once, and the collapsed panel shows NOW plus the next two stops.",
     WHATS_NEW_0_6_67_2 = "The yellow line from you to the next stop now has an arrowhead at the stop and direction chevrons along long stretches, and they follow you as you move.",
+    WHATS_NEW_0_6_68_1 = "The panel names every quest in a merged stop (for example two turn-ins at one spot) with its own ready state, a turn-in no longer repeats the quest's progress and says what it waits on, and a quest the plan already had no longer claims the overlay will route it after your next save.",
+    WHATS_NEW_0_6_68_2 = "The panel is verb-first with one home per quest: ready turn-ins say \"ready\" in green, not a",
+    WHATS_NEW_0_6_68_3 = "red level. A FIND section carries the hint for quests you must hunt, errand stops are",
+    WHATS_NEW_0_6_68_4 = "labelled in HERE, the bank note becomes an errand in a city with a bank, and HERE no longer",
+    WHATS_NEW_0_6_68_5 = "repeats NOW.",
+    WHATS_NEW_0_6_68_6 = "The panel no longer leads a row with the map badge's cut-short quest name (\"Source of Po\"), and NOW now picks a live turn-in or quest on your own map before a plan stop in another zone.",
+    WHATS_NEW_0_6_68_7 = "A name shown on a world-map badge that is too long to fit is now cut at a word where it can be and ends in an ellipsis, so it no longer looks like a mistake (\"Source of Po\"), and its tooltip still shows the full quest name.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
