@@ -2113,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.52" and WC.CHANGELOG["0.6.52"] and WC.CHANGELOG["0.6.51"] and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.53" and WC.CHANGELOG["0.6.53"] and WC.CHANGELOG["0.6.52"] and WC.CHANGELOG["0.6.51"] and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -6419,6 +6419,87 @@ cases[#cases + 1] = { "here card: an older Plan.lua shows no card and keeps the 
     assert(WC.NextStepLine(WC.PlanNext(), nil):find("Pick up Quest 10", 1, true))
     WC = here_client("guided")
     assert(WC.plan.here == nil and WC.HereCard(WC.PlayerPos()) == nil)
+end }
+
+-- Live "Here: turn in" lines: read from the quest log, no reload.
+local function weaver(WC)
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "The Weaver", places = { { npc = "Shadow Priest Allister", map = 7001, x = 45.2, y = 42.1 } } } })
+end
+local function live_rows(WC)
+    local mapID, px, py = WC.PlayerPos()
+    return WC.HereRows(mapID, px, py)
+end
+
+cases[#cases + 1] = { "live turn-in: a ready quest with a finisher in the zone leads the panel", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    local rows = live_rows(WC)
+    assert(rows[1].text == "Here: turn in The Weaver: Shadow Priest Allister (45, 42)", rows[1].text)
+    assert(WC.plan.steps[1].n == 1 and WC.PlanCounts, "the plan's own steps are untouched")
+    local pins = WC.LiveTurnInSteps()
+    assert(#pins == 1 and pins[1].questID == 77 and pins[1].x == 45.2, "a map badge step")
+end }
+
+cases[#cases + 1] = { "live turn-in: a quest that is not ready shows no line", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "active"
+    assert(not here_text(WC):find("turn in The Weaver", 1, true))
+end }
+
+cases[#cases + 1] = { "live turn-in: the line is gone once the quest is turned in", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    QUESTS[77] = "ready"
+    assert(here_text(WC):find("turn in The Weaver", 1, true))
+    QUESTS[77] = "turnedin"
+    WC.LiveUpdate("QUEST_TURNED_IN", 77)
+    assert(not here_text(WC):find("The Weaver", 1, true) and #WC.LiveTurnInSteps() == 0)
+end }
+
+cases[#cases + 1] = { "live turn-in: an older Plan.lua falls back to the plan's own turn-ins, else nothing", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    assert(WC.plan.finishers == nil)
+    QUESTS[50] = "ready"; QUESTS[999] = "ready"
+    local rows = live_rows(WC)
+    assert(rows[1].text == "Here: turn in Quest 50: Test Windshaper (50, 50)", rows[1].text)
+    assert(not here_text(WC):find("999", 1, true))
+    QUESTS[50] = nil
+    assert(not here_text(WC):find("Here: turn in", 1, true))
+end }
+
+cases[#cases + 1] = { "live turn-in: a far finisher on another map is skipped without a continent", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "The Weaver", places = { { npc = "X", map = 7002, x = 45, y = 42 } } } })
+    QUESTS[77] = "ready"
+    assert(not here_text(WC):find("The Weaver", 1, true))
+end }
+
+cases[#cases + 1] = { "stale note: an old plan that disagrees with the log says so once", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    weaver(WC)
+    assert(WC.StaleNote(7001) == nil, "log agrees: no note")
+    QUESTS[77] = "ready"
+    local note = WC.StaleNote(7001)
+    assert(note and note:find("Plan from ", 1, true) and note:find("/reload to refresh it", 1, true), tostring(note))
+    local n = 0
+    for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
+    for _, r in ipairs(live_rows(WC)) do if r.text == note then n = n + 1 end end
+    assert(n == 2 and WC.StaleNote(7001) == note, "one line per render, the same single note")
+    WC.plan.generated = os.time()
+    local WC2 = here_client()
+    WC2.plan.generated = os.time()
+    QUESTS[77] = "ready"
+    weaver(WC2)
+    assert(WC2.StaleNote(7001) == nil, "a fresh plan gets no note")
 end }
 
 local failed = 0
