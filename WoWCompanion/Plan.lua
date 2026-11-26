@@ -108,6 +108,22 @@ function WC.ParseHere(list)
     return #out > 0 and out or nil
 end
 
+-- Optional "later" items: quests with a place that are not route steps yet, { questID, kind = "pickup"|"turnin"|"objective",
+-- map, x, y, npc }. An item with no place (x or y below 0, or no map) is dropped. nil when there are none.
+function WC.ParseLater(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, it in ipairs(list) do
+        local id, x, y = type(it) == "table" and tonumber(it.questID), tonumber(it and it.x), tonumber(it and it.y)
+        if id and id > 0 and tonumber(it.map) and x and y and x >= 0 and y >= 0 and x <= 100 and y <= 100 then
+            local k = it.kind
+            out[#out + 1] = { questID = id, kind = (k == "pickup" or k == "turnin" or k == "objective") and k or nil,
+                map = tonumber(it.map), x = x, y = y, npc = type(it.npc) == "string" and it.npc ~= "" and plain(it.npc) or nil }
+        end
+    end
+    return #out > 0 and out or nil
+end
+
 -- The valid steps for player in a Plan.lua table, in order; unknown fields are ignored.
 -- Returns nil, reason when there is nothing to show ("missing", "schema" or "character").
 function WC.ParsePlan(plan, player)
@@ -141,7 +157,7 @@ function WC.ParsePlan(plan, player)
         end
     end
     if #steps == 0 then return nil, "character" end
-    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here)
+    return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -245,7 +261,7 @@ end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -255,7 +271,7 @@ function WC.PlanInit()
         WC.db.plan[charKey()] = saved
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
-        guidance = guidance, here = here, live = {}, liveSig = "" }
+        guidance = guidance, here = here, later = later or {}, live = {}, liveSig = "" }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end

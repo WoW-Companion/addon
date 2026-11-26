@@ -71,23 +71,89 @@ function WC.QuestSteps(questID)
     return out
 end
 
--- Opens the world map on the zone of the quest's next plan step and pulses its badges, out of combat only.
+-- A place is usable when it has a map and non-negative coordinates (x = -1 means the digest has no place).
+local function has_place(map, x, y)
+    map, x, y = tonumber(map), tonumber(x), tonumber(y)
+    return map ~= nil and x ~= nil and y ~= nil and x >= 0 and y >= 0 and x <= 100 and y <= 100
+end
+
+-- What the quest is to the player now: "turnin", "objective" or "pickup" (nil when the entry does not say).
+local function entry_role(entry)
+    local st = entry.quest and WC.PlanQuestState and WC.PlanQuestState(entry.quest) or "none"
+    if st == "ready" then return "turnin" end
+    if st == "active" then return "objective" end
+    if entry.pickup or entry.kind == "giver" then return "pickup" end
+    return nil
+end
+
+-- Where a quest is, in order: its next undone plan step, the first "later" item for it (matching the entry's role
+-- when it has one), then the entry's own map and coordinates from the digest line. nil when none has a place.
+-- Returns { map, x, y, step = plan step or nil, role, name } (name: the NPC or object, when known).
+function WC.QuestPlace(entry)
+    if type(entry) ~= "table" or not entry.quest then
+        if type(entry) == "table" and has_place(entry.map, entry.x, entry.y) then
+            return { map = tonumber(entry.map), x = tonumber(entry.x), y = tonumber(entry.y), role = entry_role(entry), name = entry.npc }
+        end
+        return nil
+    end
+    local steps = WC.QuestSteps(entry.quest)
+    if #steps > 0 then
+        local step = steps[1]
+        for _, s in ipairs(steps) do
+            if not (WC.plan.done and WC.plan.done[s.n]) then step = s break end
+        end
+        return { map = step.map, x = step.x, y = step.y, step = step, role = step.kind, name = entry.npc }
+    end
+    local role = entry_role(entry)
+    local first, match
+    for _, it in ipairs(WC.plan and WC.plan.later or {}) do
+        if it.questID == entry.quest and has_place(it.map, it.x, it.y) then
+            first = first or it
+            if role and it.kind == role and not match then match = it end
+        end
+    end
+    local it = match or first
+    if it then
+        return { map = it.map, x = it.x, y = it.y, role = it.kind or role, name = it.npc or entry.npc }
+    end
+    if has_place(entry.map, entry.x, entry.y) then
+        return { map = tonumber(entry.map), x = tonumber(entry.x), y = tonumber(entry.y), role = role, name = entry.npc }
+    end
+    return nil
+end
+
+-- True when the card can offer "Show on map" for this entry.
+function WC.HasMapPlace(entry)
+    return WC.QuestPlace(entry) ~= nil
+end
+
+-- The temporary pin's label: "Pick up The Book of Ur: Keeper Bel'dugur".
+function WC.PlaceLabel(place, title)
+    title = title or ""
+    local fmt = place.role == "pickup" and L.MAPPIN_PICKUP or (place.role == "turnin" and L.MAPPIN_TURNIN or L.MAPPIN_GO)
+    if place.name and place.name ~= "" then return string.format(fmt, title, place.name) end
+    return (string.format(fmt, title, ""):gsub(":%s*$", ""))
+end
+
+-- Opens the world map on the quest's place and pulses its badges, out of combat only. A place with no plan step has
+-- no badge, so one temporary pin is drawn there (WC.ShowTempPin, our own frame on the map canvas).
 -- Calls: OpenWorldMap(mapID) when the client has it, else WorldMapFrame:SetMapID and ShowUIPanel(WorldMapFrame).
 function WC.ShowOnMap(entry)
-    local steps = WC.QuestSteps(entry.quest)
-    if #steps == 0 then return false end
+    local place = WC.QuestPlace(entry)
+    if not place then return false end
     if InCombatLockdown and InCombatLockdown() then return false end
-    local step = steps[1]
-    for _, s in ipairs(steps) do
-        if not (WC.plan.done and WC.plan.done[s.n]) then step = s break end
-    end
+    if WC.ClearTempPin then WC.ClearTempPin() end
     if type(OpenWorldMap) == "function" then
-        pcall(OpenWorldMap, step.map)
+        pcall(OpenWorldMap, place.map)
     elseif WorldMapFrame then
-        if WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, step.map) end
+        if WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, place.map) end
         if type(ShowUIPanel) == "function" then pcall(ShowUIPanel, WorldMapFrame) elseif WorldMapFrame.Show then WorldMapFrame:Show() end
     end
-    WC.PulseQuests({ [entry.quest] = true }, 5)
+    if place.step then
+        WC.PulseQuests({ [entry.quest] = true }, 5)
+    elseif WC.ShowTempPin then
+        WC.ShowTempPin(place, WC.PlaceLabel(place, entry.title))
+    end
     return true
 end
 
@@ -202,7 +268,7 @@ function WC.CardModel(entry)
         local st = quest_rows(entry, rows)
         m.icon = WC.ICONS[st == "ready" and "turnin" or (st == "active" and "progress" or "pickup")]
         if st == "active" or st == "ready" then m.actions[#m.actions + 1] = { id = "quest", label = L.CARD_OPEN_QUEST } end
-        if #WC.QuestSteps(entry.quest) > 0 then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
+        if WC.HasMapPlace(entry) then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
     elseif kind == "training" then
         m.icon = WC.ICONS.talent
         local left = {}
@@ -246,11 +312,11 @@ function WC.CardModel(entry)
                 m.title = string.format(#entry.upgrades == 1 and L.CHIP_UPGRADES_GET_ONE or L.CHIP_UPGRADES_GET, #entry.upgrades)
                 m.list = {} -- one compact row per slot; a click expands it (see fill_card)
                 for i, u in ipairs(entry.upgrades) do m.list[i] = WC.UpgradeListRow(u) end
-                if entry.quest then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
+                if WC.HasMapPlace(entry) then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
             end
         elseif WC.HasUpgradePath(entry) then
             upgrade_rows(entry)
-            if entry.pathKind == "quest" and entry.quest and #WC.QuestSteps(entry.quest) > 0 then
+            if entry.pathKind == "quest" and entry.quest and WC.HasMapPlace(entry) then
                 m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP }
             end
         else
@@ -268,7 +334,7 @@ function WC.CardModel(entry)
             rows[#rows + 1] = row(entry.zone and string.format(L.PICK_UP_FROM_IN, entry.npc, entry.zone) or string.format(L.PICK_UP_FROM, entry.npc))
         end
         if entry.x and entry.y then rows[#rows + 1] = row(string.format(L.CARD_GIVER_AT, entry.x, entry.y)) end
-        if entry.quest and #WC.QuestSteps(entry.quest) > 0 then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
+        if WC.HasMapPlace(entry) then m.actions[#m.actions + 1] = { id = "map", label = L.CARD_SHOW_MAP } end
     elseif kind == "dungeon" and entry.line then
         if #rows == 0 then rows[#rows + 1] = row(entry.line, WC.COLORS.white) end
     end

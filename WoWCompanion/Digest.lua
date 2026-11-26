@@ -259,6 +259,7 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel)
     head.entry = WC.MakeEntry("quest", id, line, {
         title = title, level = level, quest = quest, pickup = line.kind == "pickup" or nil, npc = line.npc and plain(line.npc) or nil,
         zone = line.zone and plain(line.zone) or nil, class = line.class == true, ask = head.ask,
+        map = tonumber(line.map), x = tonumber(line.x), y = tonumber(line.y), -- the line's own place, when it has one
     })
     head.group = id
     if quest and head.entry.why then WC.whyByQuest[quest] = head.entry.why end
@@ -637,7 +638,8 @@ function WC.RenderDigest(d, now, player, collapsed, show, captured)
                         local giver = line.kind == "giver" and ekind == "note"
                         local entry = WC.MakeEntry(giver and "giver" or ekind, section.id .. ":" .. (id or quest or li), line, {
                             title = plain(line.text), item = id, quest = quest, ask = ask, slot = line.slot and plain(line.slot) or nil,
-                            ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel) })
+                            ilvl = tonumber(line.ilvl), atLevel = tonumber(line.atLevel),
+                            map = tonumber(line.map), x = tonumber(line.x), y = tonumber(line.y) })
                         if section.id == "upgrades" then
                             -- schema 1.7: the plain gain, when it can be worn, what it replaces and how to get it
                             entry.wear, entry.gain = clean(line.wear, 40), clean(line.gain, 40)
