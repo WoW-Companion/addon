@@ -1315,8 +1315,9 @@ cases[#cases + 1] = { "plan: in the plan step's own zone NOW is plan step 1, and
         if t:find("Rather Long Quest Name", 1, true) then found = t end
     end
     assert(found and found:find("^%s*Turn in Source of Power and a Rather Long Quest Name") or found:find("Turn in Source"), tostring(found))
-    -- the map badge keeps the short label
-    assert(WC.PinLabel(S.now.step and { S.now.step }) == ("Source of Power and a Rather Long Quest Name"):sub(1, 12))
+    -- the label is the whole name; only the map badge cuts it
+    local whole = WC.PinLabel(S.now.step and { S.now.step })
+    assert(whole == "Source of Power and a Rather Long Quest Name" and #WC.FitLabel(whole, 12) <= 12)
     C_Map = realMap
 end }
 
@@ -3455,6 +3456,8 @@ local function card_client(digest, state)
     PLAYER_NAME = nil
     local WC = plan_client("full")
     WoWCompanionCard = nil
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetMapInfo = function() return { name = "Testisle", parentMapID = 0 } end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.5 end } end }
     C_QuestLog.GetQuestObjectives = function() return { { text = "0/1 Find X", numFulfilled = 0, numRequired = 1, finished = false } } end
     WC.plan = { done = {}, steps = {
         { n = 1, kind = "pickup", questID = 10, quest = "Quest 10", label = "Pick up Quest 10", approx = false, map = 7001, x = 50, y = 50 },

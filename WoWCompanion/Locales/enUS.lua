@@ -119,6 +119,7 @@ local L = {
     FIND_LINE_NOHINT = "Find: %s",
     FIND_ZONE = "%s \194\183 %s",
     PANEL_HERE_NONE = "HERE \194\183 %s \194\183 nothing else here",
+    ERRAND_ROW = "%s \194\183 %s",
     ERRAND_TAG = "errand: %s",
     ERRAND_train = "Train",
     ERRAND_bank = "Bank",

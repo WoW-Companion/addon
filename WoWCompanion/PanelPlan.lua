@@ -278,8 +278,9 @@ end
 
 local function stop_text(stop)
     local text = labelled(L.PANEL_STOP_LINE, stop.plabel, stop.text)
-    if stop.errand and L["ERRAND_" .. stop.errand] then
-        text = text .. " \194\183 " .. string.format(L.ERRAND_TAG, L["ERRAND_" .. stop.errand])
+    local errandName = stop.errand and L["ERRAND_" .. stop.errand]
+    if errandName then
+        text = string.format(L.ERRAND_ROW, text, string.format(L.ERRAND_TAG, errandName))
     end
     return text
 end
@@ -445,7 +446,7 @@ function WC.BankErrand(rows, S, mapID, px, py)
         local nxt = out[i + 1]
         if not (r.kind == "header" and r.id == "notes" and (not nxt or nxt.kind == "header")) then clean[#clean + 1] = r end
     end
-    return clean, { kind = "line", indent = 1, text = L.BANK_ERRAND .. " \194\183 " .. string.format(L.ERRAND_TAG, L.ERRAND_bank), color = WC.COLORS.gold }
+    return clean, { kind = "line", indent = 1, text = string.format(L.ERRAND_ROW, L.BANK_ERRAND, string.format(L.ERRAND_TAG, L.ERRAND_bank)), color = WC.COLORS.gold }
 end
 
 -- The collapsed panel's lines: NOW and the next two HERE stops, as plain text lines.

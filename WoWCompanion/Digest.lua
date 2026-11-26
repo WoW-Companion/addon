@@ -239,8 +239,8 @@ local LEVEL_TAG = "[%d] "
 local function quest_verb(ready, objs)
     if ready then return L.VERB_TURNIN end
     for _, o in ipairs(objs or {}) do
-        local text = type(o) == "table" and tostring(o.text or ""):lower() or ""
-        if text:find("slain", 1, true) or text:find("killed", 1, true) then return L.VERB_KILL end
+        local low = type(o) == "table" and o.text and tostring(o.text):lower()
+        if low and (low:find("slain", 1, true) or low:find("killed", 1, true)) then return L.VERB_KILL end
     end
     for _, o in ipairs(objs or {}) do
         if type(o) == "table" and tonumber(o.need) and tonumber(o.need) > 0 then return L.VERB_COLLECT end
@@ -346,7 +346,7 @@ function WC.UnplannedRows(collapsed, playerLevel)
     for _, q in ipairs(WC.UnplannedQuests and WC.UnplannedQuests() or {}) do
         local rows = WC.QuestEntryRows({ kind = "progress", title = q.title }, q.id, collapsed, playerLevel, { verbFirst = true })
         if rows then
-            rows[1].right = L.NEW_TAG
+            rows[1].right = L.UNPLANNED_TAG
             rows[1].id = "u" .. q.id
             rows[#rows + 1] = { kind = "status", indent = 2, text = q.new and L.UNPLANNED_HINT or L.UNPLANNED_OLD, color = WC.COLORS.dim, group = rows[1].group }
             for _, r in ipairs(rows) do out[#out + 1] = r end
