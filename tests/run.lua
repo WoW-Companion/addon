@@ -6281,6 +6281,49 @@ cases[#cases + 1] = { "plan guidance: accepting a class quest shows its objectiv
     assert(WC.PlanFollowing())
 end }
 
+cases[#cases + 1] = { "plan guidance: live objectives that differ in count or shape never raise", function()
+    local WC = guided_client()
+    QUESTS[30] = "active"
+    -- guidance lists one objective, the client two (none match by text): the objective stays open
+    OBJ[30] = { { text = "xt:9 slain", finished = false }, { text = "Other thing: 0/1", finished = false } }
+    WC.LiveUpdate("QUEST_ACCEPTED", 1, 30)
+    assert(WC.PlanNext().label == "Slay Test Drake", "unmatched objective counts as open")
+    -- the same count matches by position
+    OBJ[30] = { { text = "anything", finished = true } }
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(WC.PlanNext().kind ~= "objective" or WC.PlanNext().label ~= "Slay Test Drake", "equal counts: positional match finishes it")
+    -- a live objective with no text, and one that is not a table
+    WC = guided_client()
+    QUESTS[30] = "active"
+    OBJ[30] = { { finished = false }, false }
+    WC.LiveUpdate("QUEST_ACCEPTED", 1, 30)
+    assert(WC.PlanNext().label == "Slay Test Drake")
+    assert(#WC.AlsoDoing() >= 0)
+end }
+
+cases[#cases + 1] = { "plan guidance: a live refresh error is logged once and the static plan still shows", function()
+    local WC = guided_client()
+    local errs = {}
+    WC.SeenError = function(kind, msg) errs[#errs + 1] = { kind, msg } end
+    QUESTS[10] = "active"
+    local real = WC.PlanQuestState
+    WC.PlanQuestState = function() error("boom") end
+    for _ = 1, 3 do assert(WC.PlanLiveRefresh() == false) end
+    assert(#WC.AlsoDoing() == 0 and #WC.HereRows(7001, 0.5, 0.5) == 0)
+    WC.HereTick(7001, 0.5, 0.5)
+    assert(#WC.plan.live == 0 and WC.PlanNext().label == "Pick up Quest 10", "static route view")
+    local n = 0
+    for _, e in ipairs(errs) do
+        assert(e[1] == "live" and e[2]:find("boom", 1, true))
+        n = n + 1
+    end
+    assert(n >= 1 and n <= 4, "one entry per entry point, never one per tick")
+    local before = #errs
+    for _ = 1, 5 do WC.PlanLiveRefresh(); WC.AlsoDoing(); WC.HereRows(7001, 0.5, 0.5) end
+    assert(#errs == before, "the same error is not logged again")
+    WC.PlanQuestState = real
+end }
+
 cases[#cases + 1] = { "plan guidance: finished objectives show the turn-in line and pin", function()
     local WC = guided_client()
     QUESTS[30] = "active"
