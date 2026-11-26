@@ -1,0 +1,1 @@
+- The panel's "Also doing" list now shows only nearby quests; the rest are one click away
