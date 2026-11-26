@@ -268,7 +268,7 @@ function WC.ParsePanelFields(entry)
     for _, e in ipairs(type(entry.errands) == "table" and entry.errands or {}) do
         local kind = type(e) == "table" and str(e.kind or e.type)
         kind = kind and kind:lower()
-        if kind and L["ERRAND_" .. kind] then
+        if kind and rawget(L, "ERRAND_" .. kind) then
             local n, id = tonumber(e.n or e.step), tonumber(e.questID)
             if n or (id and id > 0) then errands[#errands + 1] = { n = n, questID = id, kind = kind, map = tonumber(e.map) } end
         end
