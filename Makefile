@@ -1,5 +1,5 @@
 LUA ?= luajit
-.PHONY: verify package clean
+.PHONY: verify package clean release-prep
 
 verify:
 	$(LUA) tests/guard.lua WoWCompanion
@@ -10,6 +10,8 @@ verify:
 	$(LUA) tests/coldstart.lua WoWCompanion
 	$(LUA) tests/layout.lua
 	scripts/package.sh | xargs $(LUA) tests/layout.lua
+	scripts/check-changes.sh
+	sh tests/releaseprep.sh
 	$(LUA) tests/run.lua WoWCompanion
 
 package:
@@ -17,3 +19,7 @@ package:
 
 clean:
 	rm -rf dist
+
+# Folds changes/*.md into one release: bumps the TOC version (BUMP=minor for a minor), writes the What's new.
+release-prep:
+	scripts/release-prep.sh
