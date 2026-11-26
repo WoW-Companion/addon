@@ -694,8 +694,17 @@ function WC.Refresh()
     WC.LayoutPanelHeader()
     if S then rows = WC.DropNextQuests(rows) end
     rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
-    if S then -- NOW, HERE, TRIPS and LATER sit above the other digest rows
+    if S then -- NOW, HERE, FIND, TRIPS and LATER sit above the other digest rows
         local extra = WC.PanelSectionRows(S, mapID, px, py)
+        local bankRow
+        rows, bankRow = WC.BankErrand(rows, S, mapID, px, py)
+        if bankRow then -- the bank note became an errand: it sits in HERE, before FIND and TRIPS
+            local at = #extra + 1
+            for i, r in ipairs(extra) do
+                if i > 2 and r.kind == "header" and (r.id == "panel_find" or r.id == "panel_trips" or r.id == "panel_later") then at = i break end
+            end
+            table.insert(extra, at, bankRow)
+        end
         if mode == "next" then extra = { extra[1], extra[2] } end
         if mode ~= "next" and WC.UnplannedRows then -- accepted quests no section holds yet
             for _, r in ipairs(WC.UnplannedRows(collapsed, UnitLevel and UnitLevel("player") or nil)) do extra[#extra + 1] = r end

@@ -53,10 +53,17 @@ function WC.ObservedAdd(ev, questID, offPlan, where)
     return e
 end
 
+-- True when the plan holds the quest anywhere: a step, a trip, a find entry or a parked one.
 local function in_plan(id)
-    for _, s in ipairs(WC.plan and WC.plan.steps or {}) do
+    local p = WC.plan
+    for _, s in ipairs(p and p.steps or {}) do
         if s.questID == id then return true end
     end
+    for _, t in ipairs(p and p.trips or {}) do
+        for _, q in ipairs(t.questIDs or {}) do if q == id then return true end end
+    end
+    for _, q in ipairs(p and p.find or {}) do if q.questID == id then return true end end
+    for _, q in ipairs(p and p.parked or {}) do if q.questID == id then return true end end
     return false
 end
 
@@ -101,9 +108,11 @@ function WC.UnplannedQuests()
     end
     local o = WC.db and type(WC.db.observed) == "table" and WC.db.observed.events or {}
     local me = UnitName and UnitName("player")
+    local savedAt = WC.plan and tonumber(WC.plan.generated) or 0
     for _, e in ipairs(o) do
         if type(e) == "table" and (e.character == nil or e.character == "" or e.character == me) then
-            if e.ev == "accepted" and e.offPlan then add(e.questID)
+            -- only a quest accepted after the plan's save is new to it; an older one is never "unplanned"
+            if e.ev == "accepted" and e.offPlan and (savedAt <= 0 or (tonumber(e.t) or 0) > savedAt) then add(e.questID)
             elseif e.ev == "turnedin" or e.ev == "abandoned" then ids[e.questID] = nil end
         end
     end
