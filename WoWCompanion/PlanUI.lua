@@ -46,6 +46,7 @@ local ARRIVE_YARDS = 5 -- pick-ups and turn-ins pulse within this distance
 local COINCIDE_RADIUS = 2.5 -- map percent at 1x zoom; shrinks as the map zooms in (markers keep their pixel size)
 -- The tag diameter relative to the full badge is the tagScale setting (0.75).
 local TAG_OFFSET = 18 -- pixels up and right of the marker centre; the tag's edge clears the glyph centre
+local PIN_LABEL_CHARS = 12 -- the longest name a map badge shows, ellipsis included
 local TAG_CHAR_WIDTH = 8 -- pixels per label character, so a merged label widens the tag into a pill
 -- The dark green, slightly see-through fill every badge kind uses (map badge, corner tag, minimap badge).
 -- The shipped default; the badgeFill and badgeOpacity settings override it (see WC.BadgeFillColor).
@@ -137,10 +138,46 @@ function WC.PinLabel(steps)
     if not first then
         local s = steps[1]
         local name = s and ((s.quest ~= "" and s.quest) or s.label) or ""
-        return type(name) == "string" and name:sub(1, 12) or ""
+        return type(name) == "string" and name or "", true -- the full name: the panel shows it whole, the map cuts it (WC.FitLabel)
     end
     if first == last then return tostring(first) end
     return first .. "\194\183" .. last
+end
+
+-- The ellipsis for a cut map label: "…" when the client font draws it (measuring it gives a width), else "...".
+-- `measure` is function(text) -> pixel width, or nil when no font is at hand.
+local ELLIPSIS = "\226\128\166" -- glyph-ok: U+2026, only used after the font measured it
+function WC.LabelEllipsis(measure)
+    local ok, w = pcall(measure or function() return 0 end, ELLIPSIS)
+    return (ok and tonumber(w) or 0) > 0 and ELLIPSIS or "..."
+end
+
+local function utf8_chars(text)
+    local out = {}
+    for ch in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do out[#out + 1] = ch end -- glyph-ok: matches UTF-8 bytes, draws nothing
+    return out
+end
+
+-- A map badge label fitted to `limit` characters. A label that fits is returned as it is; a longer one is cut and ends in
+-- `ellipsis` (default "…"), the ellipsis counted in the limit, so the result never exceeds it. The cut falls on a word
+-- boundary when that keeps at least 60% of the limit, else mid-word. Map badges only: the panel shows names whole.
+function WC.FitLabel(text, limit, ellipsis)
+    text = tostring(text or "")
+    local chars = utf8_chars(text)
+    if #chars <= limit then return text end
+    ellipsis = ellipsis or ELLIPSIS
+    local budget = math.max(0, limit - #utf8_chars(ellipsis))
+    local keep = budget
+    if chars[budget + 1] ~= " " then
+        for i = budget, 1, -1 do
+            if chars[i] == " " then
+                if i - 1 >= limit * 0.6 then keep = i - 1 end
+                break
+            end
+        end
+    end
+    local cut = table.concat(chars, "", 1, keep):gsub("[%s%p]+$", "")
+    return cut .. ellipsis
 end
 
 -- The small "!" or "?" on the ring for a step kind, or nil for a number-only badge.
@@ -867,7 +904,12 @@ function WC.RefreshMapPins()
         a:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
         p:SetScale(scale)
         p:ClearAllPoints()
-        local label = WC.PinLabel(g.steps)
+        local label, isName = WC.PinLabel(g.steps)
+        if isName then -- a name, not a step number: cut it to fit, ending in an ellipsis
+            local fs = p.num
+            local ell = WC.LabelEllipsis(fs.GetStringWidth and function(t) fs:SetText(t) return fs:GetStringWidth() end)
+            label = WC.FitLabel(label, PIN_LABEL_CHARS, ell)
+        end
         if marker then
             local d = WC.TagDiameter(size)
             p:SetSize(WC.TagWidth(d, label), d)

@@ -6801,6 +6801,28 @@ cases[#cases + 1] = { "map labels: stacked steps join with a dot and no label sh
     assert(not WC.PinLabel({ live }):find("%d%d%d%d%d"), WC.PinLabel({ live }))
 end }
 
+cases[#cases + 1] = { "map labels: a cut name ends in an ellipsis that still fits, and the tooltip keeps the full name", function()
+    local WC = guided_client()
+    local E = "\226\128\166"
+    local function width(t) local n = 0 for _ in t:gmatch("[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end return n end
+    local long = WC.FitLabel("Elixir of Pain Resistance", 12, E)
+    assert(long:sub(-#E) == E and width(long) <= 12, long)
+    assert(WC.FitLabel("Source of Power", 12, E) == "Source of" .. E, "word boundary kept (9 of 12 >= 60%)")
+    assert(WC.FitLabel("Extraordinarily", 12, E) == "Extraordina" .. E, "mid-word when the boundary is too early")
+    assert(WC.FitLabel("A Verylongwordhere", 12, E) == "A Verylongw" .. E, "a boundary under 60% is ignored")
+    assert(WC.FitLabel("Short name", 12, E) == "Short name" and WC.FitLabel("Twelve chars", 12, E) == "Twelve chars", "no ellipsis when it fits")
+    local dots = WC.FitLabel("Source of Power", 12, "...")
+    assert(dots == "Source of..." and width(dots) <= 12, dots)
+    assert(WC.LabelEllipsis(function() return 6 end) == E, "glyph measured")
+    assert(WC.LabelEllipsis(function() return 0 end) == "..." and WC.LabelEllipsis(nil) == "..." and WC.LabelEllipsis(function() error("x") end) == "...", "fallback")
+    -- a name-only pin: the pin text is cut, PinLabel (the panel's) and the tooltip title are whole
+    local step = { n = 100529, synthetic = true, quest = "Source of Power", label = "x", questID = 0, kind = "objective" }
+    assert(WC.PinLabel({ step }) == "Source of Power", "the panel keeps the full name")
+    local tip = WC.PlanTipLines({ steps = { step } })
+    assert(tip[1].text:find("Source of Power", 1, true), tip[1].text)
+    assert(not tip[1].text:find(E, 1, true))
+end }
+
 cases[#cases + 1] = { "plan guidance: a quest the plan does not list is ignored", function()
     local WC = guided_client()
     QUESTS[99] = "active"
