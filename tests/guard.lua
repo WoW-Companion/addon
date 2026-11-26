@@ -17,7 +17,7 @@ local capture_allowed = {}
 for name in ([[
     UnitName GetRealmName UnitLevel UnitClass UnitRace UnitFactionGroup GetBuildInfo time InCombatLockdown
     GetMoney UnitXP UnitXPMax GetXPExhaustion GetBindLocation
-    GetInventoryItemID GetInventoryItemLink
+    GetInventoryItemID GetInventoryItemLink GetItemStats C_Item.GetItemStats
     GetContainerNumSlots GetContainerItemID GetContainerItemInfo
     C_Container.GetContainerNumSlots C_Container.GetContainerItemInfo
     GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard
