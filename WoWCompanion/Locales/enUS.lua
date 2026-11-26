@@ -354,6 +354,11 @@ local L = {
     -- Settings
     SCALE_LABEL = "Panel scale: %.2f",
     LOCK_PANEL = "Lock panel position",
+    START_COLLAPSED = "Panel starts collapsed",
+    TITLE_TIP_COLLAPSE = "Click to collapse",
+    TITLE_TIP_EXPAND = "Click to expand",
+    HINT_HERE_TURNIN = "Here: turn in...",
+    HELP_COLLAPSE = "  /wowc collapse - collapse the panel to its title, or expand it",
     OPEN_ON_LOGIN = "Open on login",
     SHOW_SECTION = "Show %s",
     SECTION_quests = "Next quests",

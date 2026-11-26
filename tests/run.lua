@@ -7012,6 +7012,89 @@ cases[#cases + 1] = { "places: no Also doing row or step line ever shows map N",
     for _, r in ipairs(WC.AlsoDoingRows(mapID, px, py)) do assert(not r.text:find("map %d+"), r.text) end
 end }
 
+cases[#cases + 1] = { "title bar: a click toggles collapsed, a drag moves and does not", function()
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    local tb = WoWCompanionPanelTitleBar
+    assert(tb and tb.drag and not WC.PanelCollapsed() and p.h == 320)
+    tb.scripts.OnMouseDown(tb, "LeftButton")
+    tb.scripts.OnClick(tb, "LeftButton")
+    assert(WC.PanelCollapsed() and p.h == 26)
+    tb.scripts.OnMouseDown(tb, "LeftButton")
+    tb.scripts.OnDragStart(tb)
+    assert(p.moving == true)
+    tb.scripts.OnDragStop(tb)
+    tb.scripts.OnClick(tb, "LeftButton") -- the release after a drag
+    assert(WC.PanelCollapsed(), "a drag does not toggle")
+    tb.scripts.OnMouseDown(tb, "LeftButton")
+    tb.scripts.OnClick(tb, "LeftButton")
+    assert(not WC.PanelCollapsed() and p.h == 320)
+    assert(WC.TitleBarTipLines()[1] == "Click to collapse")
+    SlashCmdList.WOWC("collapse")
+    assert(WC.PanelCollapsed() and WC.TitleBarTipLines()[1] == "Click to expand")
+end }
+
+cases[#cases + 1] = { "title bar: collapsed hides the body, keeps the title and header buttons, top edge stays", function()
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    p:Show()
+    p:ClearAllPoints()
+    p:SetPoint("CENTER", UIParent, "CENTER", 10, 20)
+    WC.Refresh()
+    WC.SetPanelCollapsed(true)
+    assert(p.scroll.shown == false and p.step.shown == false and p.header.shown == false)
+    for _, r in ipairs(p.rows) do assert(not r.shown) end
+    assert(p.title.shown and p.close.shown and p.gear.shown and p.compactButton.shown and p.titleBar.shown)
+    assert(p.grip.shown == false and p.h == 26)
+    local point, _, _, x, y = p:GetPoint()
+    assert(point == "CENTER" and x == 10 and y == 20 + (320 - 26) / 2, "the top edge keeps its place: " .. tostring(y))
+    WC.SetPanelCollapsed(false)
+    assert(p.scroll.shown and p.step.shown and p.hint.shown == false and p.h == 320)
+    local _, _, _, _, y2 = p:GetPoint()
+    assert(y2 == 20)
+end }
+
+cases[#cases + 1] = { "title bar: the collapsed hint is the step label, or Here: turn in", function()
+    local WC = here_client()
+    WC.SetPanelCollapsed(true)
+    local p = WC.panel
+    local step = WC.PlanNext()
+    assert(step and p.hint.shown and p.hint.text == step.label, tostring(p.hint.text))
+    assert(WC.CollapsedHint() == step.label)
+    local real = WC.HereRows
+    WC.HereRows = function() return { { kind = "line", text = "Here: turn in Foo: Bar (1, 2)" } } end
+    assert(WC.CollapsedHint() == "Here: turn in...")
+    WC.HereRows = real
+end }
+
+cases[#cases + 1] = { "title bar: collapsed state persists per character across a reload; the setting is the default", function()
+    local p = digest_client("v13")
+    local WC = WoWCompanion
+    WC.SetPanelCollapsed(true)
+    assert(WoWCompanionDB.panelCollapsed["Testrealm:" .. UnitName("player")] == true)
+    local saved = WoWCompanionDB
+    fresh_client(saved)
+    load_digest("tests/fixtures/digest_v13.lua")
+    assert(WoWCompanion.PanelCollapsed() and WoWCompanion.panel.h == 26 and WoWCompanion.panel.scroll.shown == false)
+    -- another character is not collapsed
+    local real = UnitName
+    UnitName = function() return "Other" end
+    assert(not WoWCompanion.PanelCollapsed())
+    UnitName = real
+    -- the setting decides until the character chooses
+    fresh_client(nil)
+    load_digest("tests/fixtures/digest_v13.lua")
+    assert(WoWCompanion.Setting("startCollapsed") == false and not WoWCompanion.PanelCollapsed())
+    WoWCompanion.SetSetting("startCollapsed", true)
+    assert(WoWCompanion.PanelCollapsed(), "pc"); assert(WoWCompanion.panel.h == 26, "h " .. tostring(WoWCompanion.panel.h))
+    fresh_client({ settings = { startCollapsed = true } })
+    load_digest("tests/fixtures/digest_v13.lua")
+    assert(WoWCompanion.PanelCollapsed() and WoWCompanion.panel.h == 26)
+    WoWCompanion.TogglePanelCollapsed()
+    assert(not WoWCompanion.PanelCollapsed() and WoWCompanion.panel.h == 320)
+    assert(WoWCompanionOptionStartCollapsed, "the setting has its checkbox")
+end }
+
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])
