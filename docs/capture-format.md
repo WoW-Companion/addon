@@ -15,7 +15,7 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   client = { version = "<x.y.z>", build = "<n>" },
   money = <copper>, xp, xpMax, rested,
   location = { map = <uiMapID>, x = <pct 0-100>, y = <pct> }, hearth = "<bind location name>",
-  equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id>, quality? = <0-8>, ilvl? = <n>, reqLevel? = <n>, equipLoc? = "INVTYPE_…" } },
+  equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id>, quality? = <0-8>, ilvl? = <n>, reqLevel? = <n>, equipLoc? = "INVTYPE_…", stats? = { agi|str|sta|int|spi|armor = <n>, <other ITEM_MOD_* key> = <n> } } },
   bags = { [bag 0-4] = { size = <n>, items = { [slot] = { id = <itemID>, count = <n>, enchant? , suffix? , quality? , ilvl? , reqLevel? , equipLoc? } } } },   -- item info fields are left out until the client has cached the item
   bank = { [-1, 5-10] = same shape as bags }, bankSeenAt = <unix s>,   -- only written while the bank is open
   quests = { captured = true, entries = { { id, title, level, complete?, failed?,
@@ -25,7 +25,7 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   talents = { { tree = "<name>", points = <spent>, nodes = { { node, entry, spell, name, rank, max, posX, posY } } } },
   talentPoints = <unspent talent points>,                    -- absent when no API gave a number
   apiProbe = { seenAt, talents = { legacy, traits, specialization, legacyNodes, traitsNodes, named, withSpell, used }, points = { ... },
-    spells = { modern, classic, links, used, isSpellKnown }, poi = { onMap, waypoint, legacy } },  -- per path: item count, -1 = API missing; no values
+    itemStats = <gear items with stats, -1 = no GetItemStats>, spells = { modern, classic, links, used, isSpellKnown }, poi = { onMap, waypoint, legacy } },  -- per path: item count, -1 = API missing; no values
   skills = { { name, rank, max, group = "<header>", profession? = true } },
   stats = { seenAt, level,                                     -- what the client reports; a missing API leaves its key out
     stats = { str|agi|sta|int|spi = { base, total, pos, neg } },  -- UnitStat: "Intellect 90 (50+40)" is base 50, pos 40, total 90

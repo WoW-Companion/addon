@@ -42,6 +42,56 @@ local function link_fields(link, kind)
     return out
 end
 
+-- Which API paths were tried and what each gave, for the "apiProbe" block: a count per path, -1 when the client
+-- lacks the API, never a value. Rebuilt by each talents/spells read, so one /reload shows which path works.
+local function probe_of(r)
+    r.apiProbe = r.apiProbe or {}
+    r.apiProbe.seenAt = time()
+    return r.apiProbe
+end
+
+local STAT_KEYS = {
+    ITEM_MOD_AGILITY_SHORT = "agi", ITEM_MOD_STRENGTH_SHORT = "str", ITEM_MOD_STAMINA_SHORT = "sta",
+    ITEM_MOD_INTELLECT_SHORT = "int", ITEM_MOD_SPIRIT_SHORT = "spi", RESISTANCE0_NAME = "armor",
+}
+local statsCache = {}   -- item link -> compact stats map (or false when it has none), for this session
+local statsProbe        -- items with stats read since the last reader reset; -1 when the client has no GetItemStats
+
+-- The item's own stats from the read-only GetItemStats (enchants are not in it; the enchant id is kept apart).
+local function item_stats(link)
+    local getter = (C_Item and C_Item.GetItemStats) or GetItemStats
+    if type(getter) ~= "function" then
+        statsProbe = -1
+        return nil
+    end
+    if type(link) ~= "string" or link == "" then return nil end
+    local cached = statsCache[link]
+    if cached == nil then
+        local ok, raw = pcall(getter, link)
+        cached = false
+        if ok and type(raw) == "table" then
+            local out, any = {}, false
+            for k, v in pairs(raw) do
+                v = WC.Clean(v)
+                if type(k) == "string" and type(v) == "number" then
+                    out[STAT_KEYS[k] or k] = v
+                    any = true
+                end
+            end
+            if any then cached = out end
+        end
+        statsCache[link] = cached
+    end
+    if cached then
+        if statsProbe ~= -1 then statsProbe = (statsProbe or 0) + 1 end
+        local copy = {}
+        for k, v in pairs(cached) do copy[k] = v end
+        return copy
+    end
+    statsProbe = statsProbe or 0
+    return nil
+end
+
 local pendingInfo = false -- an item the client had not cached yet; filled when GET_ITEM_INFO_RECEIVED fires
 
 -- What the client says about an item, added to entry e: quality, ilvl, reqLevel, equipLoc from the item info,
@@ -63,7 +113,10 @@ local function describe(e, link)
     e.quality = WC.Clean(quality)
     e.ilvl = WC.Clean(ilvl)
     e.reqLevel = WC.Clean(reqLevel)
-    if type(equipLoc) == "string" and equipLoc ~= "" then e.equipLoc = WC.Clean(equipLoc) end
+    if type(equipLoc) == "string" and equipLoc ~= "" then
+        e.equipLoc = WC.Clean(equipLoc)
+        e.stats = item_stats(link)
+    end
 end
 
 local function item_id(link)
@@ -125,6 +178,7 @@ end
 
 function readers.equipment(r)
     local eq = {}
+    statsProbe = nil
     for slot = 1, SLOTS do
         local id = GetInventoryItemID and GetInventoryItemID("player", slot)
         if id then
@@ -134,6 +188,7 @@ function readers.equipment(r)
         end
     end
     r.equipment = eq
+    if statsProbe then probe_of(r).itemStats = statsProbe end
 end
 
 -- One container: { size, items = { [slot] = { id, count } } }.
@@ -171,21 +226,15 @@ local function read_bags(list)
 end
 
 function readers.bags(r)
+    statsProbe = nil
     r.bags = read_bags(BAGS)
+    if statsProbe then probe_of(r).itemStats = statsProbe end
 end
 
 function readers.bank(r)
     if not bankOpen then return end -- the last snapshot stays
     r.bank = read_bags(BANK_BAGS)
     r.bankSeenAt = time()
-end
-
--- Which API paths were tried and what each gave, for the "apiProbe" block: a count per path, -1 when the client
--- lacks the API, never a value. Rebuilt by each talents/spells read, so one /reload shows which path works.
-local function probe_of(r)
-    r.apiProbe = r.apiProbe or {}
-    r.apiProbe.seenAt = time()
-    return r.apiProbe
 end
 
 -- Calls fn with pcall; its first result, or nil when it is missing or failed.

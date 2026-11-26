@@ -27,7 +27,7 @@ for name in ([[
     GetParryChance GetBlockChance GetManaRegen GetSpellBonusDamage GetSpellBonusHealing GetSpellCritChanceFromIntellect
     GetCritChanceFromAgility GetUnitManaRegenRateFromSpirit GetUnitHealthRegenRateFromSpirit
     GetMoney GetXPExhaustion GetUnspentTalentPoints
-    GetItemInfo GetItemInfoInstant GetItemIcon GetItemQualityColor GetInventoryItemID GetInventoryItemLink
+    GetItemInfo GetItemStats GetItemInfoInstant GetItemIcon GetItemQualityColor GetInventoryItemID GetInventoryItemLink
     GetContainerNumSlots GetContainerItemInfo GetContainerItemID
     GetNumQuestLogEntries GetQuestLogTitle GetNumQuestLeaderBoards GetQuestLogLeaderBoard GetQuestLogRewardXP GetQuestLink
     GetQuestsCompleted QuestPOIGetIconInfo GetQuestGreenRange GetQuestDifficultyColor

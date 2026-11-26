@@ -5375,6 +5375,43 @@ cases[#cases + 1] = { "capture: item links parse by field position, empty fields
     capture_clear()
 end }
 
+cases[#cases + 1] = { "capture: gear carries its own stats from GetItemStats; non-gear and a missing API carry none", function()
+    local WC, run = capture_client()
+    local boots = "|cff|Hitem:251963:0:0:0:0:0:0:0|h[Gravewalker Boots]|h|r"
+    local dark = "|cff|Hitem:252425:8484:0:0:0:0:0:0|h[Dark Leather Boots]|h|r"
+    GetInventoryItemID = function(_, slot) return slot == 8 and 251963 or nil end
+    GetInventoryItemLink = function(_, slot) return slot == 8 and boots or nil end
+    ITEM_INFO[251963] = { "Gravewalker Boots", "l", 2, 36, 30, "Armor", "Leather", 1, "INVTYPE_FEET" }
+    ITEM_INFO[252425] = { "Dark Leather Boots", "l", 3, 15, 10, "Armor", "Leather", 1, "INVTYPE_FEET" }
+    ITEM_INFO[2002] = { "Linen", "l", 1, 1, 1, "Tradeskill", "Cloth", 1, "" }
+    BAGS[0][2] = { 252425, 1, dark }
+    BAGS[0][3] = { 2002, 20, "|cff|Hitem:2002|h[Linen]|h|r" }
+    local calls = 0
+    C_Item.GetItemStats = function(link)
+        calls = calls + 1
+        if link == boots then return { RESISTANCE0_NAME = 71, ITEM_MOD_AGILITY_SHORT = 5, ITEM_MOD_STAMINA_SHORT = 7, ITEM_MOD_SPIRIT_SHORT = 5, ITEM_MOD_CRIT_RATING_SHORT = 2 } end
+        if link == dark then return { RESISTANCE0_NAME = 53, ITEM_MOD_AGILITY_SHORT = 4, ITEM_MOD_STAMINA_SHORT = 4 } end
+        return {}
+    end
+    WC.CaptureMark("equipment"); WC.CaptureMark("bags"); run()
+    local c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    local a, b = c.equipment[8].stats, c.bags[0].items[2].stats
+    assert(a.armor == 71 and a.agi == 5 and a.sta == 7 and a.spi == 5 and a.ITEM_MOD_CRIT_RATING_SHORT == 2)
+    assert(b.armor == 53 and b.agi == 4 and b.sta == 4 and b.str == nil)
+    assert(c.bags[0].items[2].enchant == 8484)
+    assert(c.bags[0].items[3].stats == nil and c.bags[0].items[1].stats == nil)
+    assert(c.apiProbe.itemStats >= 1)
+    local n = calls
+    WC.CaptureMark("equipment"); run()
+    assert(calls == n, "cached per link")
+    C_Item.GetItemStats = nil
+    WoWCompanionDB.characters["Testrealm:Thrall"] = nil
+    WC.CaptureMark("bags"); run()
+    c = WoWCompanionDB.characters["Testrealm:Thrall"]
+    assert(c.bags[0].items[2].stats == nil and c.apiProbe.itemStats == -1)
+    capture_clear()
+end }
+
 cases[#cases + 1] = { "capture: uncached item info is left out, then filled on GET_ITEM_INFO_RECEIVED", function()
     local WC, run = capture_client()
     local late = ITEM_INFO[2001]
