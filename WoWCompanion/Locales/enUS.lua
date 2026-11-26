@@ -577,6 +577,7 @@ local L = {
     WHATS_NEW_0_6_58_1 = "Ready turn-ins in the expanded quest list now stand out in your ready colour with a gold \"?\" marker, sort first in each zone, and zone headers show how many are ready. Places never read \"map 310\" any more: they use the real map name, or the parent zone with \"(instance)\".",
     WHATS_NEW_0_6_59_1 = "Quests that end somewhere else, like Deathstalkers in Shadowfang, now say \"Find Deathstalker Vincent inside Shadowfang Keep\" instead of \"Ready to turn in\".",
     WHATS_NEW_0_6_60_1 = "Another zone's map now draws one connected route that starts at a flight-master marker where you arrive.",
+    WHATS_NEW_0_6_61_1 = "When you are already in the zone of a later step, the panel leads with it (\"Here first\"), a travel step there becomes its turn-in, and the line is drawn to it.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
