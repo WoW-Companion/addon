@@ -945,7 +945,7 @@ end
 -- ---------------------------------------------------------------- live turn-ins (read from the log, no reload)
 
 WC.TURNIN_YARDS = 300 -- a ready quest's finisher this close on the same continent still counts as "here"
-WC.STALE_SECONDS = 1800 -- a plan older than this may be out of step with the log
+WC.PLAN_STALE_SECONDS = 1800 -- a plan older than this may be out of step with the log
 
 -- True when the quest is in the log and ready to hand in: ReadyForTurnIn, then IsComplete, then the legacy flag.
 local function log_ready(id)
@@ -1077,7 +1077,7 @@ function WC.StaleNote(mapID)
     local p = WC.plan
     if not p then return nil end
     if WC.staleNoted then return WC.staleNoted end
-    if not (p.generated and p.generated > 0 and time() - p.generated > WC.STALE_SECONDS) then return nil end
+    if not (p.generated and p.generated > 0 and time() - p.generated > WC.PLAN_STALE_SECONDS) then return nil end
     local differs = false
     for _, id in ipairs(ready_ids(p)) do
         local listed = false
