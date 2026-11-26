@@ -234,7 +234,9 @@ function WC.BuildChips(found, d)
         local asks = {}
         for _, e in ipairs(found.upgrade) do
             for _, a in ipairs(e.asks or {}) do if #asks < 3 then asks[#asks + 1] = a end end
-            if not entry.quest and e.pathKind == "quest" and e.quest and #WC.QuestSteps(e.quest) > 0 then entry.quest = e.quest end
+            if not entry.quest and e.pathKind == "quest" and e.quest and WC.HasMapPlace(e) then
+                entry.quest, entry.map, entry.x, entry.y = e.quest, e.map, e.x, e.y
+            end
         end
         entry.asks = asks -- per item, from the digest; never a question built from this summary
         list.upgrade = { count = n, entry = entry, items = items }

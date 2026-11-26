@@ -622,6 +622,94 @@ local function drawNextLine(canvas, mapID, w, h, scale, where, spot, n, lineW, l
     return n
 end
 
+-- The temporary pin for "Show on map" on a place with no plan badge: one pulsing ring and a label on the world map's
+-- canvas, our own frames only. It clears when the map closes, after TEMP_SECONDS, or on the next Show on map.
+local TEMP_SECONDS = 20
+local tempPin, tempShown = nil, nil -- the frame, and { map, x, y, label, token } while one is wanted
+
+local function temp_frame(canvas)
+    if tempPin then return tempPin end
+    local p = CreateFrame("Frame", nil, canvas)
+    p.anchor = CreateFrame("Frame", nil, canvas)
+    p.anchor:SetSize(1, 1)
+    WC.BadgeParts(p, 3, 12, "GameFontNormal", 4)
+    p.fill:Show()
+    p.label = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    p.label:SetPoint("TOP", p, "BOTTOM", 0, -2)
+    if p.CreateAnimationGroup then
+        local ag = p.glow:CreateAnimationGroup()
+        ag:SetLooping("BOUNCE")
+        local a = ag:CreateAnimation("Alpha")
+        a:SetFromAlpha(0.25)
+        a:SetToAlpha(0.8)
+        a:SetDuration(PULSE_SECONDS.map)
+        p.pulse, p.pulseAnim = ag, a
+    end
+    tempPin = p
+    return p
+end
+
+local function hide_temp()
+    if not tempPin then return end
+    if tempPin.pulse then tempPin.pulse:Stop() end
+    tempPin.anchor:Hide()
+    tempPin:Hide()
+end
+
+-- Draws (or hides) the temporary pin for the map the world map is showing.
+function WC.DrawTempPin()
+    local t = tempShown
+    if not t or not (WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame.GetMapID) then hide_temp() return end
+    if WorldMapFrame.GetMapID(WorldMapFrame) ~= t.map then hide_temp() return end
+    local canvas = WorldMapFrame:GetCanvas()
+    local w, h = canvas:GetWidth(), canvas:GetHeight()
+    if not w or not h or w <= 0 then hide_temp() return end
+    local scale = 1 / ((WorldMapFrame.GetCanvasScale and WorldMapFrame:GetCanvasScale()) or 1)
+    local p = temp_frame(canvas)
+    local size = WC.PinSize(WC.db.settings.planSize, true)
+    local ox, oy = WC.PinOffset(t.x, t.y, w, h, scale)
+    p.anchor:SetScale(scale)
+    p.anchor:ClearAllPoints()
+    p.anchor:SetPoint("CENTER", canvas, "TOPLEFT", ox, oy)
+    p.anchor:Show()
+    p:SetScale(scale)
+    p:SetSize(size, size)
+    p:ClearAllPoints()
+    p:SetPoint("CENTER", p.anchor, "CENTER", 0, 0)
+    if p.SetFrameLevel and canvas.GetFrameLevel then p:SetFrameLevel(canvas:GetFrameLevel() + PIN_LEVEL + NEXT_LEVEL) end
+    local rc = WC.Setting("nextRingColor")
+    p.ring:SetVertexColor(rc[1], rc[2], rc[3], 1)
+    local gc = WC.Setting("glowColor")
+    p.glow:SetSize(size * 1.7, size * 1.7)
+    p.glow:SetVertexColor(gc[1], gc[2], gc[3], WC.Setting("glowOpacity"))
+    p.glow:Show()
+    p.num:SetText("")
+    p.mark:SetText("")
+    p.notchBg:Hide()
+    p.label:SetText(WC.SafeText and WC.SafeText(t.label) or t.label)
+    if p.pulseAnim then p.pulseAnim:SetDuration(PULSE_SECONDS.map / WC.Setting("pulseSpeed")) end
+    if p.pulse then p.pulse:Play() end
+    p:Show()
+end
+
+function WC.ClearTempPin()
+    tempShown = nil
+    hide_temp()
+end
+
+-- Shows the temporary pin at place ({ map, x, y }) with its label, for TEMP_SECONDS.
+function WC.ShowTempPin(place, label)
+    local mine = { map = place.map, x = place.x, y = place.y, label = label }
+    tempShown = mine
+    WC.DrawTempPin()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(TEMP_SECONDS, function() if tempShown == mine then WC.ClearTempPin() end end)
+    end
+end
+
+-- The temporary pin the last Show on map drew, or nil (for tests).
+function WC.TempPin() return tempShown and tempPin or nil end
+
 -- Redraws the pins and lines for the map the world map is showing.
 function WC.RefreshMapPins()
     nextLine = nil
@@ -631,6 +719,7 @@ function WC.RefreshMapPins()
     hideAll(pins)
     hideAll(lines)
     hideAll(arrows)
+    WC.DrawTempPin()
     if not mapShown() or not (WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame.GetMapID) then return end
     local canvas = WorldMapFrame:GetCanvas()
     local w, h = canvas:GetWidth(), canvas:GetHeight()
@@ -1087,7 +1176,10 @@ function WC.CreatePlanUI()
         end
         if hooksecurefunc and WorldMapFrame.RefreshAllData then hooksecurefunc(WorldMapFrame, "RefreshAllData", again) end
         if hooksecurefunc and WorldMapFrame.OnCanvasScaleChanged then hooksecurefunc(WorldMapFrame, "OnCanvasScaleChanged", WC.RefreshMapPins) end
-        if WorldMapFrame.HookScript then WorldMapFrame:HookScript("OnShow", WC.RefreshMapPins) end
+        if WorldMapFrame.HookScript then
+            WorldMapFrame:HookScript("OnShow", WC.RefreshMapPins)
+            WorldMapFrame:HookScript("OnHide", WC.ClearTempPin)
+        end
         local canvas = WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
         if canvas and canvas.HookScript then canvas:HookScript("OnSizeChanged", WC.RefreshMapPins) end
     end

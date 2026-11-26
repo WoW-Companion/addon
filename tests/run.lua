@@ -1005,7 +1005,7 @@ cases[#cases + 1] = { "plan: corner tags are 0.75 of a badge with the full font;
     local _, n = f:gsub("WC%.ApplyBadgeFill%(", "")
     assert(n >= 4, "fill is read from the settings, by BadgeParts, which all three badge kinds use")
     local _, parts = f:gsub("WC%.BadgeParts%(", "")
-    assert(parts == 3, "definition + map pin + minimap pin")
+    assert(parts == 4, "definition + map pin + minimap pin + temporary pin")
     -- Every tinted part sits on a white base (tinting multiplies), never the near-black minimap art.
     assert(WC.DISC and not WC.DISC:find("UI%-Minimap%-Background"), "badge base is not the dark minimap disc")
     local p = CreateFrame("Frame", nil, UIParent)
@@ -2113,7 +2113,7 @@ cases[#cases + 1] = { "options: every label the rows and pages use is in enUS", 
     end
     for _, id in ipairs(WC.PAGES) do has("PAGE_" .. id); has("TAB_" .. id) end
     for _, k in ipairs({ "DEFAULTS", "RESET_ALL", "OPEN_OPTIONS", "WHATS_NEW_0_4_1_1", "WHATS_NEW_0_4_1_2", "HELP_SETTINGS" }) do has(k) end
-    assert(TOC_VERSION == "0.6.52" and WC.CHANGELOG["0.6.52"] and WC.CHANGELOG["0.6.51"] and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
+    assert(TOC_VERSION == "0.6.53" and WC.CHANGELOG["0.6.53"] and WC.CHANGELOG["0.6.52"] and WC.CHANGELOG["0.6.51"] and WC.CHANGELOG["0.6.50"] and WC.CHANGELOG["0.6.49"] and WC.CHANGELOG["0.6.48"] and WC.CHANGELOG["0.6.47"] and WC.CHANGELOG["0.6.46"] and WC.CHANGELOG["0.6.45"] and WC.CHANGELOG["0.6.44"] and WC.CHANGELOG["0.6.43"] and WC.CHANGELOG["0.6.42"] and WC.CHANGELOG["0.6.41"] and WC.CHANGELOG["0.6.40"] and WC.CHANGELOG["0.6.39"] and WC.CHANGELOG["0.6.38"] and WC.CHANGELOG["0.6.37"] and WC.CHANGELOG["0.6.36"] and WC.CHANGELOG["0.6.35"] and WC.CHANGELOG["0.6.34"] and WC.CHANGELOG["0.6.33"] and WC.CHANGELOG["0.6.32"] and WC.CHANGELOG["0.6.31"] and WC.CHANGELOG["0.6.30"] and WC.CHANGELOG["0.6.29"] and WC.CHANGELOG["0.6.28"] and WC.CHANGELOG["0.6.27"] and WC.CHANGELOG["0.6.26"] and WC.CHANGELOG["0.6.25"] and WC.CHANGELOG["0.6.24"] and WC.CHANGELOG["0.6.23"] and WC.CHANGELOG["0.6.22"] and WC.CHANGELOG["0.6.21"] and WC.CHANGELOG["0.6.20"] and WC.CHANGELOG["0.6.19"] and WC.CHANGELOG["0.6.18"] and WC.CHANGELOG["0.6.17"] and WC.CHANGELOG["0.6.16"] and WC.CHANGELOG["0.6.15"] and WC.CHANGELOG["0.6.14"] and WC.CHANGELOG["0.6.13"] and WC.CHANGELOG["0.6.12"] and WC.CHANGELOG["0.6.11"] and WC.CHANGELOG["0.6.10"] and WC.CHANGELOG["0.6.9"] and WC.CHANGELOG["0.6.8"] and WC.CHANGELOG["0.6.7"] and WC.CHANGELOG["0.6.6"] and WC.CHANGELOG["0.6.5"] and WC.CHANGELOG["0.6.4"] and WC.CHANGELOG["0.6.3"] and WC.CHANGELOG["0.6.2"] and WC.CHANGELOG["0.6.1"] and WC.CHANGELOG["0.6.0"] and WC.CHANGELOG["0.5.1"] and WC.CHANGELOG["0.5.0"] and WC.CHANGELOG["0.4.9"] and WC.CHANGELOG["0.4.8"] and WC.CHANGELOG["0.4.7"] and WC.CHANGELOG["0.4.6"] and WC.CHANGELOG["0.4.5"])
     has("WHATS_NEW_0_4_8_1"); has("WHATS_NEW_0_6_7_1"); has("WHATS_NEW_0_6_8_1"); has("WHATS_NEW_0_6_9_1"); has("WHATS_NEW_0_6_10_1"); has("WHATS_NEW_0_6_11_1"); has("WHATS_NEW_0_6_12_1"); has("WHATS_NEW_0_6_13_1"); has("WHATS_NEW_0_6_14_1"); has("WHATS_NEW_0_6_15_1"); has("WHATS_NEW_0_6_16_1"); has("WHATS_NEW_0_6_17_1"); has("WHATS_NEW_0_6_18_1"); has("WHATS_NEW_0_6_19_1"); has("WHATS_NEW_0_6_20_1"); has("WHATS_NEW_0_6_21_1"); has("WHATS_NEW_0_6_22_1"); has("WHATS_NEW_0_6_23_1")
     has("WHATS_NEW_0_4_7_1")
     has("WHATS_NEW_0_4_6_1"); has("WHATS_NEW_0_4_9_1"); has("WHATS_NEW_0_4_9_2"); has("WHATS_NEW_0_5_0_1"); has("WHATS_NEW_0_5_1_1"); has("WHATS_NEW_0_6_0_1"); has("WHATS_NEW_0_6_0_2"); has("WHATS_NEW_0_6_1_1")
@@ -3379,6 +3379,64 @@ cases[#cases + 1] = { "card: Show on map opens the map to the step's zone and pu
     WoWCompanionCard = nil
 end }
 
+
+cases[#cases + 1] = { "card: Show on map for a later pick-up draws a temporary pin; steps pulse; no place, no button; digest place works", function()
+    local p, WC = card_client(nil, {})
+    WC.plan.later = {
+        { questID = 40, kind = "pickup", map = 7001, x = 30, y = 40, npc = "Keeper Bel'dugur" },
+        { questID = 41, kind = "pickup", map = 7001, x = 20, y = 20 },
+    }
+    local function btn_for(entry)
+        for _, a in ipairs(WC.CardModel(entry).actions) do if a.id == "map" then return a end end
+    end
+    local later = { kind = "quest", key = "q40", quest = 40, title = "The Book of Ur", pickup = true }
+    local step = { kind = "quest", key = "q11", quest = 11, title = "Blood Tithe", pickup = true }
+    local none = { kind = "quest", key = "q50", quest = 50, title = "Nowhere", pickup = true, map = 7001, x = -1, y = -1 }
+    local digest = { kind = "quest", key = "q60", quest = 60, title = "From Digest", pickup = true, npc = "Gruff", map = 7001, x = 70, y = 80 }
+    assert(btn_for(later) and btn_for(step) and btn_for(digest) and not btn_for(none))
+    assert(WC.QuestPlace(none) == nil)
+    local pl = WC.QuestPlace(later)
+    assert(pl.map == 7001 and pl.x == 30 and pl.step == nil and pl.name == "Keeper Bel'dugur")
+    assert(WC.PlaceLabel(pl, "The Book of Ur") == "Pick up The Book of Ur: Keeper Bel'dugur")
+    assert(WC.QuestPlace({ kind = "quest", quest = 41, title = "x", pickup = true, map = 7001, x = 1, y = 1 }).x == 20, "later beats digest coordinates")
+    assert(WC.QuestPlace(digest).x == 70 and WC.QuestPlace(step).step == WC.plan.steps[2])
+    -- a later item with x = -1 is dropped when parsed
+    assert(WC.ParseLater({ { questID = 9, map = 1, x = -1, y = 5 } }) == nil)
+    local opened, timers = {}, {}
+    OpenWorldMap = function(map) opened[#opened + 1] = map end
+    local canvas = CreateFrame("Frame", nil, UIParent)
+    canvas:SetSize(1000, 500)
+    local realTimer = C_Timer
+    C_Timer = { After = function(sec, fn) timers[#timers + 1] = { sec, fn } end }
+    local shownMap = 7001
+    WorldMapFrame = { GetCanvas = function() return canvas end, GetMapID = function() return shownMap end, scripts = {} }
+    function WorldMapFrame:HookScript() end
+    assert(WC.ShowOnMap(later) and opened[1] == 7001)
+    local t = WC.TempPin()
+    assert(t and t.shown and t.label.text == "Pick up The Book of Ur: Keeper Bel'dugur")
+    assert(t.anchor.points[1][4] == 300 and t.anchor.points[1][5] == -200)
+    assert(timers[#timers][1] == 20)
+    -- the next Show on map clears it; a step has a badge, so it pulses instead
+    assert(WC.ShowOnMap(step) and opened[2] == 7001 and WC.TempPin() == nil and WC.hover.source == "card")
+    -- the timer clears it, and so does the map closing
+    assert(WC.ShowOnMap(later) and WC.TempPin())
+    timers[#timers][2]()
+    assert(WC.TempPin() == nil)
+    assert(WC.ShowOnMap(later) and WC.TempPin())
+    WC.ClearTempPin()
+    assert(WC.TempPin() == nil)
+    -- a different map shown: nothing drawn
+    assert(WC.ShowOnMap(later))
+    shownMap = 1
+    WC.RefreshMapPins()
+    assert(not (WC.TempPin() and WC.TempPin().shown))
+    WC.ClearTempPin()
+    COMBAT = true
+    assert(WC.ShowOnMap(later) == false and WC.TempPin() == nil)
+    COMBAT = false
+    WorldMapFrame, OpenWorldMap, C_Timer = nil, nil, realTimer
+    WoWCompanionCard = nil
+end }
 
 cases[#cases + 1] = { "card: schema 1.3 and 1.2 digests open cards with the template prompt and no details", function()
     local p = ask_row_client()
