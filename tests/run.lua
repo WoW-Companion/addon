@@ -6643,6 +6643,57 @@ cases[#cases + 1] = { "live turn-in: an older Plan.lua falls back to the plan's 
     assert(not here_text(WC):find("Here: turn in", 1, true))
 end }
 
+-- "Go and find" trips: a ready quest whose finisher is elsewhere (maybe inside an instance).
+local function trip_plan(WC, instance)
+    local t = { trip = true, finisher = "Deathstalker Vincent", finisherPlace = "Shadowfang Keep", instance = instance }
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "Deathstalkers", places = { { npc = "Deathstalker Vincent", map = 7001, x = 45, y = 42 } },
+        trip = t.trip, finisher = t.finisher, finisherPlace = t.finisherPlace, instance = t.instance } })
+end
+local function trip_rows(WC)
+    local line = { kind = "ready", title = "Deathstalkers", level = 25, npc = "Deathstalker Vincent" }
+    return WC.QuestEntryRows(line, 77, nil, 25)
+end
+local function has_row(rows, text)
+    for _, r in ipairs(rows) do if r.text == text then return r end end
+end
+
+cases[#cases + 1] = { "trip: an instance finisher says where to go, not ready, and no Here line outside", function()
+    local WC = here_client()
+    HERE_POS = { 0.9, 0.9 }
+    trip_plan(WC, "Shadowfang Keep")
+    QUESTS[77] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(WC.TripLine(77) == "Find Deathstalker Vincent inside Shadowfang Keep", tostring(WC.TripLine(77)))
+    local rows = trip_rows(WC)
+    assert(not has_row(rows, "Ready to turn in") and not has_row(rows, "Turn in to Deathstalker Vincent"))
+    local r = has_row(rows, "Find Deathstalker Vincent inside Shadowfang Keep")
+    assert(r and same_color(r.color, WC.COLORS.amber) and not same_color(r.color, WC.Setting("readyColor")))
+    assert(rows[1].icon == WC.ICONS.progress, "no gold ? away from the finisher")
+    assert(not here_text(WC):find("Deathstalkers", 1, true), "no Here line")
+end }
+
+cases[#cases + 1] = { "trip: near the finisher the Here line and the turn-in mark return", function()
+    local WC = here_client()
+    HERE_POS = { 0.45, 0.42 }
+    trip_plan(WC, "Shadowfang Keep")
+    QUESTS[77] = "ready"
+    WC.LiveUpdate("QUEST_LOG_UPDATE")
+    assert(here_text(WC):find("Here: turn in Deathstalkers: Deathstalker Vincent", 1, true), here_text(WC))
+    assert(trip_rows(WC)[1].icon == WC.ICONS.turnin)
+end }
+
+cases[#cases + 1] = { "trip: a place without an instance says 'in', a plain ready quest is unchanged", function()
+    local WC = here_client()
+    HERE_POS = { 0.5, 0.5 }
+    trip_plan(WC, nil)
+    QUESTS[77] = "ready"
+    assert(WC.TripLine(77) == "Find Deathstalker Vincent in Shadowfang Keep")
+    WC.plan.finishers = WC.ParseFinishers({ [77] = { quest = "Deathstalkers", places = { { npc = "Vincent", map = 7001, x = 45, y = 42 } } } })
+    local rows = trip_rows(WC)
+    assert(WC.TripLine(77) == nil and has_row(rows, "Ready to turn in") and rows[1].icon == WC.ICONS.turnin)
+    assert(same_color(has_row(rows, "Ready to turn in").color, WC.Setting("readyColor")))
+end }
+
 cases[#cases + 1] = { "live turn-in: a far finisher on another map is skipped without a continent", function()
     local WC = here_client()
     HERE_POS = { 0.5, 0.5 }

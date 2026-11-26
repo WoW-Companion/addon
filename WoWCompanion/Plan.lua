@@ -46,6 +46,14 @@ local function guided_spot(o)
     return r
 end
 
+-- The "go and find" fields a plan marks on a quest whose finisher is elsewhere (maybe inside a dungeon):
+-- { trip = true, finisher, finisherPlace, instance }. Returns nil when the entry is no trip (an older plan has none).
+local function trip_fields(e)
+    if type(e) ~= "table" or e.trip ~= true then return nil end
+    local function str(v) return type(v) == "string" and v ~= "" and plain(v) or nil end
+    return { finisher = str(e.finisher), place = str(e.finisherPlace), instance = str(e.instance) }
+end
+
 -- Plan.lua 1.2 per-quest guidance, keyed by quest id: { quest, class, steps = {route step n}, objectives = {spot},
 -- turnin = spot or nil, after }. Returns nil when the plan has none (an older plan keeps today's behaviour).
 function WC.ParseGuidance(g)
@@ -61,7 +69,7 @@ function WC.ParseGuidance(g)
             end
             out[id] = { questID = id, quest = plain(e.quest or ""), class = e.class == true, steps = id_list(e.steps),
                 objectives = objs, turnin = guided_spot(e.turnin),
-                after = type(e.after) == "string" and e.after ~= "" and plain(e.after) or nil }
+                after = type(e.after) == "string" and e.after ~= "" and plain(e.after) or nil, trip = trip_fields(e) }
             any = true
         end
     end
@@ -97,11 +105,30 @@ function WC.ParseFinishers(list)
             spots = spots_of(type(v) == "table" and (v.places or v.spots) or v)
         end
         if id and id > 0 and spots and #spots > 0 then
-            out[id] = { quest = name, spots = spots }
+            out[id] = { quest = name, spots = spots, trip = trip_fields(v) }
             any = true
         end
     end
     return any and out or nil
+end
+
+-- The quest's trip fields ({ finisher, place, instance }) when the plan marks it a trip, else nil.
+local finisher_spots -- defined with the live turn-ins below
+local function trip_of(id)
+    local p = WC.plan
+    if not (p and id) then return nil end
+    local g, f = p.guidance and p.guidance[id], p.finishers and p.finishers[id]
+    return (g and g.trip) or (f and f.trip) or nil
+end
+
+-- "Find <finisher> in <place>" / "inside <instance>" for a trip quest, else nil: the line that replaces "Ready to turn in".
+function WC.TripLine(id)
+    local t = trip_of(id)
+    if not t then return nil end
+    local who = t.finisher or L.TRIP_SOMEONE
+    if t.instance then return string.format(L.TRIP_INSIDE, who, t.instance) end
+    if t.place then return string.format(L.TRIP_IN, who, t.place) end
+    return string.format(L.TRIP_FIND, who)
 end
 
 -- Plan.lua 1.3 per-NPC "here" blocks: { npc, npcID, map, x, y, place, steps = {n}, can = {text}, quests = { { questID, quest,
@@ -888,6 +915,17 @@ local function later_step(p, id, kind)
     end
 end
 
+-- True when the player stands within HERE_YARDS of a trip quest's finisher (on the finisher's own map).
+function WC.TripNear(id, mapID, px, py)
+    local p = WC.plan
+    if not (p and mapID and px) then return false end
+    local spots = finisher_spots(p, id)
+    for _, sp in ipairs(spots) do
+        if sp.map == mapID and WC.PlanDistance(px, py, sp.x, sp.y, WC.MapYards(mapID)) <= WC.HERE_YARDS then return true end
+    end
+    return false
+end
+
 -- The card for where the player stands: { title, lines = { text }, key } or nil. Lines come from the live quest log.
 function WC.HereCard(mapID, px, py)
     local p = WC.plan
@@ -897,7 +935,9 @@ function WC.HereCard(mapID, px, py)
     for _, q in ipairs(b.quests) do
         local state = WC.PlanQuestState(q.questID)
         local title = q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or "?")
-        if q.role == "turnin" and state == "ready" then
+        if q.role == "turnin" and state == "ready" and trip_of(q.questID) and not WC.TripNear(q.questID, mapID, px, py) then
+            -- a trip's finisher is elsewhere: not a turn-in line here
+        elseif q.role == "turnin" and state == "ready" then
             local later = later_step(p, q.questID, "turnin")
             if later then
                 whileHere[#whileHere + 1] = string.format(L.HERE_WHILE, later.n, string.format(L.HERE_TURNIN_LC, title))
@@ -1019,7 +1059,7 @@ end
 
 -- Where a quest is handed in: the plan's finishers row, else (an older plan) its own turn-in steps, guidance and
 -- here blocks. { { npc, map, x, y, place } } or {}.
-local function finisher_spots(p, id)
+function finisher_spots(p, id)
     local f = p.finishers and p.finishers[id]
     if f then return f.spots, f.quest end
     local spots, name = {}, ""
@@ -1072,7 +1112,8 @@ function WC.LiveTurnIns(mapID, px, py)
         local best, bestD
         for _, sp in ipairs(spots) do
             local d = spot_yards(mapID, px, py, sp)
-            if d and (sp.map == mapID or d <= WC.TURNIN_YARDS) and (not bestD or d < bestD) then best, bestD = sp, d end
+            local reach = trip_of(id) and WC.HERE_YARDS or WC.TURNIN_YARDS -- a trip's finisher counts only when the player is at it
+            if d and (sp.map == mapID or d <= reach) and (not bestD or d < bestD) and (reach ~= WC.HERE_YARDS or (sp.map == mapID and d <= reach)) then best, bestD = sp, d end
         end
         if best then
             local title = (name and name ~= "" and name) or WC.QuestTitle(id) or "?"
