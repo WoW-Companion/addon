@@ -597,6 +597,21 @@ function WC.PlanFollowAccepted(id)
     if g.class or (cur and step_has_quest(cur, id)) then p.focus = id end
 end
 
+-- Runs a live-guidance read so an unexpected data shape never raises a Lua error in front of the player: on error
+-- the fallback value is returned (the static plan view) and the error is recorded once per distinct message.
+local liveErrSeen = {}
+local function guarded(kind, fn, fallback, ...)
+    local ok, a, b = pcall(fn, ...)
+    if ok then return a, b end
+    local msg = tostring(a)
+    if not liveErrSeen[msg] then
+        liveErrSeen[msg] = true
+        if WC.SeenError then pcall(WC.SeenError, "live", kind .. ": " .. msg) end
+    end
+    if type(fallback) == "function" then return fallback() end
+    return fallback
+end
+
 -- Which of the quest's guided objectives are still open, matched to the client's objectives by position when the
 -- counts agree, else by text. An unknown objective counts as open.
 local function open_objective(g, qid)
@@ -605,14 +620,16 @@ local function open_objective(g, qid)
     for i, o in ipairs(g.objectives) do
         local fin = false
         if live then
-            local m = (#live == #g.objectives) and live[i]
-            if not m then
+            local m = nil
+            if #live == #g.objectives then m = live[i] end
+            if type(m) ~= "table" then
+                m = nil
                 for _, lo in ipairs(live) do
-                    local name = lo.text:gsub("^%d+/%d+%s*", ""):gsub(":?%s*%d+/%d+$", ""):lower()
-                    if name ~= "" and o.doLine:lower():find(name, 1, true) then m = lo break end
+                    local name = type(lo) == "table" and type(lo.text) == "string" and lo.text:gsub("^%d+/%d+%s*", ""):gsub(":?%s*%d+/%d+$", ""):lower()
+                    if name and name ~= "" and o.doLine:lower():find(name, 1, true) then m = lo break end
                 end
             end
-            fin = m ~= nil and m.finished == true
+            fin = type(m) == "table" and m.finished == true
         end
         if not fin then return o, done, #g.objectives end
         done = done + 1
@@ -642,7 +659,7 @@ end
 
 -- Rebuilds the live steps from the quest log and the plan's guidance: nothing is stored, so a reload gives the same
 -- view. Returns whether what the panel shows changed.
-function WC.PlanLiveRefresh()
+local function live_refresh()
     local p = WC.plan
     if not p then return false end
     local live, ids = {}, {}
@@ -673,6 +690,14 @@ function WC.PlanLiveRefresh()
     local changed = sig ~= p.liveSig
     p.live, p.liveNow, p.liveSig = live, now, sig
     return changed
+end
+
+function WC.PlanLiveRefresh()
+    return guarded("refresh", live_refresh, function()
+        local p = WC.plan
+        if p then p.live, p.liveNow, p.liveSig = {}, nil, nil end
+        return false
+    end)
 end
 
 -- True when the plan carries guidance, so the panel follows the quest log.
@@ -911,7 +936,7 @@ end
 
 -- Quests in the log that the route does not list but the plan has guidance for (its own, or a nearby block's):
 -- { { questID, quest, line, spot } }, each with what to do next (its first open objective, or its turn-in).
-function WC.AlsoDoing()
+local function also_doing()
     local p = WC.plan
     local out = {}
     if not p then return out end
@@ -940,6 +965,9 @@ function WC.AlsoDoing()
         end
     end
     return out
+end
+function WC.AlsoDoing()
+    return guarded("also", also_doing, function() return {} end)
 end
 
 -- ---------------------------------------------------------------- live turn-ins (read from the log, no reload)
@@ -1094,7 +1122,7 @@ function WC.StaleNote(mapID)
 end
 
 -- Panel rows for the card and the "Also doing" section, to sit above the digest rows. Plain rows, data only.
-function WC.HereRows(mapID, px, py)
+local function here_rows(mapID, px, py)
     local rows = {}
     for _, t in ipairs(WC.LiveTurnIns(mapID, px, py)) do
         local who = t.spot.npc ~= "" and (t.quest .. ": " .. t.spot.npc) or t.quest
@@ -1122,9 +1150,12 @@ function WC.HereRows(mapID, px, py)
     if note then rows[#rows + 1] = { kind = "line", text = note, color = WC.COLORS.dim } end
     return rows
 end
+function WC.HereRows(mapID, px, py)
+    return guarded("rows", here_rows, function() return {} end, mapID, px, py)
+end
 
 -- Called from the 0.2 s tick: checks the card at most once a second and redraws the panel only when it changed.
-function WC.HereTick(mapID, px, py)
+local function here_tick(mapID, px, py)
     local p = WC.plan
     if not p or not p.here then return end
     local t = now()
@@ -1135,6 +1166,9 @@ function WC.HereTick(mapID, px, py)
     if key == p.hereKey then return end
     p.hereKey = key
     if WC.Refresh and WC.panel and WC.panel:IsShown() then WC.Refresh() end
+end
+function WC.HereTick(mapID, px, py)
+    return guarded("tick", here_tick, nil, mapID, px, py)
 end
 
 local ZONE_EVENTS = { ZONE_CHANGED = true, ZONE_CHANGED_INDOORS = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true }
