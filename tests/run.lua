@@ -6437,6 +6437,74 @@ local function here_text(WC)
     return table.concat(t, "\n")
 end
 
+-- live training offers (digest fields: spell state, requires, level, cost, trainer place)
+local function train_digest(spells, line)
+    line = line or {}
+    line.kind, line.spells = "training", spells
+    line.npc = line.npc or "Father Lankester"
+    line.map, line.x, line.y = line.map or 7001, line.x or 50, line.y or 16
+    WoWCompanionDigest = { sections = { { id = "next_quests", lines = { line } } } }
+end
+local function train_text(WC)
+    local mapID, px, py = WC.PlayerPos()
+    local t = {}
+    for _, r in ipairs(WC.TrainRows(mapID, px, py)) do t[#t + 1] = r.text end
+    return table.concat(t, "\n")
+end
+
+cases[#cases + 1] = { "train now: learning Rank 1 live turns the blocked Rank 2 into a Train now line", function()
+    local known = {}
+    IsSpellKnown = function(id) return known[id] == true end
+    local WC = here_client()
+    train_digest({ { id = 2652, name = "Touch of Weakness", rank = 2, requires = 2651, level = 8, cost = 1800, state = "blocked" } })
+    HERE_POS = { 0.8, 0.8 }
+    assert(train_text(WC) == "", "Rank 1 unknown: still blocked, nothing new")
+    known[2651] = true
+    WC.LiveUpdate("SPELLS_CHANGED")
+    assert(train_text(WC) == "Train now: Touch of Weakness (Rank 2), 18s, at Father Lankester (50, 16)", train_text(WC))
+    known[2652] = true
+    assert(train_text(WC) == "", "trained: the line drops")
+    HERE_POS = { 0.51, 0.5 }
+    IsSpellKnown = nil
+end }
+
+cases[#cases + 1] = { "train now: beside the trainer it leads as a Here: train line with the total", function()
+    local known = { [1] = true }
+    IsSpellKnown = function(id) return known[id] == true end
+    local WC = here_client()
+    train_digest({ { id = 2, name = "A", rank = 2, requires = 1, level = 4, cost = 1800, state = "available" },
+        { id = 3, name = "B", level = 6, cost = 10250, state = "available" } }, { x = 50, y = 50 })
+    local mapID, px, py = WC.PlayerPos()
+    local rows = WC.HereRows(mapID, px, py)
+    assert(rows[1].text == "Here: train A (Rank 2), B, 1g 20s 50c", rows[1].text)
+    IsSpellKnown = nil
+end }
+
+cases[#cases + 1] = { "train now: a level-up unlocks a later offer", function()
+    IsSpellKnown = function() return false end
+    local WC = here_client()
+    train_digest({ { id = 5, name = "Shield", level = 12, cost = 500, state = "later" } })
+    HERE_POS = { 0.8, 0.8 }
+    assert(train_text(WC) == "")
+    UnitLevel = function() return 12 end
+    WC.LiveUpdate("PLAYER_LEVEL_UP", 12)
+    assert(train_text(WC) == "Train now: Shield, 5s, at Father Lankester (50, 16)", train_text(WC))
+    HERE_POS = { 0.51, 0.5 }
+    IsSpellKnown = nil
+end }
+
+cases[#cases + 1] = { "train now: a known spell is ignored, and a digest without the fields changes nothing", function()
+    IsSpellKnown = function(id) return id == 5 end
+    local WC = here_client()
+    train_digest({ { id = 5, name = "Shield", level = 1, cost = 500, state = "available" } })
+    assert(train_text(WC) == "")
+    train_digest({ { id = 6, name = "Old", rank = 2 }, { id = 7, name = "Older", requires = 5, level = 1, cost = 9 } })
+    assert(train_text(WC) == "", "no state field: an older digest")
+    WoWCompanionDigest = nil
+    assert(train_text(WC) == "" and #WC.TrainableNow() == 0)
+    IsSpellKnown = nil
+end }
+
 cases[#cases + 1] = { "here card: shows in range with the missing items, hides out of range", function()
     local WC = here_client()
     HERE_POS = { 0.51, 0.5 }

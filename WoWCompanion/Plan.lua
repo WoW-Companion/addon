@@ -1083,6 +1083,106 @@ function WC.LiveTurnIns(mapID, px, py)
     return out
 end
 
+-- ---------------------------------------------------------------- live training offers
+
+-- Copper as "1g 2s 3c", zero parts left out; "" for nothing.
+function WC.CopperText(c)
+    c = math.floor(tonumber(c) or 0)
+    if c <= 0 then return "" end
+    local parts = {}
+    if c >= 10000 then parts[#parts + 1] = math.floor(c / 10000) .. "g" end
+    if c % 10000 >= 100 then parts[#parts + 1] = math.floor(c % 10000 / 100) .. "s" end
+    if c % 100 > 0 then parts[#parts + 1] = (c % 100) .. "c" end
+    return table.concat(parts, " ")
+end
+
+local function train_spot(line, sp)
+    local map = tonumber(sp.map) or tonumber(line.map)
+    local x = tonumber(sp.x) or tonumber(line.x)
+    local y = tonumber(sp.y) or tonumber(line.y)
+    local npc = sp.npc or line.npc
+    return { map = map, x = x, y = y, npc = type(npc) == "string" and npc or "" }
+end
+
+-- The digest's training offers that carry the live fields (a spell `state`, with `requires`, `level`, `cost`) and
+-- are open to buy now: not known, the prerequisite known (or none), the level reached. Grouped by trainer, the
+-- one beside the player first. An older digest without the fields gives nothing.
+-- { { spot, offers = { { id, name, cost } }, total, here } }
+function WC.TrainableNow(mapID, px, py)
+    local d = WoWCompanionDigest
+    local out = {}
+    if type(d) ~= "table" or type(d.sections) ~= "table" then return out end
+    local me = UnitName and UnitName("player")
+    if me and type(d.character) == "string" and d.character ~= me then return out end
+    local lvl = UnitLevel and tonumber(UnitLevel("player"))
+    local byKey, order = {}, {}
+    for _, section in ipairs(d.sections) do
+        if section.id == "next_quests" and type(section.lines) == "table" then
+            for _, line in ipairs(section.lines) do
+                if type(line) == "table" and line.kind == "training" and type(line.spells) == "table" then
+                    for _, sp in ipairs(line.spells) do
+                        local id = type(sp) == "table" and tonumber(sp.id)
+                        local need = id and tonumber(sp.requires)
+                        local at = id and tonumber(sp.level)
+                        if id and type(sp.state) == "string" and not WC.SpellKnown(id) and (not need or WC.SpellKnown(need))
+                            and (not at or (lvl and at <= lvl)) then
+                            local spot = train_spot(line, sp)
+                            local key = spot.npc .. "#" .. tostring(spot.map)
+                            local g = byKey[key]
+                            if not g then
+                                g = { spot = spot, offers = {}, total = 0 }
+                                byKey[key] = g
+                                order[#order + 1] = g
+                            end
+                            local o = { id = id, name = WC.SpellLabel(sp), cost = math.max(0, tonumber(sp.cost) or 0) }
+                            g.offers[#g.offers + 1] = o
+                            g.total = g.total + o.cost
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for _, g in ipairs(order) do
+        local sp = g.spot
+        local yards
+        if mapID and px and sp.map and sp.x and sp.y then yards = spot_yards(mapID, px, py, sp) end
+        g.here = yards ~= nil and sp.map == mapID and yards <= WC.HERE_YARDS
+        out[#out + 1] = g
+    end
+    table.sort(out, function(a, b)
+        if a.here ~= b.here then return a.here end
+        return a.spot.npc < b.spot.npc
+    end)
+    return out
+end
+
+-- Panel rows for the groups: "Here: train ..." beside the trainer, else "Train now: ..., at NPC (x, y)"; gold, on top.
+local function train_rows(mapID, px, py)
+    local rows = {}
+    for _, g in ipairs(WC.TrainableNow(mapID, px, py)) do
+        local names = {}
+        for i, o in ipairs(g.offers) do names[i] = o.name end
+        local list = table.concat(names, ", ")
+        local cost = WC.CopperText(g.total)
+        if cost ~= "" then list = list .. ", " .. cost end
+        local sp = g.spot
+        local text
+        if g.here then
+            text = string.format(L.HERE_TRAIN_NOW, list)
+        elseif sp.npc ~= "" and sp.x and sp.y then
+            text = string.format(L.TRAIN_NOW_AT, list, sp.npc, math.floor(sp.x + 0.5), math.floor(sp.y + 0.5))
+        else
+            text = string.format(L.TRAIN_NOW, list)
+        end
+        rows[#rows + 1] = { kind = "line", color = WC.COLORS.gold, text = text }
+    end
+    return rows
+end
+function WC.TrainRows(mapID, px, py)
+    return guarded("train", train_rows, function() return {} end, mapID, px, py)
+end
+
 -- Map badges for those turn-ins: synthetic steps shaped like the live steps, so the map draws them the same way.
 function WC.LiveTurnInSteps()
     local out = {}
@@ -1266,7 +1366,7 @@ end
 
 -- Panel rows for the card and the "Also doing" section, to sit above the digest rows. Plain rows, data only.
 local function here_rows(mapID, px, py)
-    local rows = {}
+    local rows = WC.TrainRows(mapID, px, py)
     for _, t in ipairs(WC.LiveTurnIns(mapID, px, py)) do
         local who = t.spot.npc ~= "" and (t.quest .. ": " .. t.spot.npc) or t.quest
         rows[#rows + 1] = { kind = "line", color = WC.COLORS.gold,
@@ -1303,10 +1403,11 @@ function WC.HereTick(mapID, px, py)
     return guarded("tick", here_tick, nil, mapID, px, py)
 end
 
+local TRAIN_EVENTS = { SPELLS_CHANGED = true, LEARNED_SPELL_IN_TAB = true }
 local ZONE_EVENTS = { ZONE_CHANGED = true, ZONE_CHANGED_INDOORS = true, ZONE_CHANGED_NEW_AREA = true, PLAYER_ENTERING_WORLD = true }
 local events = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "QUEST_REMOVED",
-    "PLAYER_LEVEL_UP", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED",
+    "PLAYER_LEVEL_UP", "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED",
     "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do pcall(events.RegisterEvent, events, e) end
 events:SetScript("OnEvent", function(_, event, a, b)
     if not WC.db then return end
@@ -1314,6 +1415,8 @@ events:SetScript("OnEvent", function(_, event, a, b)
         WC.PlanInit()
         if WC.RefreshPlan then WC.RefreshPlan() end
         refresh_panel()
+    elseif TRAIN_EVENTS[event] then
+        if not (InCombatLockdown and InCombatLockdown()) then WC.LiveUpdateSoon(event) end
     elseif event == "QUEST_LOG_UPDATE" or ZONE_EVENTS[event] then
         WC.LiveUpdateSoon(event)
     else

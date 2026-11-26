@@ -126,6 +126,9 @@ local L = {
     HERE_TURNIN_LC = "turn in %s",
     HERE_PICKUP_LC = "pick up %s",
     HERE_TRAIN = "Train",
+    HERE_TRAIN_NOW = "Here: train %s",
+    TRAIN_NOW = "Train now: %s",
+    TRAIN_NOW_AT = "Train now: %s, at %s (%d, %d)",
     HERE_VENDOR = "Vendor",
     HERE_WHILE = "While you're here: step %d, %s",
     ALSO_DOING = "Also doing",
@@ -558,6 +561,7 @@ local L = {
     WHATS_NEW_0_2_0_4 = "You can delete the leftover WoWCompanion_Answers folder.",
     WHATS_NEW_0_6_55_1 = "Fixed a Lua error after accepting some quests.",
     WHATS_NEW_0_6_56_1 = "The panel's \"Also doing\" list now shows only nearby quests; the rest are one click away",
+    WHATS_NEW_0_6_57_1 = "Live training: the panel now says \"Train now\" when a spell becomes available to train after you learn its first rank or level up, and leads with it beside the trainer.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
