@@ -54,6 +54,7 @@ local D = {
     { key = "cardSide", type = "choice", default = "right", choices = { "right", "left" }, page = "panel", box = "interact", label = "CARD_SIDE_LABEL", name = "CardSide", choiceKey = "SIDE_", widget = "dropdown" },
     -- Map & route
     { key = "planMap", type = "bool", default = true, page = "map", box = "map", label = "SHOW_PLAN_MAP", name = "PlanMap" },
+    { key = "alsoDoingMax", type = "range", default = 3, min = 0, max = 10, step = 1, page = "map", box = "map", label = "ALSO_DOING_MAX_LABEL", name = "AlsoDoingMax", show = "int" },
     { key = "planShow", type = "limit", default = "all", min = 1, max = 25, page = "map", box = "map", label = "PLAN_SHOW_LABEL", name = "PlanShow", show = "limit" },
     { key = "mergeDistance", type = "range", default = 1.2, min = 0, max = 5, step = 0.1, page = "map", box = "map", label = "MERGE_LABEL", name = "Merge", show = "num1" },
     { key = "hoverMapLink", type = "bool", default = true, page = "map", box = "map", label = "HOVER_MAP_LINK", name = "HoverMapLink" },

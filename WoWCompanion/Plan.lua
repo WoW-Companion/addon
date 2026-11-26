@@ -948,19 +948,20 @@ local function also_doing()
     local ids = {}
     for id in pairs(pool) do ids[#ids + 1] = id end
     table.sort(ids)
+    local cur = WC.PlanNext() -- the headline step's quest is never repeated below it
     for _, id in ipairs(ids) do
         local listed = false
         for _, s in ipairs(p.steps) do
             if step_has_quest(s, id) then listed = true break end
         end
         local state = WC.PlanQuestState(id)
-        if not listed and (state == "active" or state == "ready") then
+        if not listed and not (cur and step_has_quest(cur, id)) and (state == "active" or state == "ready") then
             local g = pool[id]
             local spot
             if state == "ready" then spot = g.turnin else spot = open_objective(g, id) end
             if spot then
                 local name = g.quest ~= "" and g.quest or (WC.QuestTitle(id) or "?")
-                out[#out + 1] = { questID = id, quest = name, line = spot.doLine, spot = spot }
+                out[#out + 1] = { questID = id, quest = name, line = spot.doLine, spot = spot, ready = state == "ready" }
             end
         end
     end
@@ -1221,6 +1222,148 @@ function WC.StaleNote(mapID)
     return WC.staleNoted
 end
 
+-- ---------------------------------------------------------------- "Also doing": near quests, a cap, the rest grouped
+
+WC.ALSO_DOING_MAX = 3 -- the default for the alsoDoingMax setting
+
+local function map_name(id)
+    local ok, info = pcall(function() return C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(id) end)
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
+end
+
+-- The place a quest's next spot belongs to, for grouping: its zone, else its map's name, else its place.
+local function entry_zone(a)
+    local sp = a.spot
+    return sp.zone or (sp.map and map_name(sp.map)) or sp.place or L.ALSO_ELSEWHERE
+end
+
+-- Yards to an entry when it is near the player (same map, or within TURNIN_YARDS on the continent); an unplaced
+-- objective is near only while the player is in its zone. nil when not near.
+local function entry_near(a, mapID, px, py)
+    local sp = a.spot
+    if not (mapID and px) then return nil end
+    if sp.map and sp.x then
+        local d = spot_yards(mapID, px, py, sp)
+        if d and (sp.map == mapID or d <= WC.TURNIN_YARDS) then return d end
+        return nil
+    end
+    if sp.zone then
+        local here = map_name(mapID)
+        if not here and GetZoneText then here = GetZoneText() end
+        if here and here:lower() == sp.zone:lower() then return WC.TURNIN_YARDS end
+    end
+    return nil
+end
+
+local function char_record()
+    if not (WC.db and UnitName and GetRealmName) then return nil end
+    local name = UnitName("player")
+    if type(name) ~= "string" or name == "" then return nil end
+    if type(WC.db.characters) ~= "table" then WC.db.characters = {} end
+    local key = (GetRealmName() or "") .. ":" .. name
+    if type(WC.db.characters[key]) ~= "table" then WC.db.characters[key] = {} end
+    return WC.db.characters[key]
+end
+
+-- The expanded "rest of the log" view, remembered per character; collapsed by default.
+function WC.AlsoExpanded()
+    local r = char_record()
+    return r ~= nil and r.alsoExpanded == true
+end
+function WC.ToggleAlsoExpanded()
+    local r = char_record()
+    if not r then return false end
+    r.alsoExpanded = (not r.alsoExpanded) or nil
+    return r.alsoExpanded == true
+end
+
+local function also_max()
+    local n = WC.Setting and tonumber(WC.Setting("alsoDoingMax"))
+    if not n then n = WC.ALSO_DOING_MAX end
+    return math.max(0, math.min(10, math.floor(n)))
+end
+
+-- Splits the "Also doing" list: { near = shown rows (ready first, nearest first, capped), rest = every other entry }.
+function WC.AlsoDoingSplit(mapID, px, py)
+    local near, rest = {}, {}
+    for _, a in ipairs(WC.AlsoDoing()) do
+        local d = entry_near(a, mapID, px, py)
+        if d then a.yards = d near[#near + 1] = a else rest[#rest + 1] = a end
+    end
+    table.sort(near, function(a, b)
+        if a.ready ~= b.ready then return a.ready end
+        if a.yards ~= b.yards then return a.yards < b.yards end
+        return a.questID < b.questID
+    end)
+    local max, shown = also_max(), {}
+    for i, a in ipairs(near) do
+        if i <= max then shown[#shown + 1] = a else rest[#rest + 1] = a end
+    end
+    return { near = shown, rest = rest }
+end
+
+local function also_line(a, mapID, px, py)
+    local t = string.format(L.ALSO_DOING_LINE, a.quest, a.line)
+    if a.spot.map and a.spot.map == mapID and px and a.spot.x then
+        local d, dir = WC.PlanDistance(px, py, a.spot.x, a.spot.y, WC.MapYards(mapID))
+        t = t .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+    end
+    return t
+end
+
+local function also_rows(mapID, px, py)
+    local sp = WC.AlsoDoingSplit(mapID, px, py)
+    local rows = {}
+    if #sp.near == 0 and #sp.rest == 0 then return rows end
+    if #sp.near > 0 then
+        rows[#rows + 1] = { kind = "line", text = L.ALSO_DOING, color = WC.COLORS.gold }
+        for _, a in ipairs(sp.near) do rows[#rows + 1] = { kind = "line", indent = 1, text = also_line(a, mapID, px, py) } end
+    end
+    if #sp.rest == 0 then return rows end
+    -- the rest, grouped by place; places with the most ready turn-ins first, ready turn-ins first inside each
+    local groups, order, ready = {}, {}, 0
+    for _, a in ipairs(sp.rest) do
+        local z = entry_zone(a)
+        local g = groups[z]
+        if not g then g = { zone = z, ready = 0, list = {} } groups[z] = g order[#order + 1] = g end
+        g.list[#g.list + 1] = a
+        if a.ready then g.ready = g.ready + 1 ready = ready + 1 end
+    end
+    table.sort(order, function(a, b)
+        if a.ready ~= b.ready then return a.ready > b.ready end
+        if #a.list ~= #b.list then return #a.list > #b.list end
+        return a.zone < b.zone
+    end)
+    local summary = string.format(L.ALSO_MORE, #sp.rest)
+    if ready > 0 then
+        local names = {}
+        for _, g in ipairs(order) do
+            if g.ready > 0 and #names < 3 then names[#names + 1] = g.ready .. " " .. g.zone end
+        end
+        summary = summary .. string.format(L.ALSO_MORE_READY, ready, table.concat(names, ", "))
+    end
+    local open = WC.AlsoExpanded()
+    rows[#rows + 1] = { kind = "line", text = summary .. (open and L.ALSO_HIDE or ""), color = WC.COLORS.dim,
+        click = function() WC.ToggleAlsoExpanded() if WC.Refresh then WC.Refresh() end end }
+    if open then
+        for _, g in ipairs(order) do
+            table.sort(g.list, function(a, b)
+                if a.ready ~= b.ready then return a.ready end
+                return a.questID < b.questID
+            end)
+            rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.ALSO_ZONE, g.zone, #g.list), color = WC.COLORS.gold }
+            for _, a in ipairs(g.list) do
+                local t = a.ready and string.format(L.ALSO_READY_LINE, a.quest) or string.format(L.ALSO_DOING_LINE, a.quest, a.line)
+                rows[#rows + 1] = { kind = "line", indent = 2, text = t }
+            end
+        end
+    end
+    return rows
+end
+function WC.AlsoDoingRows(mapID, px, py)
+    return guarded("also", also_rows, function() return {} end, mapID, px, py)
+end
+
 -- Panel rows for the card and the "Also doing" section, to sit above the digest rows. Plain rows, data only.
 local function here_rows(mapID, px, py)
     local rows = WC.TrainRows(mapID, px, py)
@@ -1234,18 +1377,7 @@ local function here_rows(mapID, px, py)
         rows[#rows + 1] = { kind = "line", text = string.format(L.HERE_TITLE, card.title), color = WC.COLORS.gold }
         for _, t in ipairs(card.lines) do rows[#rows + 1] = { kind = "line", indent = 1, text = t } end
     end
-    local also = WC.AlsoDoing()
-    if #also > 0 then
-        rows[#rows + 1] = { kind = "line", text = L.ALSO_DOING, color = WC.COLORS.gold }
-        for _, a in ipairs(also) do
-            local t = string.format(L.ALSO_DOING_LINE, a.quest, a.line)
-            if a.spot.map == mapID and px then
-                local d, dir = WC.PlanDistance(px, py, a.spot.x, a.spot.y, WC.MapYards(mapID))
-                t = t .. string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
-            end
-            rows[#rows + 1] = { kind = "line", indent = 1, text = t }
-        end
-    end
+    for _, r in ipairs(WC.AlsoDoingRows(mapID, px, py)) do rows[#rows + 1] = r end
     local note = WC.StaleNote(mapID)
     if note then rows[#rows + 1] = { kind = "line", text = note, color = WC.COLORS.dim } end
     return rows

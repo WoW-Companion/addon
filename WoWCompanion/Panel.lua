@@ -584,7 +584,7 @@ function WC.Refresh()
         row.sectionId = r.id
         if r.entry then entries[r.group] = r.entry end
         row.entry, row.group, row.quest = r.entry or (r.group and entries[r.group]) or nil, r.group, r.quest
-        local interactive = row.link ~= nil or r.kind == "header" or row.entry ~= nil or r.ask ~= nil
+        local interactive = row.link ~= nil or r.kind == "header" or row.entry ~= nil or r.ask ~= nil or r.click ~= nil
         row:EnableMouse(interactive)
         row:SetScript("OnEnter", function(self)
             if self.link then show_tooltip(self) end
@@ -597,7 +597,9 @@ function WC.Refresh()
         end)
         row.ask = r.ask
         row:SetScript("OnClick", function(self, button)
-            if r.kind == "header" then
+            if r.click then
+                if button ~= "RightButton" then r.click() end
+            elseif r.kind == "header" then
                 if button ~= "RightButton" then toggle_section(r.id) end
             elseif self.entry then
                 WC.EntryClick(self.entry, button)
