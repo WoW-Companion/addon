@@ -591,6 +591,8 @@ local L = {
     WHATS_NEW_0_6_62_1 = "Stops with no real position (0,0 or -1) are no longer drawn on the map or minimap: they show as text with \"(location unknown)\", approximate stops are drawn faded, and live extra steps read \"Also doing\" instead of \"Step 198095 of 4\".",
     WHATS_NEW_0_6_63_1 = "Click the panel's title bar to collapse it to just its title line, and click again to open it. It remembers this for each character, and Settings has \"Panel starts collapsed\".",
     WHATS_NEW_0_6_64_1 = "The in-game plan now says when it is one save behind and when one more /reload brings the newer plan.",
+    WHATS_NEW_0_6_65_1 = "Quests the plan has no position for now use the game's own quest marker, drawn as approximate and following it as it moves.",
+    WHATS_NEW_0_6_65_2 = "A travel step that carries a quest (\"Fly to X: turn in Y\") is now done once that quest is turned in or gone from the log, so no stray map badge is left. Its map tooltip reads as the turn-in once you are in the zone.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
