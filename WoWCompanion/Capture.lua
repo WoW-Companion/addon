@@ -271,6 +271,98 @@ function readers.quests(r)
     r.quests = { captured = true, entries = list }
 end
 
+-- The game's own quest map points (what its quest POI shows for an active quest), kept per character for quests in
+-- the log only. Data only: the three APIs below just READ. The probe says which exist (a count, -1 when missing).
+local MAX_POI = 60
+local function poi_xy(x, y)
+    x, y = tonumber(x), tonumber(y)
+    if not x or not y or x < 0 or y < 0 or (x == 0 and y == 0) then return nil end
+    return round(math.min(x, 1) * 100, 1), round(math.min(y, 1) * 100, 1)
+end
+
+function readers.questpoi(r)
+    local Q = C_QuestLog
+    local hasMap = Q and type(Q.GetQuestsOnMap) == "function"
+    local hasWay = Q and (type(Q.GetNextWaypoint) == "function" or type(Q.GetNextWaypointForMap) == "function")
+    local hasLegacy = type(QuestPOIGetIconInfo) == "function"
+    local probe = probe_of(r)
+    probe.poi = { onMap = hasMap and 0 or -1, waypoint = hasWay and 0 or -1, legacy = hasLegacy and 0 or -1 }
+    if not (r.quests and r.quests.captured) then return end -- no log read yet: nothing to prune against
+    local inLog = {}
+    for _, q in ipairs(r.quests.entries or {}) do inLog[q.id] = true end
+    local old = type(r.questPOI) == "table" and r.questPOI or {}
+    local out, n, now = {}, 0, time()
+    for id, e in pairs(old) do
+        if inLog[id] and type(e) == "table" and n < MAX_POI then out[id] = e; n = n + 1 end
+    end
+    local pmap = WC.PlayerPos and (WC.PlayerPos()) or nil
+    local found = {}
+    local function put(id, map, x, y, oi)
+        x, y = poi_xy(x, y)
+        map = tonumber(map)
+        if not (id and inLog[id] and x and map) or found[id] then return end
+        if not out[id] and n >= MAX_POI then return end
+        if not out[id] then n = n + 1 end
+        found[id] = true
+        out[id] = { map = map, x = x, y = y, seenAt = now, objectiveIndex = tonumber(oi) }
+    end
+    if hasMap and pmap then
+        local list = qcall(Q.GetQuestsOnMap, pmap)
+        if type(list) == "table" then
+            for _, p in ipairs(list) do
+                if type(p) == "table" then put(tonumber(p.questID), pmap, p.x, p.y); probe.poi.onMap = probe.poi.onMap + 1 end
+            end
+        end
+    end
+    for _, q in ipairs(r.quests.entries or {}) do
+        local id = q.id
+        if not found[id] and hasWay then
+            local map, x, y
+            if type(Q.GetNextWaypoint) == "function" then
+                local ok, a, b, c = pcall(Q.GetNextWaypoint, id)
+                if ok then map, x, y = a, b, c end
+            end
+            if type(map) == "table" then map, x, y = map.mapID, map.x, map.y end
+            if not map and pmap and type(Q.GetNextWaypointForMap) == "function" then
+                local ok, a, b = pcall(Q.GetNextWaypointForMap, id, pmap)
+                if ok then
+                    if type(a) == "table" then x, y = a.x, a.y else x, y = a, b end
+                    map = pmap
+                end
+            end
+            if map then
+                put(id, map, x, y)
+                if found[id] then probe.poi.waypoint = probe.poi.waypoint + 1 end
+            end
+        end
+        if not found[id] and hasLegacy and pmap then
+            local ok, _, x, y, obj = pcall(QuestPOIGetIconInfo, id)
+            if ok then
+                put(id, pmap, x, y, obj)
+                if found[id] then probe.poi.legacy = probe.poi.legacy + 1 end
+            end
+        end
+        -- The client shows no point on this map now: a point we kept for it here is stale.
+        if not found[id] and out[id] and pmap and out[id].map == pmap and (hasMap or hasWay or hasLegacy) then
+            out[id] = nil
+        end
+    end
+    r.questPOI = out
+    -- The live plan follows the point: refresh it now, never letting a failure reach the capture.
+    if WC.PlanLiveRefresh then
+        local ok, changed = pcall(WC.PlanLiveRefresh)
+        if ok and changed and WC.RefreshPlan then pcall(WC.RefreshPlan) end
+    end
+end
+
+-- The captured map point of a quest in the log: { map, x, y (0-100), seenAt, objectiveIndex } or nil.
+function WC.CapturedPOI(questID)
+    local r = record()
+    local t = r and type(r.questPOI) == "table" and r.questPOI or nil
+    local e = t and t[questID]
+    return type(e) == "table" and e or nil
+end
+
 function readers.completed(r)
     local set
     if GetQuestsCompleted then
@@ -851,7 +943,7 @@ function readers.craft(r)
 end
 
 -- The order matters little; each part is read on its own so one failing read never costs the rest.
-local ORDER = { "identity", "money", "location", "equipment", "bags", "bank", "quests", "completed", "talents",
+local ORDER = { "identity", "money", "location", "equipment", "bags", "bank", "quests", "questpoi", "completed", "talents",
     "stats", "skills", "spells", "reputations", "tradeskill", "craft" }
 
 -- Reads every waiting part now, unless capture is off or the player is in combat.
@@ -902,19 +994,19 @@ function WC.CaptureMark(...)
 end
 
 local EVENTS = {
-    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "completed", "talents", "stats", "skills", "spells", "reputations" },
+    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "questpoi", "completed", "talents", "stats", "skills", "spells", "reputations" },
     PLAYER_LEVEL_UP = { "identity", "money", "talents", "stats", "spells", "skills" },
     PLAYER_XP_UPDATE = { "money" },
     PLAYER_MONEY = { "money" },
-    ZONE_CHANGED_NEW_AREA = { "location" },
-    ZONE_CHANGED = { "location" },
+    ZONE_CHANGED_NEW_AREA = { "location", "questpoi" },
+    ZONE_CHANGED = { "location", "questpoi" },
     HEARTHSTONE_BOUND = { "location" },
     PLAYER_EQUIPMENT_CHANGED = { "equipment", "stats" },
     BAG_UPDATE_DELAYED = { "bags" },
-    QUEST_LOG_UPDATE = { "quests" },
-    QUEST_ACCEPTED = { "quests" },
-    QUEST_REMOVED = { "quests" },
-    QUEST_TURNED_IN = { "quests", "completed" },
+    QUEST_LOG_UPDATE = { "quests", "questpoi" },
+    QUEST_ACCEPTED = { "quests", "questpoi" },
+    QUEST_REMOVED = { "quests", "questpoi" },
+    QUEST_TURNED_IN = { "quests", "completed", "questpoi" },
     SKILL_LINES_CHANGED = { "skills" },
     CHARACTER_POINTS_CHANGED = { "talents", "stats" },
     PLAYER_TALENT_UPDATE = { "talents" },

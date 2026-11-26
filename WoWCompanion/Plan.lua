@@ -831,13 +831,23 @@ local function live_step(p, g, state)
         kind = "objective"
     end
     if not spot then return nil end
+    local approx
+    if not WC.HasPlace(spot) then
+        -- No known position: use the game's own quest map point when it is on the map the player is on.
+        local poi = WC.CapturedPOI and WC.CapturedPOI(g.questID)
+        local pmap = WC.PlayerPos and (WC.PlayerPos())
+        if poi and pmap and poi.map == pmap then
+            spot = { doLine = spot.doLine, place = spot.place, map = poi.map, x = poi.x, y = poi.y }
+            approx = true
+        end
+    end
     local n
     for _, sn in ipairs(g.steps) do
         local rs = p.steps[sn]
         if rs and not p.done[sn] and (rs.kind == "turnin") == (kind == "turnin") then n = sn break end
     end
     return { n = n or (100000 + g.questID), synthetic = n == nil or nil, kind = kind, questID = g.questID, questIDs = {}, quest = g.quest, label = spot.doLine,
-        approx = false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true,
+        approx = approx or false, map = spot.map, x = spot.x, y = spot.y, unlockedBy = {}, unlocks = {}, live = true,
         place = spot.place, doneCount = done, totalCount = total,
         unplaced = not WC.HasPlace(spot) or nil }
 end
@@ -869,7 +879,7 @@ local function live_refresh()
     end
     local sig = {}
     for _, st in ipairs(live) do
-        sig[#sig + 1] = st.questID .. ":" .. st.kind .. ":" .. st.label .. ":" .. tostring(st.n)
+        sig[#sig + 1] = st.questID .. ":" .. st.kind .. ":" .. st.label .. ":" .. tostring(st.n) .. ":" .. tostring(st.map) .. "," .. tostring(st.x) .. "," .. tostring(st.y)
     end
     sig = table.concat(sig, "|") .. "#" .. tostring(now and now.questID)
     local changed = sig ~= p.liveSig

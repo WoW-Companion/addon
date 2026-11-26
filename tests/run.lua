@@ -6421,6 +6421,72 @@ cases[#cases + 1] = { "plan guidance: accepting a class quest shows its objectiv
     assert(WC.PlanFollowing())
 end }
 
+-- The game's own quest map points (ADDON-131 behaviour): captured per character, used for unplaced objectives.
+local function poi_client()
+    local WC = guided_client("poi")
+    local run = function()
+        local f = WoWCompanion.captureTimer
+        if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 5) end
+    end
+    UnitName = function() return "Thrall" end
+    GetRealmName = function() return "Testrealm" end
+    WC.db.characters = {}
+    WC.db.settings = WC.db.settings or {}
+    WC.db.settings.recordCharacter = true
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.5 end } end }
+    POI = { { questID = 98095, x = 0.726, y = 0.312 } }
+    C_QuestLog.GetQuestsOnMap = function() return POI end
+    C_QuestLog.GetInfo = function(i) if i == 1 then return { title = "Valuable Vantages", questID = 98095, level = 80 } end end
+    C_QuestLog.GetNumQuestLogEntries = function() return QUESTS[98095] and 1 or 0 end
+    return WC, run
+end
+
+cases[#cases + 1] = { "quest POI: captured for a quest in the log and used for the unplaced step, then it moves", function()
+    local WC, run = poi_client()
+    QUESTS[98095] = "active"
+    OBJ[98095] = { { text = "0/1 Vial", numFulfilled = 0, numRequired = 1, finished = false } }
+    WC.CaptureMark("quests", "questpoi"); run()
+    local r = WC.db.characters["Testrealm:Thrall"]
+    assert(r.questPOI[98095].x == 72.6 and r.questPOI[98095].y == 31.2 and r.questPOI[98095].map == 7001)
+    assert(r.apiProbe.poi.onMap == 1 and r.apiProbe.poi.waypoint == -1 and r.apiProbe.poi.legacy == -1)
+    local function live98()
+        for _, st in ipairs(WC.plan.live) do if st.questID == 98095 then return st end end
+    end
+    local s = live98()
+    assert(s.label == "Find the vial" and s.approx and WC.HasPlace(s) and s.x == 72.6 and s.y == 31.2 and s.map == 7001)
+    POI = { { questID = 98095, x = 0.746, y = 0.736 } }
+    WC.CaptureMark("questpoi"); run()
+    s = live98()
+    assert(s.x == 74.6 and s.y == 73.6, "the badge follows the moved point")
+    -- another map: the point is not used
+    C_Map.GetBestMapForUnit = function() return 9999 end
+    WC.PlanLiveRefresh()
+    s = live98()
+    assert(s.unplaced and not s.approx)
+end }
+
+cases[#cases + 1] = { "quest POI: a quest leaving the log is pruned", function()
+    local WC, run = poi_client()
+    QUESTS[98095] = "active"
+    WC.CaptureMark("quests", "questpoi"); run()
+    assert(WC.db.characters["Testrealm:Thrall"].questPOI[98095])
+    QUESTS[98095] = nil
+    WC.CaptureMark("quests", "questpoi"); run()
+    assert(next(WC.db.characters["Testrealm:Thrall"].questPOI) == nil)
+end }
+
+cases[#cases + 1] = { "quest POI: missing APIs are probed as -1 and nothing breaks", function()
+    local WC, run = poi_client()
+    QUESTS[98095] = "active"
+    C_QuestLog.GetQuestsOnMap = nil
+    WC.CaptureMark("quests", "questpoi"); run()
+    local r = WC.db.characters["Testrealm:Thrall"]
+    assert(r.apiProbe.poi.onMap == -1 and r.apiProbe.poi.waypoint == -1 and r.apiProbe.poi.legacy == -1)
+    assert(next(r.questPOI) == nil)
+    local st = WC.plan.live[1]
+    assert(st and st.questID == 98095 and not st.approx and st.unplaced)
+end }
+
 cases[#cases + 1] = { "plan guidance: live objectives that differ in count or shape never raise", function()
     local WC = guided_client()
     QUESTS[30] = "active"
