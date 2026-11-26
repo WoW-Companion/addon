@@ -92,6 +92,11 @@ end
 -- The tooltip for a badge group. opts.dist / opts.dir (minimap only) add the distance and compass point to the footer.
 function WC.PlanTipLines(group, opts)
     local lines, prevQuest = {}, nil
+    if group.arrival then
+        lines[1] = { text = group.arrivalLabel, color = WHITE }
+        if group.arrival.text then lines[2] = { text = group.arrival.text, color = GREY } end
+        return lines
+    end
     for i, s in ipairs(group.steps) do
         if i > 1 then lines[#lines + 1] = { text = " ", color = GREY, small = true } end
         step_lines(lines, group, s, prevQuest, opts)
