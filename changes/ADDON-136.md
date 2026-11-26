@@ -1,0 +1,1 @@
+The panel now agrees with the map: NOW is the current step, HERE is the numbered run on this map with its exit, TRIPS groups the other zones (with Show on map) and LATER holds parked quests. HERE rebuilds live as you accept, turn in, change zone or finish objectives, each quest shows once, and the collapsed panel shows NOW plus the next two stops.

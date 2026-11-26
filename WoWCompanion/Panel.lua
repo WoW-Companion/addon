@@ -152,6 +152,23 @@ function WC.TitleBarTipLines()
     return { WC.PanelCollapsed() and L.TITLE_TIP_EXPAND or L.TITLE_TIP_COLLAPSE }
 end
 
+-- The collapsed panel's extra lines under the title: NOW and the next two HERE stops (nothing without a plan).
+function WC.SetPeek(f, S)
+    f.peekH = 0
+    if not f.peek then return end
+    local lines = WC.PanelPeekLines and WC.PanelPeekLines(S) or {}
+    if not WC.PanelCollapsed() or #lines == 0 then f.peek:SetText("") f.peek:Hide() return end
+    local pad = WC.Setting("padding")
+    f.peek:ClearAllPoints()
+    f.peek:SetPoint("TOPLEFT", f, "TOPLEFT", pad, -(COLLAPSED_HEIGHT - 4))
+    f.peek:SetWidth(panel_width() - 2 * pad)
+    f.peek:SetText(WC.SafeText(table.concat(lines, "\n")))
+    f.peek:Show()
+    local h = (f.peek.GetStringHeight and f.peek:GetStringHeight()) or 0
+    if not h or h <= 0 then h = #lines * WC.LINE_HEIGHT end
+    f.peekH = math.ceil(h) + pad
+end
+
 -- Shows or hides the body for the collapsed state; the chevron, hint and title bar follow it.
 function WC.ApplyCollapsed()
     local f = WC.panel
@@ -341,6 +358,15 @@ function WC.RefreshNextLine()
     if not f then return end
     local mapID, px, py
     if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
+    local S = WC.PanelSections and WC.PanelSections(mapID, px, py)
+    if S then -- NOW (a panel row) carries the distance: redraw when its text changes
+        local now = S.now and WC.PanelPeekLines(S)[1] or ""
+        if f.nowText ~= now then
+            f.nowText = now
+            if f:IsShown() then WC.Refresh() end
+        end
+        return
+    end
     local text = WC.NextStepLine(WC.PlanNext(), mapID, px, py)
     if f.step:GetText() == text then return end
     f.step:SetText(WC.SafeText(text))
@@ -415,6 +441,10 @@ function WC.CreatePanel()
     tb:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.titleBar = tb
 
+    f.peek = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall") -- collapsed: NOW and the next two HERE stops
+    f.peek:SetJustifyH("LEFT")
+    f.peek:SetTextColor(unpack(WC.COLORS.grey))
+    shadow(f.peek)
     f.step = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     f.step:SetTextColor(unpack(WC.COLORS.grey))
     shadow(f.step)
@@ -647,7 +677,7 @@ function WC.Refresh()
     if meta and WC.PlanFollowing() and WC.plan.generated > 0 then
         advice = string.format(L.ADVICE_FOLLOWING, WC.FormatClock(WC.plan.generated))
     end
-    if meta and WC.PlanBehind() then
+    if meta and WC.PlanBehind() and (not WC.PlanLacksLive or WC.PlanLacksLive()) then -- only when a live quest is in no section
         advice = advice .. L.PLAN_BEHIND
         if WC.lagDismissed then f.title:SetText(f.title:GetText() .. L.PLAN_BEHIND_MARK) end
     end
@@ -659,13 +689,23 @@ function WC.Refresh()
     WC.view.mode = mode
     local mapID, px, py
     if WC.PlayerPos then mapID, px, py = WC.PlayerPos() end
-    f.step:SetText(WC.SafeText(WC.NextStepLine(WC.PlanNext(), mapID, px, py)))
+    local S = WC.PanelSections and WC.PanelSections(mapID, px, py)
+    f.step:SetText(WC.SafeText(S and "" or WC.NextStepLine(WC.PlanNext(), mapID, px, py))) -- NOW below replaces the step line
     WC.LayoutPanelHeader()
+    if S then rows = WC.DropNextQuests(rows) end
     rows = WC.ViewRows(mode, rows, WC.view.expanded, WC.PlanNext())
-    if WC.HereRows then -- the "Here" card and "Also doing" sit above the digest rows
+    if S then -- NOW, HERE, TRIPS and LATER sit above the other digest rows
+        local extra = WC.PanelSectionRows(S, mapID, px, py)
+        if mode == "next" then extra = { extra[1], extra[2] } end
+        if mode ~= "next" and WC.UnplannedRows then -- accepted quests no section holds yet
+            for _, r in ipairs(WC.UnplannedRows(collapsed, UnitLevel and UnitLevel("player") or nil)) do extra[#extra + 1] = r end
+        end
+        for i, r in ipairs(extra) do table.insert(rows, i, r) end
+    elseif WC.HereRows then -- no plan: the "Here" card and "Also doing" sit above the digest rows
         local extra = WC.HereRows(mapID, px, py)
         for i, r in ipairs(extra) do table.insert(rows, i, r) end
     end
+    WC.SetPeek(f, S)
     local compact = mode ~= "full"
     f.compactButton:SetText(WC.ViewButtonLabel(mode))
 
@@ -733,7 +773,7 @@ function WC.Refresh()
     if not f.sizing then -- the client sizes the frame itself while the grip is held
         local oldH = f:GetHeight()
         if collapsedNow then
-            f:SetSize(panel_width(), COLLAPSED_HEIGHT)
+            f:SetSize(panel_width(), COLLAPSED_HEIGHT + (f.peekH or 0))
         else
             f:SetSize(WC.PanelSize(compact and math.max(COMPACT_MIN, math.min(FULL_HEIGHT, f.scrollTop + WC.Setting("padding") + y)) or FULL_HEIGHT))
         end

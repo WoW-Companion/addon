@@ -19,6 +19,7 @@ Seen.lua
 Capture.lua
 Stats.lua
 PlanUI.lua
+PanelPlan.lua
 PlanTip.lua
 Tooltips.lua
 Hover.lua

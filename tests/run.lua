@@ -40,6 +40,7 @@ end
 
 local function digest_client(name)
     fresh_client(nil)
+    WoWCompanionPlan = nil -- a digest-only client: no plan left over from an earlier case
     load_digest("tests/fixtures/digest_" .. name .. ".lua")
     return WoWCompanion.panel
 end
@@ -1998,12 +1999,12 @@ end }
 cases[#cases + 1] = { "quest and section collapse state: a clicked quest hides its lines and persists", function()
     local p = v13_client() -- PLAYER_NAME stays Genaenyu so the clicks' redraws still find the digest
     assert(p.plain:find("0/1 Find Aamelia Windfield", 1, true))
-    local h = row_with(p, "[9] Blood Tithe")
+    local h = row_with(p, "Blood Tithe")
     assert(h.scripts.OnClick and h.mouse and h.tbtn.scripts.OnClick)
     h.tbtn.scripts.OnClick(h.tbtn) -- the +/- square collapses; the title row itself opens the quest or its card
     assert(WoWCompanionDB.collapsed.q7002 == true)
     assert(not p.plain:find("Find Aamelia", 1, true) and p.plain:find("Seena Skybreaker", 1, true))
-    h = row_with(p, "[9] Blood Tithe")
+    h = row_with(p, "Blood Tithe")
     h.tbtn.scripts.OnClick(h.tbtn)
     assert(WoWCompanionDB.collapsed.q7002 == nil and p.plain:find("Find Aamelia", 1, true))
     local s = row_with(p, "Next quests")
@@ -2072,7 +2073,8 @@ cases[#cases + 1] = { "the panel header is gold with the character, the advice t
     local p = WC.panel
     assert(p.title:GetText() == "WoW Companion: Genaenyu", p.title:GetText())
     assert(p.header:GetText():find("advice from ", 1, true) and not p.header:GetText():find("Genaenyu", 1, true))
-    assert(p.step:GetText():match("^Step 1/4 · Pick up .+ · another zone$"), p.step:GetText())
+    assert(p.step:GetText() == "", "the NOW row replaces the step line")
+    assert(row_with(p, "NOW") and row_with(p, "Pick up Quest 10"))
     assert(p.close and p.compactButton:GetText() == "Full" and p.backdrop)
     PLAYER_NAME = nil
 end }
@@ -3386,7 +3388,7 @@ local function entry_of(p, text) return row_with(p, text).entry end
 
 cases[#cases + 1] = { "hover: entering an entry lights all its rows, leaving clears; the settings switch it", function()
     local p, WC = card_client(nil, { [11] = "active" })
-    local head, obj, other = row_with(p, "[9] Blood Tithe"), row_with(p, "0/1 Find X"), row_with(p, "Quest 10")
+    local head, obj, other = row_with(p, "Blood Tithe"), row_with(p, "0/1 Find X"), row_with(p, "Quest 10")
     assert(not head.hl:IsShown())
     local base = head.label.color
     head.scripts.OnEnter(head)
@@ -3423,7 +3425,7 @@ cases[#cases + 1] = { "hover: an entry pulses its badges on the map and minimap;
         end
     end
     assert(pin10 and pin11 and pin10.planGroup.isNext and not pin11.glow:IsShown())
-    local row = row_with(p, "[9] Blood Tithe")
+    local row = row_with(p, "Blood Tithe")
     row.scripts.OnEnter(row)
     assert(pin11.glow:IsShown(), "the hovered entry's badge pulses")
     assert(WC.StepHot(WC.plan.steps[2]) and not WC.StepHot(WC.plan.steps[1]))
@@ -3458,14 +3460,14 @@ cases[#cases + 1] = { "click: left on a quest in the log opens it; otherwise the
     local opened, linked = {}, {}
     QuestMapFrame_OpenToQuestDetails = function(id) opened[#opened + 1] = id end
     local p, WC = card_client(nil, { [11] = "active" })
-    local q = row_with(p, "[9] Blood Tithe")
+    local q = row_with(p, "Blood Tithe")
     q.scripts.OnClick(q, "LeftButton")
     assert(opened[1] == 11 and not card_shown())
     q.scripts.OnClick(q, "RightButton")
     assert(card_shown() and #opened == 1)
     WoWCompanionCard:Hide()
     -- a pick-up that is not in the log opens its card
-    local pick = row_with(p, "[10] Quest 10")
+    local pick = row_with(p, "Quest 10")
     pick.scripts.OnClick(pick, "LeftButton")
     assert(card_shown() and #opened == 1)
     pick.scripts.OnClick(pick, "LeftButton")
@@ -3512,14 +3514,14 @@ end }
 cases[#cases + 1] = { "card: the rows for a quest, a pick-up, training, talents and an upgrade", function()
     UnitLevel = function() return 10 end
     local p, WC = card_client(nil, { [11] = "active" })
-    local quest = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
+    local quest = WC.CardModel(entry_of(p, "Blood Tithe"))
     assert(quest.subtitle == "Level 9 - Quest" and quest.title == "Blood Tithe")
-    assert(card_text(WC, entry_of(p, "[9] Blood Tithe")) == "Detail eleven\n0/1 Find X")
+    assert(card_text(WC, entry_of(p, "Blood Tithe")) == "Detail eleven\n0/1 Find X")
     local acts = {}
     for _, a in ipairs(quest.actions) do acts[#acts + 1] = a.label end
     assert(table.concat(acts, ",") == "Open in quest log,Show on map")
-    local pick = WC.CardModel(entry_of(p, "[10] Quest 10"))
-    assert(card_text(WC, entry_of(p, "[10] Quest 10")) == "Chain start\nRewards a bag\nPick up from Gruff in Testisle")
+    local pick = WC.CardModel(entry_of(p, "Quest 10"))
+    assert(card_text(WC, entry_of(p, "Quest 10")) == "Chain start\nRewards a bag\nPick up from Gruff in Testisle")
     assert(#pick.actions == 1 and pick.actions[1].label == "Show on map")
     local train = WC.CardModel(entry_of(p, "New at level 10"))
     assert(card_text(WC, entry_of(p, "New at level 10")) == "New: Thunder Clap\nCharge (Rank 2) - upgrade\nThunder Clap - new")
@@ -3565,7 +3567,7 @@ cases[#cases + 1] = { "card: Show on map opens the map to the step's zone and pu
     local p, WC = card_client(nil, { [11] = "active" })
     local opened = {}
     OpenWorldMap = function(map) opened[#opened + 1] = map end
-    local c = open_card(p, "[9] Blood Tithe", "RightButton")
+    local c = open_card(p, "Blood Tithe", "RightButton")
     local btn = WoWCompanionCardAction2
     assert(btn and btn:GetText() == "Show on map")
     COMBAT = true
@@ -3646,7 +3648,7 @@ cases[#cases + 1] = { "card: schema 1.3 and 1.2 digests open cards with the temp
     assert(#m.rows == 1 and m.rows[1].text == m.title, "a card with nothing more shows the entry's own text")
     p = v13_client()
     WC = WoWCompanion
-    local q = WC.CardModel(entry_of(p, "[9] Blood Tithe"))
+    local q = WC.CardModel(entry_of(p, "Blood Tithe"))
     assert(q.asks[1] == "What's Blood Tithe for?" and q.rows[1].text == q.title)
     local t = WC.CardModel(entry_of(p, "unspent talent"))
     assert(t.asks[1] == "Where should my talent point go?")
@@ -3881,7 +3883,7 @@ cases[#cases + 1] = { "notes wrap to 2 lines with no ellipsis; other rows are un
     assert(row.label.maxLines == 2, "a note line wraps to 2 lines")
 
     assert(row.label:GetText():find("second line$", 1) and not row.label:GetText():find("...", 1, true) and not row.label:GetText():find("\226\128\166", 1, true))
-    local head = row_with(p, "Next quests")
+    local head = row_with(p, "NOW")
     assert(head.label.maxLines == 0)
 end }
 
@@ -7318,6 +7320,155 @@ cases[#cases + 1] = { "plan: stops with no real place are never drawn; approx fa
     out = {}
     for _, l in ipairs(WC.PlanTipLines({ steps = { steps[3] }, total = 4 })) do out[#out + 1] = l.text end
     assert(table.concat(out, "|"):find("Step 3 of 4", 1, true))
+end }
+
+-- The panel's plan layout: NOW, HERE, TRIPS, LATER.
+local function panel_client(file)
+    local WC = plan_client(file or "panel")
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetMapWorldSize = function() return 1000, 1000 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.5, 0.5 end } end }
+    C_QuestLog.GetTitleForQuestID = function(id) return "Quest " .. id end
+    UnitLevel = function() return 10 end
+    WoWCompanionDigest = nil
+    WC.ShowPanel()
+    WC.Refresh()
+    return WC
+end
+local function panel_lines(WC)
+    local t = {}
+    for _, r in ipairs(WC.panel.rows) do if r:IsShown() then t[#t + 1] = r.label:GetText() end end
+    return t
+end
+local function count_of(lines, text)
+    local n = 0
+    for _, l in ipairs(lines) do if l:find(text, 1, true) then n = n + 1 end end
+    return n
+end
+
+cases[#cases + 1] = { "panel plan: an old plan with no trips renders NOW and HERE, no TRIPS or LATER, no error", function()
+    local WC = panel_client("full")
+    local lines = panel_lines(WC)
+    assert(lines[1] == "NOW" and lines[2]:find("Pick up Quest 10", 1, true), table.concat(lines, "|"))
+    assert(count_of(lines, "HERE") == 1 and count_of(lines, "TRIPS") == 0 and count_of(lines, "LATER") == 0)
+    assert(WC.PanelSections(7001, 50, 50).now and WC.plan.trips == nil)
+end }
+
+cases[#cases + 1] = { "panel plan: a new plan renders NOW, HERE with the exit, TRIPS and LATER", function()
+    local WC = panel_client()
+    local lines = panel_lines(WC)
+    local text = table.concat(lines, "\n")
+    for _, want in ipairs({ "NOW", "HERE · ", "Then: Take the boat to Otherisle", "TRIPS · 2", "LATER · 1" }) do
+        assert(text:find(want, 1, true), want .. "\n" .. text)
+    end
+    assert(text:find("[+] Otherisle · 1 quest · 1 ready", 1, true) or text:find("[+] Otherisle · 2 quests", 1, true), text)
+    assert(text:find("[+] Farisle · 1 quest", 1, true) and text:find("[+] LATER · 1", 1, true), text)
+    assert(text:find("Quest 40", 1, true) == nil, "LATER starts collapsed")
+    -- trips are ordered by `order`, not file order
+    assert(text:find("Otherisle", 1, true) < text:find("Farisle", 1, true))
+end }
+
+cases[#cases + 1] = { "panel plan: a trip opens to its reason, quests and travel, and Show on map switches the map", function()
+    local WC = panel_client()
+    local function click(text)
+        for _, r in ipairs(WC.panel.rows) do
+            if r:IsShown() and r.label:GetText():find(text, 1, true) then r.scripts.OnClick(r, "LeftButton") return end
+        end
+        error("no row " .. text)
+    end
+    click("[+] Otherisle")
+    local text = table.concat(panel_lines(WC), "\n")
+    assert(text:find("Turn-ins are there", 1, true) and text:find("Take the boat", 1, true) and text:find("Walk north", 1, true), text)
+    local mapID
+    WorldMapFrame = WorldMapFrame or {}
+    WorldMapFrame.SetMapID = function(_, id) mapID = id end
+    click("Show on map")
+    assert(mapID == 7002)
+    click("LATER")
+    assert(table.concat(panel_lines(WC), "\n"):find("Quest 40 \226\128\148 Level 40", 1, true))
+end }
+
+cases[#cases + 1] = { "panel plan: no quest appears twice", function()
+    local WC = panel_client()
+    local lines = panel_lines(WC)
+    for _, l in ipairs(lines) do assert(count_of(lines, l) == 1 or l:find("^%s*$"), "twice: " .. l) end
+    -- quest 10 is a HERE step, so the trip that also lists it shows it once overall; quest 30 is a trip's, not LATER's
+    local text = table.concat(lines, "\n")
+    assert(not text:find("dup of a trip", 1, true))
+    WC.view.tripOpen["7002:1"] = true
+    WC.Refresh()
+    local open = panel_lines(WC)
+    assert(count_of(open, "Quest 20") + count_of(open, "Quest 21") == 2)
+    local n10 = 0
+    for _, l in ipairs(open) do if l:find("Quest 10", 1, true) and not l:find("Kill", 1, true) then n10 = n10 + 1 end end
+    assert(n10 <= 2, "Quest 10 shows as the NOW step and at most its HERE turn-in step")
+end }
+
+cases[#cases + 1] = { "panel plan: HERE and the map's badges agree in numbers, labels and order, and hide trips and later", function()
+    local WC = panel_client()
+    local S = WC.PanelSections(7001, 50, 50)
+    local groups = WC.MapBadgeGroups(7001)
+    local want = {}
+    for _, g in ipairs(groups) do if not g.isNext then want[#want + 1] = WC.PinLabel(g.steps) end end
+    local got = {}
+    for _, stop in ipairs(S.here.stops) do got[#got + 1] = stop.label end
+    assert(table.concat(got, ",") == table.concat(want, ","), table.concat(got, ",") .. " vs " .. table.concat(want, ","))
+    assert(#got >= 2)
+    local nowLabel
+    for _, g in ipairs(groups) do if g.isNext then nowLabel = WC.PinLabel(g.steps) end end
+    assert(S.now.label == nowLabel)
+    for _, stop in ipairs(S.here.stops) do assert(stop.step.map == 7001) end
+    for _, g in ipairs(groups) do for _, st in ipairs(g.steps) do assert(st.questID ~= 30 and st.questID ~= 40 and st.questID ~= 21) end end
+    -- and the rows render in that order after the NOW row
+    local text = table.concat(panel_lines(WC), "\n")
+    local last = 0
+    for _, stop in ipairs(S.here.stops) do
+        local at = text:find(stop.label .. " · " .. stop.text, last + 1, true)
+        assert(at and at > last, stop.label)
+        last = at
+    end
+end }
+
+cases[#cases + 1] = { "panel plan: a live turn-in drops the step from HERE without a reload", function()
+    local WC = panel_client()
+    assert(table.concat(panel_lines(WC), "\n"):find("Pick up Quest 12", 1, true))
+    QUESTS[12] = "active"
+    Stub.fire(frames, "QUEST_ACCEPTED", 1, 12)
+    local after = table.concat(panel_lines(WC), "\n")
+    assert(not after:find("Pick up Quest 12", 1, true), after)
+end }
+
+cases[#cases + 1] = { "panel plan: when every HERE step is done the zone-done line leads and the first trip's travel is NOW", function()
+    local WC = panel_client()
+    for _, n in ipairs({ 1, 2, 3, 4 }) do WC.plan.done[n] = true end
+    WC.Refresh()
+    local lines = panel_lines(WC)
+    local text = table.concat(lines, "\n")
+    assert(text:find("done — next: Otherisle", 1, true), text)
+    assert(lines[2] == "Go: Take the boat > Walk north", lines[2])
+end }
+
+cases[#cases + 1] = { "panel plan: collapsed shows NOW and the next 2 HERE rows under the title", function()
+    local WC = panel_client()
+    WC.SetPanelCollapsed(true)
+    local p = WC.panel
+    assert(p.peek.shown and p.scroll.shown == false)
+    local lines = {}
+    for l in p.peek:GetText():gmatch("[^\n]+") do lines[#lines + 1] = l end
+    assert(#lines == 3 and lines[1]:find("Pick up Quest 10", 1, true), p.peek:GetText())
+    assert(p.h > 26)
+    WC.SetPanelCollapsed(false)
+    assert(p.peek.shown == false)
+end }
+
+cases[#cases + 1] = { "panel plan: the one-save-behind note shows only when a live quest is in no section", function()
+    local WC = panel_client()
+    WC.plan.behind = true
+    local calls = 0
+    C_QuestLog.GetNumQuestLogEntries = function() return 1 end
+    C_QuestLog.GetInfo = function() return { questID = 10 } end
+    assert(WC.PlanLacksLive() == false)
+    C_QuestLog.GetInfo = function() return { questID = 999 } end
+    assert(WC.PlanLacksLive() == true)
 end }
 
 local failed = 0

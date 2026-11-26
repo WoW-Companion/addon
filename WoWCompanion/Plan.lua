@@ -218,6 +218,46 @@ function WC.ParseLater(list)
     return #out > 0 and out or nil
 end
 
+-- The panel's own plan fields (all optional; an older plan has none): `exit` { label, map, x, y, via }, `trips` an ordered
+-- list of { order, map, zone, ready, todo, pickups, questIDs, reason, travel, instance } and `parked` (or a `later` whose
+-- items carry a `why`) { questID, quest, why, kind }. Read defensively: a malformed entry is dropped, never an error.
+function WC.ParsePanelFields(entry)
+    local function str(v) return type(v) == "string" and v ~= "" and plain(v) or nil end
+    local exit
+    if type(entry.exit) == "table" and str(entry.exit.label) then
+        local e = entry.exit
+        exit = { label = str(e.label), map = tonumber(e.map), x = tonumber(e.x), y = tonumber(e.y), via = str(e.via) }
+    end
+    local trips = {}
+    for i, t in ipairs(type(entry.trips) == "table" and entry.trips or {}) do
+        if type(t) == "table" and (tonumber(t.map) or str(t.zone)) then
+            local travel = {}
+            if type(t.travel) == "string" then
+                travel[1] = plain(t.travel)
+            else
+                for _, leg in ipairs(type(t.travel) == "table" and t.travel or {}) do
+                    local leg_text = type(leg) == "string" and leg or (type(leg) == "table" and (leg.text or leg.label))
+                    if type(leg_text) == "string" and leg_text ~= "" then travel[#travel + 1] = plain(leg_text) end
+                end
+            end
+            trips[#trips + 1] = { order = tonumber(t.order) or i, map = tonumber(t.map), zone = str(t.zone),
+                ready = math.max(0, math.floor(tonumber(t.ready) or 0)), todo = math.max(0, math.floor(tonumber(t.todo) or 0)),
+                pickups = math.max(0, math.floor(tonumber(t.pickups) or 0)), questIDs = id_list(t.questIDs) or {},
+                reason = str(t.reason), travel = travel, instance = str(t.instance) }
+        end
+    end
+    table.sort(trips, function(a, b) return a.order < b.order end)
+    local parked = {}
+    local list = type(entry.parked) == "table" and entry.parked or entry.later
+    for _, q in ipairs(type(list) == "table" and list or {}) do
+        local id = type(q) == "table" and tonumber(q.questID)
+        if id and id > 0 and str(q.why) then
+            parked[#parked + 1] = { questID = id, quest = str(q.quest) or "", why = str(q.why), kind = str(q.kind) }
+        end
+    end
+    return exit, #trips > 0 and trips or nil, #parked > 0 and parked or nil
+end
+
 -- True when a stop has a real place on its map: x and y are numbers, not negative, not both exactly 0 (the plan's
 -- "no spot" filler), and it is not flagged unplaced. Never draw a badge, ring, line or minimap pin without it.
 function WC.HasPlace(s)
@@ -268,7 +308,7 @@ function WC.ParsePlan(plan, player)
     end
     if #steps == 0 then return nil, "character" end
     return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
-        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps)
+        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), WC.ParsePanelFields(entry)
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -389,7 +429,7 @@ function WC.DismissPlanLag() WC.lagDismissed = true end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later, finishers, zones = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     if not steps then return end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
@@ -399,7 +439,8 @@ function WC.PlanInit()
         WC.db.plan[charKey()] = saved
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
-        guidance = guidance, here = here, later = later or {}, finishers = finishers, zones = zones, live = {}, liveSig = "" }
+        guidance = guidance, here = here, later = later or {}, finishers = finishers, zones = zones, live = {}, liveSig = "",
+        exit = exit, trips = trips, parked = parked }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
@@ -987,6 +1028,12 @@ function WC.LiveUpdate(event, a, b)
     if event ~= "ZONE_CHANGED" and event ~= "ZONE_CHANGED_INDOORS" and event ~= "ZONE_CHANGED_NEW_AREA"
         and event ~= "PLAYER_ENTERING_WORLD" then
         WC.PlanOnQuestEvent(event, a, b)
+    elseif WC.plan then -- a zone change: arriving completes a trip with no action, and HERE is rebuilt for the new zone
+        local map = WC.PlayerPos and WC.PlayerPos()
+        pcall(function()
+            if map then WC.PlanArrive(map) end
+            WC.PlanScan()
+        end)
     end
     refresh_panel()
     if WC.RefreshMapPanelSoon then WC.RefreshMapPanelSoon() end
