@@ -66,6 +66,7 @@ local function in_plan(id)
     end
     for _, k in ipairs(p.parked or {}) do if k.questID == id then return true end end
     for _, k in ipairs(p.later or {}) do if k.questID == id then return true end end
+    for _, k in ipairs(p.find or {}) do if k.questID == id then return true end end
     return false
 end
 
