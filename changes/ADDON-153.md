@@ -1,5 +1,0 @@
-- Errands the plan bundles into a stop show as a dim "While you're here" line under it.
-- Each errand has a small icon: bag to restock, hammer to repair, coin to sell, envelope to mail.
-- Errands with no stop of their own are numbered rows like any other stop.
-- A stop's map tooltip adds "+ 1 errand"; there is no separate badge.
-- Errand kinds this version doesn't know still show, with a generic icon.
