@@ -15,6 +15,8 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   client = { version = "<x.y.z>", build = "<n>" },
   money = <copper>, xp, xpMax, rested,
   location = { map = <uiMapID>, x = <pct 0-100>, y = <pct> }, hearth = "<bind location name>",
+  hearthHave = <bool: a Hearthstone (6948) is in the bags>, hearthReadyIn = <whole s until ready, 0 = ready; absent when no API>,
+  hearthCooldown = <s, the cooldown the client reported (over 2 s); the last observed value is kept>,
   equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id>, quality? = <0-8>, ilvl? = <n>, reqLevel? = <n>, equipLoc? = "INVTYPE_…", stats? = { agi|str|sta|int|spi|armor = <n>, <other ITEM_MOD_* key> = <n> } } },
   bags = { [bag 0-4] = { size = <n>, items = { [slot] = { id = <itemID>, count = <n>, enchant? , suffix? , quality? , ilvl? , reqLevel? , equipLoc? } } } },   -- item info fields are left out until the client has cached the item
   bank = { [-1, 5-10] = same shape as bags }, bankSeenAt = <unix s>,   -- only written while the bank is open
@@ -59,7 +61,7 @@ Notes:
 
 UnitName, GetRealmName, UnitLevel, UnitClass, UnitRace, UnitFactionGroup, GetBuildInfo, GetMoney, UnitXP,
 UnitXPMax, GetXPExhaustion, C_Map.GetBestMapForUnit, C_Map.GetPlayerMapPosition, GetBindLocation,
-GetInventoryItemID, GetInventoryItemLink, C_Container.GetContainerNumSlots / GetContainerItemInfo (or the older
+GetItemCount, GetItemCooldown, GetTime, GetInventoryItemID, GetInventoryItemLink, C_Container.GetContainerNumSlots / GetContainerItemInfo (or the older
 GetContainerNumSlots, GetContainerItemID, GetContainerItemInfo), GetNumQuestLogEntries, GetQuestLogTitle
 (or C_QuestLog.GetInfo and IsComplete), GetNumQuestLeaderBoards, GetQuestLogLeaderBoard, GetQuestsCompleted (or
 C_QuestLog.GetAllCompletedQuestIDs), GetNumTalentTabs, GetTalentTabInfo, GetNumTalents, GetTalentInfo,

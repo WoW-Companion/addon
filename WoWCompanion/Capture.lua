@@ -176,6 +176,26 @@ function readers.location(r)
     r.hearth = GetBindLocation and GetBindLocation() or nil
 end
 
+-- The Hearthstone (item 6948): is one in the bags, and when is it ready. Read-only; a missing API leaves its key out.
+-- hearthCooldown is the real cooldown the client reported (a duration over the 2 s global cooldown); the last
+-- observed value stays when the current read shows the stone ready.
+local HEARTHSTONE, GCD_MAX = 6948, 2
+function readers.hearth(r)
+    r.hearthHave = nil
+    if GetItemCount then r.hearthHave = (GetItemCount(HEARTHSTONE) or 0) > 0 end
+    r.hearthReadyIn = nil
+    if GetItemCooldown and GetTime then
+        local start, duration = GetItemCooldown(HEARTHSTONE)
+        start, duration = tonumber(start), tonumber(duration)
+        if start and duration then
+            if duration > GCD_MAX then r.hearthCooldown = math.floor(duration + 0.5) end
+            local left = 0
+            if start > 0 and duration > GCD_MAX then left = math.ceil(start + duration - GetTime()) end
+            r.hearthReadyIn = left > 0 and left or 0
+        end
+    end
+end
+
 function readers.equipment(r)
     local eq = {}
     statsProbe = nil
@@ -992,7 +1012,7 @@ function readers.craft(r)
 end
 
 -- The order matters little; each part is read on its own so one failing read never costs the rest.
-local ORDER = { "identity", "money", "location", "equipment", "bags", "bank", "quests", "questpoi", "completed", "talents",
+local ORDER = { "identity", "money", "location", "hearth", "equipment", "bags", "bank", "quests", "questpoi", "completed", "talents",
     "stats", "skills", "spells", "reputations", "tradeskill", "craft" }
 
 -- Reads every waiting part now, unless capture is off or the player is in combat.
@@ -1043,15 +1063,16 @@ function WC.CaptureMark(...)
 end
 
 local EVENTS = {
-    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "equipment", "bags", "quests", "questpoi", "completed", "talents", "stats", "skills", "spells", "reputations" },
+    PLAYER_ENTERING_WORLD = { "identity", "money", "location", "hearth", "equipment", "bags", "quests", "questpoi", "completed", "talents", "stats", "skills", "spells", "reputations" },
     PLAYER_LEVEL_UP = { "identity", "money", "talents", "stats", "spells", "skills" },
     PLAYER_XP_UPDATE = { "money" },
     PLAYER_MONEY = { "money" },
     ZONE_CHANGED_NEW_AREA = { "location", "questpoi" },
     ZONE_CHANGED = { "location", "questpoi" },
-    HEARTHSTONE_BOUND = { "location" },
+    HEARTHSTONE_BOUND = { "location", "hearth" },
+    BAG_UPDATE_COOLDOWN = { "hearth" },
     PLAYER_EQUIPMENT_CHANGED = { "equipment", "stats" },
-    BAG_UPDATE_DELAYED = { "bags" },
+    BAG_UPDATE_DELAYED = { "bags", "hearth" },
     QUEST_LOG_UPDATE = { "quests", "questpoi" },
     QUEST_ACCEPTED = { "quests", "questpoi" },
     QUEST_REMOVED = { "quests", "questpoi" },

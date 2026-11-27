@@ -20,7 +20,7 @@ for name in ([[
     ChatEdit_InsertLink InterfaceOptions_AddCategory InterfaceOptionsFrame_OpenToCategory
     QuestMapFrame_OpenToQuestDetails QuestLog_OpenToQuest SelectQuestLogEntry OpenWorldMap
     IsShiftKeyDown IsControlKeyDown IsMetaKeyDown IsIndoors InCombatLockdown GetCursorPosition GetScreenHeight GetCVar
-    GetBuildInfo GetAddOnMetadata GetAddOnInfo GetRealmName GetZoneText GetMinimapShape GetPlayerFacing GetBindingKey GetBindLocation
+    GetBuildInfo GetAddOnMetadata GetAddOnInfo GetRealmName GetZoneText GetMinimapShape GetPlayerFacing GetBindingKey GetBindLocation GetItemCount GetItemCooldown
     GetFileIDFromPath
     UnitName UnitLevel UnitClass UnitRace UnitFactionGroup UnitExists UnitGUID UnitReaction UnitXP UnitXPMax UnitStat UnitArmor UnitAttackPower
     UnitHealthMax UnitPowerMax UnitRangedAttackPower GetSpellCritChance GetCritChance GetRangedCritChance GetDodgeChance
