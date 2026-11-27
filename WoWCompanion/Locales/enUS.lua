@@ -171,6 +171,7 @@ local L = {
     UNHIDE_SUFFIX = " \194\183 Unhide",
     UNHIDE = "Unhide",
     HIDE_FROM_PLAN = "Hide from plan",
+    HIDE_X = "x",
     HIDE_TIP = "Hide this quest from the plan",
     MENU_OPEN_CARD = "Open details",
     BOX_plan_reach = "Plan",

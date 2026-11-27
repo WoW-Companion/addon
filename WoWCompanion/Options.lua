@@ -279,9 +279,9 @@ local function build_page(f, page, body)
             end
         end
         if page == "plan" and id == "reach" then
-            local note = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            note:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, y - 2)
-            f.widgets[#f.widgets + 1] = { sync = function() note:SetText(WC.PlanPrefsPending() and L.PLAN_PENDING or "") end }
+            local pending = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            pending:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, y - 2)
+            f.widgets[#f.widgets + 1] = { sync = function() pending:SetText(WC.PlanPrefsPending() and L.PLAN_PENDING or "") end }
             y = y - 20
         end
         if page == "plan" and id == "hidden" then
