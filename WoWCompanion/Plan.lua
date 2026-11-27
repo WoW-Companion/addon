@@ -6,7 +6,7 @@
 local WC = WoWCompanion
 local L = WC.L
 
-local KINDS = { pickup = true, objective = true, turnin = true, travel = true }
+local KINDS = { pickup = true, objective = true, turnin = true, travel = true, errand = true }
 local FALLBACK_YARDS = { 2500, 1670 } -- a zone's size when the client cannot say; distances are then rough
 local atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
 local COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
@@ -208,7 +208,8 @@ function WC.ParseLater(list)
     if type(list) ~= "table" then return nil end
     local out = {}
     for _, it in ipairs(list) do
-        local id, x, y = type(it) == "table" and tonumber(it.questID), tonumber(it and it.x), tonumber(it and it.y)
+        if type(it) ~= "table" then it = {} end
+        local id, x, y = tonumber(it.questID), tonumber(it.x), tonumber(it.y)
         if id and id > 0 and tonumber(it.map) and x and y and x >= 0 and y >= 0 and x <= 100 and y <= 100 and not (x == 0 and y == 0) then
             local k = it.kind
             out[#out + 1] = { questID = id, kind = (k == "pickup" or k == "turnin" or k == "objective") and k or nil,
@@ -305,10 +306,18 @@ function WC.ParsePlan(plan, player)
     end
     if type(entry) ~= "table" or type(entry.steps) ~= "table" then return nil, "character" end
     local steps = {}
+    WC.planUnknownKinds = {}
     for _, s in ipairs(entry.steps) do
-        if type(s) == "table" and KINDS[s.kind] and tonumber(s.map) and tonumber(s.x) and tonumber(s.y) then
+        local known = type(s) == "table" and KINDS[s.kind]
+        local generic = type(s) == "table" and not known and s.kind ~= nil -- a kind from a newer app: kept as a plain row, never a reason to drop the plan
+        if generic then
+            WC.planUnknownKinds[tostring(s.kind)] = (WC.planUnknownKinds[tostring(s.kind)] or 0) + 1
+            s.map, s.x, s.y = tonumber(s.map) or 0, tonumber(s.x) or -1, tonumber(s.y) or -1
+        end
+        if (known or generic) and tonumber(s.map) and tonumber(s.x) and tonumber(s.y) then
             steps[#steps + 1] = {
-                n = #steps + 1, kind = s.kind, questID = tonumber(s.questID) or 0,
+                n = #steps + 1, kind = known and s.kind or "other", rawKind = generic and plain(tostring(s.kind)) or nil,
+                errand = known and s.kind == "errand" and type(s.errand) == "string" and s.errand:lower() or nil, questID = tonumber(s.questID) or 0,
                 quest = plain(s.quest or ""), label = plain(s.label or ""), approx = s.approx == true,
                 map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100),
                 unplaced = s.unplaced == true or tonumber(s.x) < 0 or tonumber(s.y) < 0 or (tonumber(s.x) == 0 and tonumber(s.y) == 0) or nil,
@@ -324,7 +333,6 @@ function WC.ParsePlan(plan, player)
             }
         end
     end
-    if #steps == 0 then return nil, "character" end
     return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
         WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), WC.ParsePanelFields(entry)
 end
@@ -449,7 +457,12 @@ function WC.DismissPlanLag() WC.lagDismissed = true end
 function WC.PlanInit()
     local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
-    if not steps then return end
+    WC.planError = nil
+    if not steps then
+        local _, why = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+        if why and why ~= "missing" then WC.planError = why end
+        return
+    end
     WC.db.plan = type(WC.db.plan) == "table" and WC.db.plan or {}
     local saved = WC.db.plan[charKey()]
     if type(saved) ~= "table" or saved.generated ~= generated or type(saved.done) ~= "table" then

@@ -712,6 +712,9 @@ function WC.Refresh()
         for i, r in ipairs(extra) do table.insert(rows, i, r) end
     elseif WC.HereRows then -- no plan: the "Here" card and "Also doing" sit above the digest rows
         local extra = WC.HereRows(mapID, px, py)
+        if WC.planError then
+            table.insert(extra, 1, { kind = "line", text = string.format(L.PLAN_UNREADABLE, WC.planError), color = WC.COLORS.dim })
+        end
         for i, r in ipairs(extra) do table.insert(rows, i, r) end
     end
     WC.SetPeek(f, S)
