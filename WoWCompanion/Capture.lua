@@ -181,7 +181,8 @@ end
 -- observed value stays when the current read shows the stone ready.
 local HEARTHSTONE, GCD_MAX = 6948, 2
 function readers.hearth(r)
-    r.hearthHave = GetItemCount and (GetItemCount(HEARTHSTONE) or 0) > 0 or nil
+    r.hearthHave = nil
+    if GetItemCount then r.hearthHave = (GetItemCount(HEARTHSTONE) or 0) > 0 end
     r.hearthReadyIn = nil
     if GetItemCooldown and GetTime then
         local start, duration = GetItemCooldown(HEARTHSTONE)
