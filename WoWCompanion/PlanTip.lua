@@ -121,6 +121,10 @@ function WC.PlanTipLines(group, opts)
         local q = s.quest or ""
         prevQuest = q ~= "" and q or nil
     end
+    local chores = WC.ChoresFor and WC.ChoresFor(group.steps) or {}
+    if #chores > 0 then
+        lines[#lines + 1] = { text = #chores == 1 and L.CHORE_TIP_ONE or string.format(L.CHORE_TIP_MANY, #chores), color = DIM, small = true }
+    end
     if group.ghost then
         local s = group.steps[1]
         local from = (group.from and group.from.quest ~= "" and group.from.quest) or nil

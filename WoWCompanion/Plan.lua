@@ -277,6 +277,54 @@ function WC.ParsePanelFields(entry)
     return exit, #trips > 0 and trips or nil, #parked > 0 and parked or nil, #find > 0 and find or nil, #errands > 0 and errands or nil
 end
 
+-- Logistics errands (restock, repair, selljunk, mail, or a kind from a newer app): `errands` entries that carry a `label`,
+-- { kind, label, npc, why, map, x, y, attach = plan step number }. One with `attach` rides along under that step; one
+-- without is a standalone stop of its own. Returns the attached list and the standalone raw steps. Any kind is kept.
+function WC.ParseChores(entry)
+    local attached, alone = {}, {}
+    for _, e in ipairs(type(entry) == "table" and type(entry.errands) == "table" and entry.errands or {}) do
+        local label = type(e) == "table" and type(e.label) == "string" and e.label ~= "" and plain(e.label)
+        if label then
+            local kind = type(e.kind) == "string" and e.kind:lower() or "errand"
+            local npc = type(e.npc) == "string" and e.npc ~= "" and plain(e.npc) or nil
+            local attach = tonumber(e.attach)
+            if attach and attach >= 1 and attach == math.floor(attach) then
+                attached[#attached + 1] = { kind = kind, label = label, npc = npc, why = type(e.why) == "string" and plain(e.why) or nil, attach = attach }
+            else
+                local x, y = tonumber(e.x), tonumber(e.y)
+                alone[#alone + 1] = { kind = "errand", errand = kind, label = label, map = tonumber(e.map) or 0, x = x or -1, y = y or -1,
+                    unplaced = not (x and y and x >= 0 and y >= 0) or nil, place = npc }
+            end
+        end
+    end
+    return attached, alone
+end
+
+-- Small icons from the game's own textures, one per errand kind; any other kind gets the generic scroll.
+local CHORE_ICONS = {
+    restock = "Interface\\Icons\\INV_Misc_Bag_08", repair = "Interface\\Icons\\Trade_BlackSmithing",
+    selljunk = "Interface\\Icons\\INV_Misc_Coin_01", mail = "Interface\\Icons\\INV_Letter_15",
+}
+function WC.ChoreIcon(kind) return "|T" .. (CHORE_ICONS[kind] or "Interface\\Icons\\INV_Misc_Note_01") .. ":0|t " end
+
+-- The open attached errands riding on a stop: those whose plan step is one of `steps` and not yet done. They follow the
+-- stop wherever the live order puts it, and are dropped once their step is done.
+function WC.ChoresFor(steps)
+    local out, p = {}, WC.plan
+    for _, e in ipairs(p and p.chores or {}) do
+        for _, s in ipairs(steps or {}) do
+            if s.n == e.attach and not p.done[s.n] then out[#out + 1] = e break end
+        end
+    end
+    return out
+end
+
+-- The dim sub-line text for an errand: its icon, "While you're here: <label>" and the NPC when the plan names one.
+function WC.ChoreText(e)
+    local text = e.npc and string.format(L.CHORE_LINE_NPC, e.label, e.npc) or string.format(L.CHORE_LINE, e.label)
+    return WC.ChoreIcon(e.kind) .. text
+end
+
 -- `flights`: the flight masters the character knows, { name, map, x, y }; `start`: where the app drew the plan from,
 -- { map, x, y }. Both optional; a malformed entry is dropped.
 function WC.ParseLiveFields(entry)
@@ -322,7 +370,11 @@ function WC.ParsePlan(plan, player)
     if type(entry) ~= "table" or type(entry.steps) ~= "table" then return nil, "character" end
     local steps = {}
     WC.planUnknownKinds = {}
-    for _, s in ipairs(entry.steps) do
+    local chores, alone = WC.ParseChores(entry)
+    local raw = {}
+    for _, s in ipairs(entry.steps) do raw[#raw + 1] = s end
+    for _, s in ipairs(alone) do raw[#raw + 1] = s end -- standalone errands are numbered after the route's own steps
+    for _, s in ipairs(raw) do
         local known = type(s) == "table" and KINDS[s.kind]
         local generic = type(s) == "table" and not known and s.kind ~= nil -- a kind from a newer app: kept as a plain row, never a reason to drop the plan
         if generic then
@@ -352,7 +404,7 @@ function WC.ParsePlan(plan, player)
     local exit, trips, parked, find, errands = WC.ParsePanelFields(entry)
     local flights, start = WC.ParseLiveFields(entry)
     return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
-        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), exit, trips, parked, find, errands, flights, start
+        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), exit, trips, parked, find, errands, flights, start, #chores > 0 and chores or nil
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -473,7 +525,7 @@ function WC.DismissPlanLag() WC.lagDismissed = true end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands, flights, start = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands, flights, start, chores = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     WC.planError = nil
     if not steps then
@@ -489,7 +541,7 @@ function WC.PlanInit()
     end
     WC.plan = { steps = steps, generated = generated, done = saved.done, open = {}, newAt = {},
         guidance = guidance, here = here, later = later or {}, finishers = finishers, zones = zones, live = {}, liveSig = "",
-        exit = exit, trips = trips, parked = parked, find = find, errands = errands }
+        exit = exit, trips = trips, parked = parked, find = find, errands = errands, chores = chores }
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end

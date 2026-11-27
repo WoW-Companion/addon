@@ -8087,6 +8087,58 @@ cases[#cases + 1] = { "live order: panel, map badges and next line agree on one 
     end
 end }
 
+-- ---------------------------------------------------------------- "while you're here" errands
+local function chores_rows(px, py)
+    local WC = plan_client("chores")
+    WC.db.settings.planLive = true
+    LIVE_POS = { px, py }
+    LIVE_TIME = LIVE_TIME and LIVE_TIME + 10 or 100
+    GetTime = function() return LIVE_TIME end
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetMapWorldSize = function() return 3000, 3000 end,
+        GetMapInfo = function() return { name = "Testisle", parentMapID = 0 } end,
+        GetPlayerMapPosition = function() return { GetXY = function() return LIVE_POS[1] / 100, LIVE_POS[2] / 100 end } end }
+    C_QuestLog.GetTitleForQuestID = function(id) return "Quest " .. id end
+    local S = WC.PanelSections(7001, px, py)
+    local texts = {}
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, px, py)) do texts[#texts + 1] = r.text or r.title or "" end
+    return WC, texts
+end
+local function row_after(texts, head)
+    for i, t in ipairs(texts) do
+        if t:find(head, 1, true) then return texts[i + 1] or "", i end
+    end
+    error("no row " .. head .. " in:\n" .. table.concat(texts, "\n"))
+end
+
+cases[#cases + 1] = { "errands: an attached restock sits under its live row, before and after a re-order", function()
+    local WC, south = chores_rows(50, 88)
+    local line, i = row_after(south, "Turn in Quest 2")
+    assert(line:find("While you're here: buy 5 Empty Vial (Sly Garrett)", 1, true) and line:find("|T", 1, true), line)
+    assert(WC.PlanTipLines({ steps = { WC.plan.steps[2] } })[#WC.PlanTipLines({ steps = { WC.plan.steps[2] } })].text == "+ 1 errand")
+    local _, north = chores_rows(50, 10)
+    local line2, j = row_after(north, "Turn in Quest 2")
+    assert(line2:find("While you're here: buy 5 Empty Vial", 1, true), line2)
+    assert(j > 1)
+end }
+
+cases[#cases + 1] = { "errands: a standalone repair is a numbered row, an unknown kind still renders", function()
+    local _, texts = chores_rows(50, 50)
+    local all = table.concat(texts, "\n")
+    assert(all:find("%d \194\183 Repair your gear \194\183 errand: Repair"), all)
+    local line = row_after(texts, "Pick up Quest 1")
+    assert(line:find("While you're here: Sort the holo-vault", 1, true), line)
+end }
+
+cases[#cases + 1] = { "errands: completing the stop hides its sub-line", function()
+    local WC = chores_rows(50, 88)
+    WC.plan.done[2] = true
+    local S = WC.PanelSections(7001, 50, 88)
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, 50, 88)) do
+        assert(not (r.text or ""):find("buy 5 Empty Vial", 1, true), r.text)
+    end
+    assert(#WC.ChoresFor({ WC.plan.steps[2] }) == 0)
+end }
+
 local failed = 0
 for _, c in ipairs(cases) do
     local ok, err = pcall(c[2])
