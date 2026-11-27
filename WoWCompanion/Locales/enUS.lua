@@ -687,6 +687,15 @@ local L = {
     WHATS_NEW_0_6_70_4 = "They wait under LATER, \"Hidden by you\", with an Unhide link (Settings, Plan, lists them with \"Unhide all\").",
     WHATS_NEW_0_6_70_5 = "A new Plan page sets how many levels above you the plan reaches (default 3, or no limit) and whether elite quests are included.",
     WHATS_NEW_0_6_70_6 = "Settings, Map has opacity sliders for stop badges, badge labels, route lines, the line to your next stop, area rings and zones, and minimap pins, plus \"Full opacity on hover\".",
+    WHATS_NEW_0_6_71_1 = "What's new now shows short bullets instead of one long paragraph.",
+    WHATS_NEW_0_6_71_2 = "Older notes with long entries are split into bullets at sentence ends.",
+    WHATS_NEW_0_6_71_3 = "NOW and HERE now follow you: stops on your map are re-ordered from where you stand.",
+    WHATS_NEW_0_6_71_4 = "Dependencies hold: a turn-in never comes before its objective; close ready turn-ins lead.",
+    WHATS_NEW_0_6_71_5 = "Map badge numbers and the next-stop line follow the same live order; NOW is number 1.",
+    WHATS_NEW_0_6_71_6 = "A far NOW shows a flight hint when a known flight master saves real distance.",
+    WHATS_NEW_0_6_71_7 = "Headers now read \"NOW · your next step\" and \"HERE · rest of <zone> (N stops, ~yd)\", with tooltips.",
+    WHATS_NEW_0_6_71_8 = "The panel says \"re-routed from where you are\" when you are far from where the plan began.",
+    WHATS_NEW_0_6_71_9 = "Settings, Plan has \"Re-order stops from where I stand\" to switch the live order off.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
