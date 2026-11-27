@@ -244,6 +244,27 @@ function WC.PlanDetail(step)
     return label
 end
 
+-- The overlay layers' opacities. A badge's parts (fill, ring, notch, icon) take the layer's alpha and its label takes
+-- the label layer's, each on its own region, so one slider never moves another layer. The zone arrival marker is the
+-- area layer. While hovered, a badge and its label show at full opacity when asked to.
+local BADGE_PARTS = { "fill", "ring", "notchBg", "icon" }
+function WC.PinLayerAlpha(p, hover)
+    local g = p.planGroup
+    local area = g ~= nil and g.arrival ~= nil
+    local badge, label = WC.Setting(area and "opacRing" or "opacBadge"), WC.Setting("opacLabel")
+    if hover and WC.Setting("hoverFull") then badge, label = 1, 1 end
+    return badge, label
+end
+
+function WC.ApplyPinOpacity(p, hover)
+    local badge, label = WC.PinLayerAlpha(p, hover)
+    for _, k in ipairs(BADGE_PARTS) do
+        local r = p[k]
+        if r and r.SetAlpha then r:SetAlpha(badge) end
+    end
+    if p.num and p.num.SetAlpha then p.num:SetAlpha(label) end
+end
+
 local function pinFor(i, canvas)
     local p = pins[i]
     if p then return p end
@@ -265,8 +286,9 @@ local function pinFor(i, canvas)
         if not g then return end
         WC.ShowPlanTip(self, "ANCHOR_RIGHT", g)
         WC.HoverEnterBadge(g)
+        WC.ApplyPinOpacity(self, true)
     end)
-    p:SetScript("OnLeave", function() GameTooltip:Hide() WC.HoverLeaveBadge() end)
+    p:SetScript("OnLeave", function(self) GameTooltip:Hide() WC.HoverLeaveBadge() WC.ApplyPinOpacity(self, false) end)
     -- a click selects one step of the badge (the next one when it is in the group, else the first), never the group
     p.selRing = p:CreateTexture(nil, "BACKGROUND")
     p.selRing:SetTexture(DISC)
@@ -456,6 +478,7 @@ local function placeArrow(layer, list, i, cx, cy, size, angle, rgba, sub, thickn
         if ln.SetDrawLayer then ln:SetDrawLayer("ARTWORK", sub) end
         ln:SetThickness(thickness)
         ln:SetColorTexture(rgba[1], rgba[2], rgba[3], rgba[4])
+        if ln.SetAlpha then ln:SetAlpha(rgba.layer or 1) end -- the route-line or next-line opacity, on the mark's own region
         ln:SetStartPoint("TOPLEFT", layer, tx, ty)
         ln:SetEndPoint("TOPLEFT", layer, ends[k][1], ends[k][2])
         ln:Show()
@@ -683,7 +706,7 @@ local function drawNextLine(canvas, mapID, w, h, scale, where, spot, rad, n, na,
             ln:SetColorTexture(outline[1], outline[2], outline[3], outline[4])
         else
             ln:SetThickness(lineW + 1)
-            ln:SetColorTexture(c[1], c[2], c[3], math.min(1, math.floor((lineA + 0.2) * 100 + 0.5) / 100))
+            ln:SetColorTexture(c[1], c[2], c[3], WC.Setting("opacNext"))
         end
         ln:SetEndPoint("CENTER", target)
         ln:Hide()
@@ -691,7 +714,7 @@ local function drawNextLine(canvas, mapID, w, h, scale, where, spot, rad, n, na,
     end
     nextLine = { outline = pair[1], line = pair[2], canvas = canvas, map = mapID, w = w, h = h, scale = scale,
         tx = spot[step.n][1], ty = spot[step.n][2], rad = rad[step.n], na = na, lineW = lineW, outline4 = outline,
-        head = { c[1], c[2], c[3], 1 }, arrows = WC.db.settings.planArrows and arrowLayer.CreateTexture ~= nil,
+        head = { c[1], c[2], c[3], 1, layer = WC.Setting("opacNext") }, arrows = WC.db.settings.planArrows and arrowLayer.CreateTexture ~= nil,
         chevrons = WC.Setting("planChevrons"), arrowSize = WC.Setting("arrowSize"), chevronSize = WC.Setting("chevronSize") }
     local pm, px, py = WC.PlayerPos()
     WC.UpdateNextLine(pm, px, py)
@@ -860,13 +883,13 @@ function WC.MapBadgeGroups(mapID)
     local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
     if #(WC.plan.live or {}) > 0 then
         local withLive = { unpack(shown) }
-        for _, st in ipairs(WC.plan.live) do withLive[#withLive + 1] = st end
+        for _, st in ipairs(WC.plan.live) do if not WC.StepDismissed(st) then withLive[#withLive + 1] = st end end
         shown = withLive
     end
     local extras = WC.LiveTurnInSteps and WC.LiveTurnInSteps() or {}
     if #extras > 0 then
         shown = { unpack(shown) }
-        for _, st in ipairs(extras) do shown[#shown + 1] = st end
+        for _, st in ipairs(extras) do if not WC.StepDismissed(st) then shown[#shown + 1] = st end end
     end
     return WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext()), shown
 end
@@ -966,6 +989,7 @@ function WC.RefreshMapPins()
     end
     local ghosts = WC.DrawGhosts(canvas, mapID, #groups, w, h, scale, where, spot)
     local foreign, arrival, chainGroups = WC.DrawZoneChain(canvas, mapID, groups, #groups + #ghosts, w, h, scale, base, where, spot, rad)
+    for _, p in ipairs(pins) do if p:IsShown() then WC.ApplyPinOpacity(p, false) end end
     if not WC.db.settings.planLines or not canvas.CreateLine then return end
     if not lineLayer then
         lineLayer = CreateFrame("Frame", nil, canvas)
@@ -1010,7 +1034,7 @@ function WC.RefreshMapPins()
             -- spots are offsets from the canvas's top left (y up, so negative below it): the maths' own frame
             local ang, tx, ty, len = WC.ArrowPlace(a[1], a[2], b[1], b[2], rad[kb], ARROW_GAP + arrowSize / 2)
             if ang then
-                local headC = { lineC[1], lineC[2], lineC[3], 1 }
+                local headC = { lineC[1], lineC[2], lineC[3], 1, layer = lineA }
                 local function put(cx, cy, size, sub)
                     placeArrow(arrowLayer, arrows, na + 1, cx, cy, size * scale, ang, outline, sub, (lineW + OUTLINE_PAD + 1) * scale)
                     placeArrow(arrowLayer, arrows, na + 3, cx, cy, size * scale, ang, headC, sub + 1, (lineW + 1) * scale)
@@ -1113,6 +1137,7 @@ local function placeMinimap(m, mapID, px, py, step)
     b.num:SetTextColor(nc[1], nc[2], nc[3])
     if b.pulseAnim then b.pulseAnim:SetDuration(PULSE_SECONDS.minimap / WC.Setting("pulseSpeed")) end
     WC.ApplyBadgeFill(b, "minimap")
+    if m.SetAlpha then m:SetAlpha(WC.Setting("opacMinimap")) end
     local ox, oy = WC.MinimapBadgeOffset(edge)
     b:ClearAllPoints()
     b:SetPoint("CENTER", m, "CENTER", ox, oy)

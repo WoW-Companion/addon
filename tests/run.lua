@@ -3472,6 +3472,8 @@ end
 local function open_card(p, text, button)
     local row = row_with(p, text)
     row.scripts.OnClick(row, button or "RightButton")
+    local m = WoWCompanion.rowMenu -- a right-click on a plan quest row opens the row menu; "Open details" is the card
+    if m and m:IsShown() then m.card.scripts.OnClick(m.card) end
     return WoWCompanionCard
 end
 local function card_text(WC, entry)
@@ -3559,6 +3561,7 @@ cases[#cases + 1] = { "click: left on a quest in the log opens it; otherwise the
     q.scripts.OnClick(q, "LeftButton")
     assert(opened[1] == 11 and not card_shown())
     q.scripts.OnClick(q, "RightButton")
+    if WC.rowMenu and WC.rowMenu:IsShown() then WC.rowMenu.card.scripts.OnClick(WC.rowMenu.card) end
     assert(card_shown() and #opened == 1)
     WoWCompanionCard:Hide()
     -- a pick-up that is not in the log opens its card
@@ -7533,7 +7536,7 @@ cases[#cases + 1] = { "panel plan: a single-stop HERE does not repeat NOW, and a
     assert(count_of(panel_lines(two), "Turn in Quest 10") == 1)
 end }
 
-cases[#cases + 1] = { "panel plan: a ready turn-in row has no red level and says ready in green", function()
+cases[#cases + 1] = { "panel plan: a ready turn-in row shows its level in the neutral colour and says ready in green", function()
     local WC = panel_client("verbs")
     QUESTS[20] = "ready"
     C_QuestLog.GetLogIndexForQuestID = function(id) return QUESTS[id] and 1 or nil end
@@ -7546,7 +7549,8 @@ cases[#cases + 1] = { "panel plan: a ready turn-in row has no red level and says
     end
     assert(row, table.concat(panel_lines(WC), "|"))
     local text = row.label:GetText()
-    assert(text:find("Turn in Quest 20", 1, true) and text:find("ready", 1, true) and not text:find("[40]", 1, true), text)
+    assert(text:find("Turn in Quest 20", 1, true) and text:find("ready", 1, true), text)
+    assert(text:find("^|cffffffff%[40%]|r "), "the level leads in the neutral colour, not the difficulty colour: " .. text)
     local green = WC.Setting("readyColor")
     assert(row.baseColor[1] == green[1] and row.baseColor[2] == green[2], "ready is green, not the red difficulty colour")
 end }
@@ -7739,6 +7743,134 @@ cases[#cases + 1] = { "plan: an errand step and an unknown kind never drop the p
     -- a wrong schema is not silent
     WC = plan_client("badschema")
     assert(WC.plan == nil and WC.planError == "schema")
+end }
+
+-- ADDON-147: levels on rows, hiding a quest, the level reach, overlay opacity.
+local function levels_client()
+    local WC = panel_client("levels")
+    UnitLevel = function() return 32 end
+    WC.SetSetting("planReach", "all")
+    return WC
+end
+local function row_with(WC, S, text)
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, 50, 50)) do
+        if (r.text or ""):find(text, 1, true) then return r end
+    end
+end
+local function badge_quests(WC)
+    local ids = {}
+    for _, g in ipairs(WC.MapBadgeGroups(7001)) do for _, s in ipairs(g.steps) do ids[s.questID] = true end end
+    return ids
+end
+
+cases[#cases + 1] = { "levels: a row leads with [level] in the plan's diff colour; a ready turn-in's level is neutral", function()
+    local WC = levels_client()
+    local S = WC.PanelSections(7001, 50, 50)
+    local r = row_with(WC, S, "Quest 12")
+    assert(r and r.text:find("^%[34%] "), r and r.text)
+    WC.SetSetting("planReach", "all")
+    QUESTS[10] = "active"
+    S = WC.PanelSections(7001, 50, 50)
+    local now = row_with(WC, S, "Shadowmaw Panther")
+    assert(now and now.text:find("^%[38%] "), now and now.text)
+    local red = WC.LevelColor(38, 6)
+    assert(red[1] == 1 and red[2] == 0.1 and red[3] == 0.1, "diff 6 is red")
+    local rows = WC.QuestEntryRows({ kind = "pickup", title = "Shadowmaw Panther" }, 10, {}, 32, { verbFirst = true })
+    assert(rows[1].text:find("^%[38%] Finish Quest 10$") and rows[1].color[1] == 1 and rows[1].color[2] == 0.1, rows[1].text)
+    QUESTS[10] = "ready"
+    rows = WC.QuestEntryRows({ kind = "pickup", title = "Shadowmaw Panther" }, 10, {}, 32, { verbFirst = true })
+    local ready = WC.Setting("readyColor")
+    assert(rows[1].text:find("^|cffffffff%[38%]|r Turn in "), rows[1].text)
+    assert(rows[1].text:find("Turn in Quest 10", 1, true) and rows[1].text:find("ready", 1, true), rows[1].text)
+    assert(rows[1].color[1] == ready[1] and rows[1].color[2] == ready[2], "the rest of a ready row is green")
+    assert(WC.LevelTag(10, true) == "|cffffffff[38]|r ")
+    -- errands and travel have no level
+    assert(WC.LevelTag(0) == "" and WC.LevelTag(nil) == "")
+end }
+
+cases[#cases + 1] = { "hide: removes the quest from HERE and the map badges, lists it under LATER, and unhide restores it", function()
+    local WC = levels_client()
+    local S = WC.PanelSections(7001, 50, 50)
+    local function in_here(id)
+        for _, st in ipairs(S.here.stops) do
+            for _, s in ipairs(st.group.steps) do if s.questID == id then return true end end
+        end
+        return S.now and S.now.step and S.now.step.questID == id
+    end
+    assert(in_here(12) and badge_quests(WC)[12])
+    assert(WC.HideQuest(12))
+    local pp = WC.db.characters["Testrealm:Thrall"].planPrefs
+    assert(pp.hidden[12] == true and pp.levelReach == -1 and pp.includeElite == false, "planPrefs is written")
+    S = WC.PanelSections(7001, 50, 50)
+    assert(not in_here(12) and not badge_quests(WC)[12], "live: gone from HERE and the map")
+    assert(#S.hidden == 1 and S.hidden[1].id == 12)
+    WC.view.laterOpen = true
+    local rows = WC.PanelSectionRows(S, 7001, 50, 50)
+    local text, unhide = {}, nil
+    for _, r in ipairs(rows) do text[#text + 1] = r.text or "" if r.unhideId == 12 then unhide = r end end
+    text = table.concat(text, "\n")
+    assert(text:find("Hidden by you (1)", 1, true) and unhide and unhide.text:find("Quest 12", 1, true) and unhide.text:find("Unhide", 1, true), text)
+    unhide.click()
+    S = WC.PanelSections(7001, 50, 50)
+    assert(in_here(12) and badge_quests(WC)[12] and #S.hidden == 0 and next(pp.hidden) == nil)
+    WC.HideQuest(12)
+    WC.UnhideAll()
+    assert(next(pp.hidden) == nil)
+end }
+
+cases[#cases + 1] = { "reach: the live filter hides a quest above the reach, spares one in the log, and No limit shows all", function()
+    local WC = levels_client()
+    assert(badge_quests(WC)[14] and badge_quests(WC)[12])
+    WC.SetSetting("planReach", 3)
+    assert(not badge_quests(WC)[14] and badge_quests(WC)[12], "level 44 is +12, level 34 is +2")
+    assert(WC.StepDismissed(WC.plan.steps[4]) and not WC.StepDismissed(WC.plan.steps[3]))
+    QUESTS[14] = "active"
+    assert(not WC.StepDismissed(WC.plan.steps[4]), "a quest already in the log stays")
+    QUESTS[14] = nil
+    local pp = WC.db.characters["Testrealm:Thrall"].planPrefs
+    assert(pp.levelReach == 3 or pp.levelReach == nil)
+    WC.SetSetting("planReach", 0)
+    assert(WC.db.characters["Testrealm:Thrall"].planPrefs.levelReach == 0)
+    assert(not badge_quests(WC)[12], "level 34 is +2 > 0")
+    assert(WC.PlanPrefsPending() == true)
+    WC.SetSetting("planReach", "all")
+    assert(badge_quests(WC)[14] and WC.db.characters["Testrealm:Thrall"].planPrefs.levelReach == -1)
+end }
+
+cases[#cases + 1] = { "opacity: each slider sets alpha on its own layer; hover shows full opacity", function()
+    local WC = levels_client()
+    local pin = CreateFrame("Button", nil, UIParent)
+    for _, k in ipairs({ "fill", "ring", "notchBg", "icon", "num" }) do pin[k] = CreateFrame("Frame", nil, pin) end
+    pin.planGroup = { steps = {} }
+    local function alphas()
+        local a = {}
+        for _, k in ipairs({ "fill", "ring", "notchBg", "icon", "num" }) do a[k] = pin[k].alpha end
+        return a
+    end
+    WC.ApplyPinOpacity(pin, false)
+    local a = alphas()
+    assert(a.fill == 0.9 and a.ring == 0.9 and a.num == 0.8, "defaults: badges 90, labels 80")
+    WC.SetSetting("opacBadge", 0.4)
+    WC.ApplyPinOpacity(pin, false)
+    a = alphas()
+    assert(a.fill == 0.4 and a.ring == 0.4 and a.num == 0.8, "the badge slider leaves the label alone")
+    WC.SetSetting("opacLabel", 0.3)
+    WC.ApplyPinOpacity(pin, false)
+    a = alphas()
+    assert(a.fill == 0.4 and a.num == 0.3, "the label slider leaves the badge alone")
+    pin.planGroup = { steps = {}, arrival = {} }
+    WC.ApplyPinOpacity(pin, false)
+    assert(pin.fill.alpha == 0.5, "the zone marker is the area layer: default 50")
+    WC.SetSetting("opacRing", 0.7)
+    WC.ApplyPinOpacity(pin, false)
+    assert(pin.fill.alpha == 0.7 and WC.Setting("opacBadge") == 0.4)
+    WC.ApplyPinOpacity(pin, true)
+    assert(pin.fill.alpha == 1 and pin.num.alpha == 1, "hover: full opacity")
+    WC.SetSetting("hoverFull", false)
+    WC.ApplyPinOpacity(pin, true)
+    assert(pin.fill.alpha == 0.7 and pin.num.alpha == 0.3, "hover off: unchanged")
+    assert(WC.Setting("opacNext") == 0.9 and WC.Setting("opacMinimap") == 0.9 and WC.Setting("lineOpacity") == 0.7)
+    assert(WC.SetSetting("opacMinimap", 5) == 1 and WC.SetSetting("opacNext", 0) == 0.1, "10-100%")
 end }
 
 local failed = 0

@@ -10,6 +10,191 @@ WC.view = WC.view or {}
 WC.view.tripOpen = WC.view.tripOpen or {}
 WC.view.laterOpen = false
 
+-- ---------------------------------------------------------------- the player's plan preferences, quest levels, hiding
+
+-- The character's plan preferences, saved with its record in the SavedVariables: { levelReach, hidden, includeElite }.
+-- The app reads them on its next save. nil when there is no saved table or no character yet; `create` makes the record.
+local DEFAULT_REACH = 3
+function WC.PlanPrefs(create)
+    local db = WC.db
+    if not (db and UnitName and GetRealmName) then return nil end
+    local name, realm = UnitName("player"), GetRealmName()
+    if type(name) ~= "string" or name == "" then return nil end
+    local key = (realm or "") .. ":" .. name
+    local rec = type(db.characters) == "table" and db.characters[key] or nil
+    if type(rec) ~= "table" then
+        if not create then return nil end
+        if type(db.characters) ~= "table" then db.characters = {} end
+        rec = { name = name, realm = realm }
+        db.characters[key] = rec
+    end
+    local pp = rec.planPrefs
+    if type(pp) ~= "table" then
+        if not create then return nil end
+        pp = { levelReach = DEFAULT_REACH, hidden = {}, includeElite = false }
+        rec.planPrefs = pp
+    end
+    if type(pp.hidden) ~= "table" then pp.hidden = {} end
+    return pp
+end
+
+-- The reach in levels (0-10) or nil for no limit, from the Settings row; the elite switch likewise.
+function WC.PlanReach()
+    local v = WC.Setting("planReach")
+    if v == "all" or tonumber(v) == nil or tonumber(v) > 10 then return nil end
+    return tonumber(v)
+end
+
+-- Mirrors the two Settings rows into planPrefs (only once there are prefs to keep, or a non-default choice to record).
+function WC.SyncPlanPrefs()
+    if not WC.db then return end
+    local reach, elite = WC.PlanReach() or -1, WC.Setting("planElite") == true
+    local pp = WC.PlanPrefs(false)
+    if not pp and reach == DEFAULT_REACH and not elite then return end
+    pp = pp or WC.PlanPrefs(true)
+    if not pp then return end
+    if pp.levelReach ~= reach or pp.includeElite ~= elite then pp.updated = time and time() or nil end
+    pp.levelReach, pp.includeElite = reach, elite
+end
+
+function WC.QuestHidden(id)
+    local pp = id and WC.PlanPrefs(false)
+    return pp ~= nil and pp.hidden[id] == true
+end
+
+-- The plan's own entry for a quest: a step, a find or a parked line (level, diff, elite), or nil.
+local function plan_entry(id)
+    local p = WC.plan
+    if not (p and id and id > 0) then return nil end
+    for _, s in ipairs(p.steps) do
+        if s.level then
+            if s.questID == id then return s end
+            for _, qid in ipairs(s.questIDs or {}) do if qid == id then return s end end
+        end
+    end
+    for _, q in ipairs(p.find or {}) do if q.questID == id and q.level then return q end end
+    for _, q in ipairs(p.parked or {}) do if q.questID == id and q.level then return q end end
+end
+
+-- A quest's level: the plan's, else the live quest log's. Second return: the plan's diff (quest level minus yours) or nil.
+function WC.PlanQuestLevel(id)
+    local e = plan_entry(id)
+    if e then return e.level, e.diff end
+    return WC.QuestLevel and WC.QuestLevel(id) or nil, nil
+end
+
+-- The colour of a level: from the plan's diff when it has one, else the game's own bands against your level.
+function WC.LevelColor(level, diff)
+    if diff then return WC.DifficultyColor(level, level - diff) end
+    return WC.DifficultyColor(level)
+end
+
+local function hex(c)
+    return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+end
+
+-- A level tag ("[38] ") in the neutral colour, by an inline colour escape, so a green "ready" row keeps its level plain.
+function WC.NeutralTag(tag)
+    return hex(WC.COLORS.white) .. (tag:gsub("%s+$", "")) .. "|r "
+end
+
+-- "[38] " for a quest row, or "" when levels are off or unknown. A ready turn-in's level is neutral (inline colour), so
+-- the row's own colour (green) is left to say "ready".
+function WC.LevelTag(id, neutral)
+    if not WC.Setting("showLevels") then return "" end
+    local level = id and WC.PlanQuestLevel(id)
+    if not (level and level > 0) then return "" end
+    local tag = string.format("[%d]", math.floor(level))
+    if neutral then return WC.NeutralTag(tag) end
+    return tag .. " "
+end
+
+-- True when a quest is further above the player than the reach allows (and not yet in the quest log), or is elite
+-- while elite quests are off. A quest already in the log is never dropped by this.
+local function out_of_reach(id, level, elite)
+    if not id or id <= 0 or WC.PlanQuestState(id) ~= "none" then return false end
+    if elite and not WC.Setting("planElite") then return true end
+    local reach, mine = WC.PlanReach(), UnitLevel and UnitLevel("player")
+    return reach ~= nil and level ~= nil and mine ~= nil and level > mine + reach
+end
+function WC.QuestOutOfReach(id)
+    local e = plan_entry(id)
+    return e ~= nil and out_of_reach(id, e.level, e.elite)
+end
+
+-- True when a plan step is not wanted on the plan: its quest is hidden, or out of reach. Never errors (live path).
+function WC.StepDismissed(step)
+    local ok, v = pcall(function()
+        if type(step) ~= "table" then return false end
+        local ids = (step.questIDs and #step.questIDs > 0) and step.questIDs or { step.questID }
+        local any
+        for _, id in ipairs(ids) do
+            id = tonumber(id)
+            if id and id > 0 then
+                if not (WC.QuestHidden(id) or out_of_reach(id, step.level, step.elite)) then return false end
+                any = true
+            end
+        end
+        return any == true
+    end)
+    return ok and v or false
+end
+
+-- A redraw of everything the plan touches: panel, map badges, map side panel.
+local function redraw()
+    if WC.ApplySettings then WC.ApplySettings() elseif WC.Refresh then WC.Refresh() end
+end
+
+function WC.HideQuest(id)
+    id = tonumber(id)
+    if not (id and id > 0) then return false end
+    local pp = WC.PlanPrefs(true)
+    if not pp then return false end
+    pp.hidden[id] = true
+    pp.updated = time and time() or nil
+    redraw()
+    return true
+end
+
+function WC.UnhideQuest(id)
+    local pp = WC.PlanPrefs(false)
+    if not (pp and pp.hidden[id]) then return false end
+    pp.hidden[id] = nil
+    pp.updated = time and time() or nil
+    redraw()
+    return true
+end
+
+function WC.UnhideAll()
+    local pp = WC.PlanPrefs(false)
+    if not pp then return end
+    pp.hidden = {}
+    pp.updated = time and time() or nil
+    redraw()
+end
+
+-- The hidden quests as { id, name }, in quest id order.
+function WC.HiddenQuests()
+    local pp, out = WC.PlanPrefs(false), {}
+    for id in pairs(pp and pp.hidden or {}) do
+        local name = WC.QuestTitle(id)
+        if not name and WC.plan then
+            for _, s in ipairs(WC.plan.steps) do if s.questID == id and s.quest ~= "" then name = s.quest break end end
+            for _, q in ipairs(WC.plan.parked or {}) do if q.questID == id and q.quest ~= "" then name = name or q.quest end end
+            for _, q in ipairs(WC.plan.find or {}) do if q.questID == id and q.quest ~= "" then name = name or q.quest end end
+        end
+        out[#out + 1] = { id = id, name = name or L.QUEST_UNKNOWN:format(id) }
+    end
+    table.sort(out, function(a, b) return a.id < b.id end)
+    return out
+end
+
+-- True while the saved choices are newer than the plan the app wrote ("Applies fully after your next save").
+function WC.PlanPrefsPending()
+    local pp = WC.PlanPrefs(false)
+    return pp ~= nil and pp.updated ~= nil and (not WC.plan or (WC.plan.generated or 0) < pp.updated)
+end
+
 local function guarded(fn, fallback, ...)
     local ok, a = pcall(fn, ...)
     if ok then return a end
@@ -175,7 +360,8 @@ function WC.PanelSections(mapID, px, py)
     end
     -- Steps with no spot on the map (an errand "in Undercity") have no badge: each is a plain HERE row on its own map.
     for _, s in ipairs(p.steps) do
-        if s.unplaced and s.kind ~= "travel" and not p.done[s.n] and (s.map == hereMap or s.map == 0) and not (cur and cur.n == s.n) then
+        if s.unplaced and s.kind ~= "travel" and not p.done[s.n] and (s.map == hereMap or s.map == 0) and not (cur and cur.n == s.n)
+            and not WC.StepDismissed(s) then
             local stop = { label = "", plabel = "", step = s, group = { steps = { s } }, errand = errand_of(p, s),
                 text = s.label ~= "" and s.label or (s.quest or "") }
             if s.place then stop.text = stop.text .. string.format(L.PANEL_IN_PLACE, s.place) end
@@ -190,7 +376,8 @@ function WC.PanelSections(mapID, px, py)
     -- FIND: quests that are a hunt, each with the plan's hint. Never unplanned; each quest has this one home.
     S.find = {}
     for _, q in ipairs(p.find or {}) do
-        if not seen[q.questID] and WC.PlanQuestState(q.questID) ~= "turnedin" then
+        if not seen[q.questID] and WC.PlanQuestState(q.questID) ~= "turnedin" and not WC.QuestHidden(q.questID)
+            and not (WC.PlanQuestState(q.questID) == "none" and q.level and WC.QuestOutOfReach(q.questID)) then
             seen[q.questID] = true
             local name = q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or L.QUEST_UNKNOWN:format(q.questID))
             local text = q.hint and string.format(L.FIND_LINE, name, q.hint) or string.format(L.FIND_LINE_NOHINT, name)
@@ -205,7 +392,7 @@ function WC.PanelSections(mapID, px, py)
     for i, t in ipairs(p.trips or {}) do
         local quests, ready = {}, 0
         for _, id in ipairs(t.questIDs or {}) do
-            if not seen[id] then
+            if not seen[id] and not WC.QuestHidden(id) and not WC.QuestOutOfReach(id) then
                 seen[id] = true
                 local state = WC.PlanQuestState(id)
                 if state ~= "turnedin" then
@@ -244,13 +431,55 @@ function WC.PanelSections(mapID, px, py)
     end
 
     -- LATER: parked quests not shown anywhere above.
+    S.hidden = WC.HiddenQuests()
     for _, q in ipairs(p.parked or {}) do
-        if not seen[q.questID] then
+        if not seen[q.questID] and not WC.QuestHidden(q.questID) then
             seen[q.questID] = true
             S.later[#S.later + 1] = { id = q.questID, text = string.format(L.LATER_LINE, q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or L.QUEST_UNKNOWN:format(q.questID)), q.why) }
         end
     end
     return S
+end
+
+-- The right-click menu on a quest row: "Hide from plan" and "Open details" (the card the right-click opened before).
+-- Our own two buttons in one small frame; nothing protected, and the quest in the game is never touched.
+function WC.HideRowMenu()
+    if WC.rowMenu then WC.rowMenu:Hide() end
+end
+
+function WC.ShowRowMenu(row)
+    local m = WC.rowMenu
+    if not m then
+        m = CreateFrame("Frame", "WoWCompanionRowMenu", UIParent, "BackdropTemplate")
+        m:SetSize(130, 48)
+        if m.SetFrameStrata then m:SetFrameStrata("DIALOG") end
+        if m.SetBackdrop then
+            m:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+            m:SetBackdropColor(0, 0, 0, 0.9)
+            m:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
+        end
+        m:EnableMouse(true)
+        local function leave() if not m:IsMouseOver() then m:Hide() end end
+        m:SetScript("OnLeave", leave)
+        local function item(i, text, onclick)
+            local b = CreateFrame("Button", nil, m)
+            b:SetSize(122, 20)
+            b:SetPoint("TOPLEFT", m, "TOPLEFT", 4, -4 - (i - 1) * 20)
+            b.label = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            b.label:SetPoint("LEFT", b, "LEFT", 4, 0)
+            b.label:SetText(text)
+            b:SetScript("OnClick", function() m:Hide() onclick() end)
+            b:SetScript("OnLeave", leave)
+            return b
+        end
+        m.hide = item(1, L.HIDE_FROM_PLAN, function() if m.questID then WC.HideQuest(m.questID) end end)
+        m.card = item(2, L.MENU_OPEN_CARD, function() if m.entry then WC.EntryClick(m.entry, "RightButton") end end)
+        WC.rowMenu = m
+    end
+    m.questID, m.entry = row.hideId, row.entry
+    m:ClearAllPoints()
+    m:SetPoint("TOPLEFT", row, "BOTTOMLEFT", 16, 0)
+    m:Show()
 end
 
 -- True when a trip or LATER section is open: remembered while the session runs.
@@ -272,7 +501,7 @@ local function action_rows(S, mapID, px, py)
     local rows = {}
     for _, r in ipairs(WC.TrainRows(mapID, px, py)) do rows[#rows + 1] = r end
     for _, t in ipairs(WC.LiveTurnIns(mapID, px, py)) do
-        if not S.seen[t.questID] then
+        if not S.seen[t.questID] and not WC.QuestHidden(t.questID) then
             S.seen[t.questID] = true
             local who = t.spot.npc ~= "" and (t.quest .. ": " .. t.spot.npc) or t.quest
             rows[#rows + 1] = { kind = "line", color = WC.COLORS.gold,
@@ -332,7 +561,17 @@ local function with_card(row, id, title, verbFirst)
     if head then
         row.entry, row.group, row.ask, row.quest = head.entry, head.group, head.ask, id
         row.color = row.color or head.color -- the quest's difficulty colour, as the old list had
-        if row.useHead then row.text = head.text end -- the verb-first title (a ready turn-in: no level, "ready" in green)
+        if row.useHead then
+            row.text = head.text -- the verb-first title: "[38] Kill X", or a ready turn-in's neutral level then "ready" in green
+        elseif not tostring(row.text or ""):find("^%s*%[%d+%]") and not tostring(row.text or ""):find("^|c") then
+            local ready = WC.PlanQuestState(id) == "ready"
+            row.text = WC.LevelTag(id, ready) .. tostring(row.text or "")
+            if not row.color and not ready then
+                local lv, df = WC.PlanQuestLevel(id)
+                if lv and df and WC.Setting("colorByDifficulty") then row.color = WC.LevelColor(lv, df) end
+            end
+        end
+        row.hideId = id
     end
     return row, rows
 end
@@ -424,12 +663,21 @@ function WC.PanelSectionRows(S, mapID, px, py)
             end
         end
     end
-    if #S.later > 0 then
+    local hidden = S.hidden or {}
+    if #S.later + #hidden > 0 then
         local open = WC.view.laterOpen == true
-        rows[#rows + 1] = header("panel_later", string.format(open and L.OPEN_SECTION or L.CLOSED_SECTION, string.format(L.PANEL_LATER, #S.later)),
+        rows[#rows + 1] = header("panel_later", string.format(open and L.OPEN_SECTION or L.CLOSED_SECTION, string.format(L.PANEL_LATER, #S.later + #hidden)),
             function() WC.view.laterOpen = not WC.view.laterOpen if WC.Refresh then WC.Refresh() end end)
         if open then
             for _, q in ipairs(S.later) do rows[#rows + 1] = with_card({ kind = "line", indent = 1, text = q.text }, q.id, q.name) end
+            if #hidden > 0 then
+                rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.PANEL_HIDDEN, #hidden), color = WC.COLORS.dim }
+                for _, h in ipairs(hidden) do
+                    local id = h.id
+                    rows[#rows + 1] = { kind = "line", indent = 2, text = WC.LevelTag(id) .. h.name .. L.UNHIDE_SUFFIX, color = WC.COLORS.gold,
+                        unhideId = id, click = function() WC.UnhideQuest(id) end }
+                end
+            end
         end
     end
     return rows

@@ -267,24 +267,32 @@ function WC.QuestEntryRows(line, quest, collapsed, playerLevel, opts)
     end
     local id = "q" .. tostring(quest or title)
     local closed = collapsed and collapsed[id] == true
+    local pdiff
+    if quest and WC.PlanQuestLevel then
+        local pl, pd = WC.PlanQuestLevel(quest)
+        if pl then level, pdiff = pl, pd end -- the plan's level wins over the log's, the log's over the digest's
+    end
     local tag = (level and WC.Setting("showLevels")) and string.format(LEVEL_TAG, math.floor(level)) or ""
-    local text = tag .. title
+    local text, pre = tag .. title, ""
     if line.class then text = text .. " (" .. L.CLASS .. ")" end
-    local color = WC.Setting("colorByDifficulty") and WC.DifficultyColor(level, playerLevel) or WC.COLORS.gold
+    local color = WC.Setting("colorByDifficulty") and (pdiff and WC.LevelColor(level, pdiff) or WC.DifficultyColor(level, playerLevel)) or WC.COLORS.gold
     if opts and opts.verbFirst then
+        -- the level leads the row: "[38] Kill Shadowmaw Panther"; a ready turn-in's level is neutral, the rest green
+        local cls = line.class and (" (" .. L.CLASS .. ")") or ""
         if kind == "turnin" then
-            text = string.format(L.VERB_ROW, L.VERB_TURNIN, title .. (line.class and (" (" .. L.CLASS .. ")") or "")) .. L.READY_SUFFIX
+            if tag ~= "" then pre = WC.NeutralTag(tag) end
+            text = string.format(L.VERB_ROW, L.VERB_TURNIN, title .. cls) .. L.READY_SUFFIX
             color = WC.Setting("readyColor")
         elseif kind == "pickup" or state == "none" then
-            text = string.format(L.VERB_ROW, L.VERB_PICKUP, text)
+            text = tag .. string.format(L.VERB_ROW, L.VERB_PICKUP, title .. cls)
         else
             local objs = (state == "active" or state == "ready") and WC.QuestObjectives and WC.QuestObjectives(quest) or line.objectives
-            text = string.format(L.VERB_ROW, quest_verb(false, objs), text)
+            text = tag .. string.format(L.VERB_ROW, quest_verb(false, objs), title .. cls)
         end
     end
     local head = {
         kind = "quest", id = id, quest = quest, closed = closed, icon = WC.ICONS[kind],
-        text = plain(text), color = color,
+        text = pre .. plain(text), color = color,
         right = line.elite and ("(" .. L.ELITE .. ")") or nil,
         ask = { kind = "quest", subject = ask_subject(title) },
     }
@@ -344,7 +352,7 @@ end
 function WC.UnplannedRows(collapsed, playerLevel)
     local out = {}
     for _, q in ipairs(WC.UnplannedQuests and WC.UnplannedQuests() or {}) do
-        local rows = WC.QuestEntryRows({ kind = "progress", title = q.title }, q.id, collapsed, playerLevel, { verbFirst = true })
+        local rows = not (WC.QuestHidden and WC.QuestHidden(q.id)) and WC.QuestEntryRows({ kind = "progress", title = q.title }, q.id, collapsed, playerLevel, { verbFirst = true })
         if rows then
             rows[1].right = L.UNPLANNED_TAG
             rows[1].id = "u" .. q.id
