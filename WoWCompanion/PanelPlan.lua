@@ -250,6 +250,13 @@ local function panel_label(steps)
     return l:match("^%d") and l or ""
 end
 
+-- " in <place>" for a row's text, unless the text already names the place ("somewhere in Stranglethorn Vale").
+local function in_place(text, place)
+    if not place or place == "" then return text end
+    if tostring(text):lower():find(tostring(place):lower(), 1, true) then return text end
+    return text .. string.format(L.PANEL_IN_PLACE, place)
+end
+
 local function labelled(fmt, label, text)
     if label == "" then return text end
     return string.format(fmt, label, text)
@@ -257,25 +264,20 @@ end
 
 -- A stop as a row: its badge label and its text (a travel step on the player's own map reads as its action). A stop
 -- that merges several quests also lists each one in `items` ({ id, step, text }), so each is named with its own state.
-local function stop_of(group)
+local function stop_of(group, nums)
     local s = group.steps[1]
     local view = WC.PlanTipStep(s) or s
     local text = WC.PlanLiveText(view, view.label ~= "" and view.label or (s.quest or ""))
-    local items, listed = {}, {}
-    for _, st in ipairs(group.steps) do
-        for _, id in ipairs(ids_of(st)) do
-            if not listed[id] then -- a live turn-in step for a quest the plan already lists here is the same quest
-                listed[id] = true
-                items[#items + 1] = { id = id, step = st }
-            end
-        end
-    end
+    local items = WC.GroupItems(group) -- a live turn-in step for a quest the plan already lists here is the same quest
     local stop = { label = WC.PinLabel(group.steps), plabel = panel_label(group.steps), text = text, step = s, group = group, x = group.x, y = group.y,
         isNext = group.isNext == true }
     for _, st in ipairs(group.steps) do stop.errand = stop.errand or errand_of(WC.plan, st) end
     if #items > 1 then
         for _, it in ipairs(items) do
             local st = it.step
+            it.num = nums and nums.byStep[st] or nil
+            local pn = tonumber(st.n)
+            if not nums and pn and not st.synthetic and pn >= 1 and pn < 100000 and pn == math.floor(pn) then it.num = pn end -- no live order: the plan's number
             local live = WC.PlanLiveText(st, st.label ~= "" and st.label or (st.quest or ""))
             if st.kind == "turnin" then live = merged_text(st, it.id) end
             it.text = live
@@ -286,19 +288,49 @@ local function stop_of(group)
     return stop
 end
 
--- What a not-ready turn-in waits on: the plan's open objective steps ("after step 1"), else the first unmet objective.
-local function waits_on(id)
-    local steps = {}
-    for _, st in ipairs(WC.plan and WC.plan.steps or {}) do
-        if st.kind == "objective" and st.questID == id and not WC.plan.done[st.n] and tonumber(st.n) then
-            steps[#steps + 1] = tostring(st.n)
+-- What a step waits on, in live numbers: its plan `after` (else, for a turn-in, the quest's open objective steps),
+-- a step already done dropped, never itself or a later number. Else, for a turn-in, the first unmet objective.
+local function waits_on(id, step, nums)
+    local plan = WC.plan
+    local list = {}
+    if step and type(step.after) == "table" then
+        for _, n in ipairs(step.after) do list[#list + 1] = n end
+    elseif step == nil or step.kind == "turnin" then
+        for _, st in ipairs(plan and plan.steps or {}) do
+            if st.kind == "objective" and st.questID == id and not plan.done[st.n] and tonumber(st.n) then list[#list + 1] = st.n end
         end
     end
-    if #steps > 0 then return string.format(#steps == 1 and L.PANEL_AFTER_STEP or L.PANEL_AFTER_STEPS, table.concat(steps, ", ")) end
+    if #list > 0 then
+        local own = step and (nums and nums.byStep[step] or (not nums and tonumber(step.n))) or nil
+        local live = WC.LiveAfter(list, plan, nums, own)
+        if #live == 0 then return nil end
+        local text = {}
+        for _, n in ipairs(live) do text[#text + 1] = tostring(n) end
+        return string.format(#live == 1 and L.PANEL_AFTER_STEP or L.PANEL_AFTER_STEPS, table.concat(text, ", "))
+    end
+    if step and step.kind ~= "turnin" then return nil end
     for _, o in ipairs(WC.QuestObjectives and WC.QuestObjectives(id) or {}) do
         if not o.finished and o.text then return string.format(L.PANEL_AFTER_OBJ, (o.text:gsub("^%d+/%d+%s*", ""))) end
     end
 end
+
+-- The dim connector between two stops when the leg is worth a line: a zone change (boat), a known flight that saves
+-- real walking, or a long ride. a and b are { map, x, y }; nil for a short leg or a stop with no spot.
+local function leg_text(a, b)
+    if not (a and b and a.x and b.x and a.map and b.map) then return nil end
+    if a.map ~= b.map then
+        return string.format(L.LEG_BOAT, zone_name(a.map), zone_name(b.map))
+    end
+    local w, h = WC.MapYards(a.map)
+    local flight = WC.FlightLeg(WC.plan and WC.plan.flights, a.map, a.x, a.y, b, w, h)
+    if flight then return string.format(L.LEG_FLY, flight.from, flight.to, flight.yards) end
+    local d, dir = WC.PlanDistance(a.x, a.y, b.x, b.y, w, h)
+    if d <= WC.LEG_RIDE_YARDS then return nil end
+    local rounded = math.floor(d / 100 + 0.5) * 100
+    local text = tostring(rounded):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    return string.format(L.LEG_RIDE, text, dir)
+end
+WC.LegText = leg_text
 
 -- The sections for the player at mapID, px, py. nil when there is no plan. Pure over live state: call it any time.
 --  now   = { text, label, step, travel = true when it is a promoted trip leg }
@@ -312,24 +344,44 @@ function WC.PanelSections(mapID, px, py)
     local hereMap = mapID or (cur and cur.map)
     local groups = hereMap and guarded(WC.MapBadgeGroups, {}, hereMap, px, py) or {} -- in the live order for the player's map
     cur = cur or guarded(WC.PlanNext, nil)
+    local nums = groups.nums
+    -- Steps with no spot on the map are numbered too, after every placed stop, in plan order.
+    local function unplaced_here(st)
+        return st.unplaced and st.kind ~= "travel" and not p.done[st.n] and (st.map == hereMap or st.map == 0) and not WC.StepDismissed(st)
+    end
+    local unplacedNum = {}
+    local nextNum = nums and nums.count or 0
+    for _, st in ipairs(p.steps) do
+        if unplaced_here(st) then
+            if nums then
+                nextNum = nextNum + 1
+                nums.byStep[st] = nextNum
+                nums.count = nextNum
+                unplacedNum[st] = tostring(nextNum)
+            elseif tonumber(st.n) and st.n >= 1 and st.n < 100000 then
+                unplacedNum[st] = tostring(st.n)
+            end
+        end
+    end
     local seen = {}
     local function note(step)
         for _, id in ipairs(ids_of(step)) do if (id or 0) > 0 then seen[id] = true end end
     end
     local S = { here = { zone = zone_name(hereMap), stops = {}, yards = 0, exit = p.exit and p.exit.label or nil, done = false },
-        trips = {}, later = {}, seen = seen, mapID = hereMap }
+        trips = {}, later = {}, seen = seen, mapID = hereMap, nums = nums }
 
     -- NOW: the current step with its badge label, distance and direction.
     if cur then
         local label, steps
         for _, g in ipairs(groups) do if g.isNext then label, steps = WC.PinLabel(g.steps), g.steps end end
         label = label or WC.PinLabel({ cur })
-        local plabel = cur.unplaced and "" or panel_label(steps or { cur })
+        local plabel = cur.unplaced and (unplacedNum[cur] or "") or panel_label(steps or { cur })
         local view = cur.kind == "travel" and WC.PlanTipStep(cur) or cur
         local text = WC.PlanLiveText(view, view.label or "")
         local where
         if cur.unplaced then -- no spot to walk to: say where the work is done
-            where = cur.place and string.format(L.PANEL_IN_PLACE, cur.place) or ""
+            where = in_place(text, cur.place):sub(#text + 1)
+            if unplacedNum[cur] then where = where .. L.PANEL_NO_SPOT end
         elseif hereMap == cur.map and px then
             local d, dir = WC.PlanDistance(px, py, cur.x, cur.y, WC.MapYards(hereMap))
             where = string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
@@ -355,9 +407,13 @@ function WC.PanelSections(mapID, px, py)
         end
         return false
     end
+    local legPrev = S.now and S.now.step and S.now.step.map == hereMap and not S.now.step.unplaced and S.now.step or nil
     for _, g in ipairs(groups) do
         if not g.isNext and not is_now(g) then
-            local stop = stop_of(g)
+            local stop = stop_of(g, nums)
+            stop.map = hereMap
+            stop.leg = leg_text(legPrev, stop)
+            legPrev = stop
             if prev and prev.x then stop.yards = yards_between(hereMap, prev, stop) S.here.yards = S.here.yards + stop.yards end
             prev = stop
             S.here.stops[#S.here.stops + 1] = stop
@@ -366,11 +422,10 @@ function WC.PanelSections(mapID, px, py)
     end
     -- Steps with no spot on the map (an errand "in Undercity") have no badge: each is a plain HERE row on its own map.
     for _, s in ipairs(p.steps) do
-        if s.unplaced and s.kind ~= "travel" and not p.done[s.n] and (s.map == hereMap or s.map == 0) and not (cur and cur.n == s.n)
-            and not WC.StepDismissed(s) then
-            local stop = { label = "", plabel = "", step = s, group = { steps = { s } }, errand = errand_of(p, s),
+        if unplaced_here(s) and not (cur and cur.n == s.n) then
+            local stop = { label = unplacedNum[s] or "", plabel = unplacedNum[s] or "", step = s, group = { steps = { s } }, errand = errand_of(p, s),
                 text = s.label ~= "" and s.label or (s.quest or "") }
-            if s.place then stop.text = stop.text .. string.format(L.PANEL_IN_PLACE, s.place) end
+            stop.text = in_place(stop.text, s.place) .. (unplacedNum[s] and L.PANEL_NO_SPOT or "")
             S.here.stops[#S.here.stops + 1] = stop
             note(s)
         end
@@ -584,13 +639,18 @@ local function with_card(row, id, title, verbFirst)
 end
 
 -- Adds a quest row, then (for a quest in the log) its objective rows, so the quest's lines light together on hover.
-local function add_quest(out, row, id, title, step)
+local function add_quest(out, row, id, title, step, nums)
     local r, rows = with_card(row, id, title, true)
     out[#out + 1] = r
     local state = id and id > 0 and WC.PlanQuestState(id)
+    local planAfter = step and step.kind ~= "turnin" and type(step.after) == "table" and #step.after > 0
+    if planAfter then
+        local wait = waits_on(id, step, nums)
+        if wait then out[#out + 1] = { kind = "status", indent = (r.indent or 0) + 1, text = wait, color = WC.COLORS.dim, group = r.group } end
+    end
     if step and step.kind == "turnin" then
         -- a turn-in never repeats the objectives' progress (it is shown where the work is): ready says nothing, else what it waits on
-        local wait = state == "active" and waits_on(id) or nil
+        local wait = state == "active" and waits_on(id, step, nums) or nil
         if wait then out[#out + 1] = { kind = "status", indent = (r.indent or 0) + 1, text = wait, color = WC.COLORS.dim, group = r.group } end
     elseif rows and (state == "active" or state == "ready") then
         for i = 2, #rows do
@@ -609,7 +669,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
     rows[#rows + 1] = header("panel_now", L.PANEL_NOW)
     if S.now then
         local id = S.now.step and (S.now.step.questID or 0) > 0 and S.now.step.questID or nil
-        add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest, S.now.step)
+        add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest, S.now.step, S.nums)
         if S.now.hint then rows[#rows + 1] = { kind = "line", indent = 1, text = S.now.hint, color = WC.COLORS.dim } end
     else
         rows[#rows + 1] = { kind = "line", text = L.PANEL_NOTHING_NOW }
@@ -628,16 +688,19 @@ function WC.PanelSectionRows(S, mapID, px, py)
         rows[#rows + 1] = header("panel_here", title)
     end
     for _, stop in ipairs(h.stops) do
+        if stop.leg then rows[#rows + 1] = { kind = "line", indent = 1, text = stop.leg, color = WC.COLORS.dim, connector = true } end
         if stop.items then
             for i, it in ipairs(stop.items) do
                 local ready = it.step.kind == "turnin" and WC.PlanQuestState(it.id) == "ready"
-                local text = i == 1 and labelled(L.PANEL_STOP_LINE, stop.plabel, it.text) or it.text
+                -- the first line leads with the stop's badge ("4·5"); each further quest leads with its own number
+                local label = i == 1 and stop.plabel or (it.num and tostring(it.num) or "")
+                local text = labelled(L.PANEL_STOP_LINE, label, it.text)
                 add_quest(rows, { kind = "line", indent = i == 1 and 1 or 2, text = text,
-                    color = ready and WC.Setting("readyColor") or nil }, it.id > 0 and it.id or nil, it.step.quest, it.step)
+                    color = ready and WC.Setting("readyColor") or nil }, it.id > 0 and it.id or nil, it.step.quest, it.step, S.nums)
             end
         else
             add_quest(rows, { kind = "line", indent = 1, text = stop_text(stop) },
-                (stop.step.questID or 0) > 0 and stop.step.questID or nil, stop.step.quest, stop.step)
+                (stop.step.questID or 0) > 0 and stop.step.questID or nil, stop.step.quest, stop.step, S.nums)
         end
     end
     if h.exit and #h.stops + (S.now and 1 or 0) > 0 then

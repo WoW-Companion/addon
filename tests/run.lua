@@ -7718,7 +7718,7 @@ cases[#cases + 1] = { "panel plan: a not-ready turn-in says what it waits on, no
     local WC = merged_client()
     local lines = panel_lines(WC)
     assert(count_of(lines, "8/15 Hillsbrad Peasant slain") == 1, "the progress shows once, under NOW: " .. table.concat(lines, "|"))
-    assert(count_of(lines, "after step 1") == 1, table.concat(lines, "|"))
+    assert(count_of(lines, "after 1") == 1, table.concat(lines, "|"))
     for i, l in ipairs(lines) do
         if l:find("Turn in Quest 11 (Humbert)", 1, true) then assert(not (lines[i + 1] or ""):find("Sword", 1, true), "a ready turn-in shows no progress under it") end
     end
@@ -8019,6 +8019,72 @@ cases[#cases + 1] = { "live order: the section headers read plainly and explain 
     assert(WC.L.PLAN_REROUTED:find("re-routed from where you are", 1, true))
     WC.plan.start = nil
     assert(WC.PlanRerouted(7001, 50, 90) == false)
+end }
+
+cases[#cases + 1] = { "live order: panel, map badges and next line agree on one numbering; after is live; connectors only on long legs", function()
+    local WC = live_client(50, 88)
+    WC.db.settings.showLevels = false
+    local function st(n, kind, q, x, y, extra)
+        local s = { n = n, kind = kind, questID = q, quest = "Quest " .. q, label = kind .. " " .. q, map = 7001, x = x, y = y }
+        for k, v in pairs(extra or {}) do s[k] = v end
+        return s
+    end
+    WC.plan.steps = {
+        st(1, "objective", 1, 50, 88),
+        st(2, "turnin", 1, 50, 10, { after = { 1, 7 } }),
+        st(3, "objective", 2, 50, 14),
+        st(4, "turnin", 2, 50, 10, { after = { 3 } }),
+        st(5, "objective", 3, 50, 90),
+        st(6, "turnin", 3, 50, 89, { after = { 5 } }),
+        st(7, "objective", 4, 0, 0, { unplaced = true, place = "Testisle", label = "Locate the camp (somewhere in Testisle)" }),
+    }
+    for q = 1, 4 do QUESTS[q] = "active" end
+    QUESTS[4] = nil
+    WC.plan.done = {}
+    local groups = WC.MapBadgeGroups(7001, 50, 88)
+    local S = WC.PanelSections(7001, 50, 88)
+    local rows = WC.PanelSectionRows(S, 7001, 50, 88)
+    -- the numbers the badges show
+    local badge = {}
+    for _, g in ipairs(groups) do
+        local label = WC.PinLabel(g.steps)
+        for n in label:gmatch("%d+") do badge[tonumber(n)] = true end
+    end
+    assert(groups[1].isNext and WC.PinLabel(groups[1].steps) == "1", "the next line goes to stop 1")
+    -- the numbers the panel shows, and every `after` below its own number
+    local panel, own, connectors, unplacedRow, afters = {}, nil, {}, nil, nil
+    for _, r in ipairs(rows) do
+        local t = r.text or ""
+        if r.kind == "line" and not r.connector and not t:find("^Then:") then
+            local lead = t:match("^(%d+[%d\194\183]*) \194\183 ")
+            if lead then
+                own = nil
+                for n in lead:gmatch("%d+") do
+                    panel[tonumber(n)] = true
+                    own = own and math.min(own, tonumber(n)) or tonumber(n)
+                end
+                if t:find("no map spot", 1, true) then unplacedRow = t end
+            end
+        elseif r.connector then
+            connectors[#connectors + 1] = t
+        elseif r.kind == "status" and t:find("^after ") then
+            afters = (afters or 0) + 1
+            for n in t:gmatch("%d+") do assert(tonumber(n) < own, "after " .. n .. " is not before " .. tostring(own) .. ": " .. t) end
+        end
+    end
+    assert((afters or 0) >= 1, "the plan's after shows as a live number")
+    for n in pairs(badge) do assert(panel[n], "badge " .. n .. " has no panel row") end
+    for n in pairs(panel) do assert(badge[n] or n > #groups, "panel row " .. n .. " has no badge") end
+    assert(S.now.step and groups[1].steps[1] == S.now.step or S.now.step.n == groups[1].steps[1].n, "NOW is the first stop")
+    assert(unplacedRow and unplacedRow:find("Locate the camp (somewhere in Testisle) (no map spot)", 1, true), "no doubled place: " .. tostring(unplacedRow))
+    assert(not unplacedRow:find("in Testisle in Testisle", 1, true))
+    assert(#connectors == 1 and connectors[1]:find("^%-> ride ~[%d,]+ yd N"), table.concat(connectors, "|"))
+    -- a dependency already done is dropped, never shown as a wait
+    WC.plan.done[1], WC.plan.done[3], WC.plan.done[5] = true, true, true
+    S = WC.PanelSections(7001, 50, 88)
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, 50, 88)) do
+        assert(not (r.text or ""):find("^after "), r.text)
+    end
 end }
 
 local failed = 0

@@ -96,6 +96,8 @@ local function step_lines(lines, group, orig, prevQuest, opts)
     local foot
     if WC.IsSyntheticStep(s) then
         foot = L.PLAN_TIP_LIVE
+    elseif group.steps and group.steps.liveNums and group.steps.liveNums[s] then
+        foot = string.format(L.PLAN_TIP_STEP, tostring(group.steps.liveNums[s])) -- the live number the badge and panel show
     else
         foot = total and string.format(L.PLAN_TIP_STEP_OF, tostring(s.n), tostring(total)) or string.format(L.PLAN_TIP_STEP, tostring(s.n))
     end

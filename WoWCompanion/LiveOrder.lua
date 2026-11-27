@@ -10,6 +10,7 @@ WC.LIVE_ORDER_MOVE = 200 -- the player moved this far: order again
 WC.LIVE_ORDER_SECONDS = 2 -- seconds between two re-orders
 WC.FLIGHT_MIN_YARDS = 1500 -- a hint only for a stop farther than this
 WC.FLIGHT_MIN_SAVING = 500 -- and only when the flight saves at least this much walking
+WC.LEG_RIDE_YARDS = 800 -- a leg between two stops longer than this gets a connector line
 WC.REROUTE_YARDS = 1000 -- farther than this from the plan's start: the order is ours, not the app's
 
 local function yards(ax, ay, bx, by, w, h)
@@ -174,6 +175,69 @@ local function now_clock()
     return GetTime and GetTime() or os.time()
 end
 
+-- Pure. The quests a badge group serves, one { id, step } each, in step order. A quest listed twice (a live turn-in for
+-- a quest the plan already lists here) is the same quest and appears once.
+function WC.GroupItems(group)
+    local items, listed = {}, {}
+    for _, st in ipairs(group.steps) do
+        local ids = st.questIDs and #st.questIDs > 0 and st.questIDs or { st.questID }
+        for _, id in ipairs(ids) do
+            if not listed[id] then
+                listed[id] = true
+                items[#items + 1] = { id = id, step = st }
+            end
+        end
+    end
+    return items
+end
+
+-- Pure. Numbers every actionable step of the groups, in their (live) order, 1, 2, 3...: one number per step, so a stop
+-- that merges quests reads "4·5". Sets each group's steps.liveLabel and returns { byStep = { [step] = n }, count = n }.
+-- The map badge, tooltip and panel all read these numbers, so they cannot disagree.
+function WC.LiveNumber(groups)
+    local byStep, n = {}, 0
+    for _, g in ipairs(groups) do
+        local first, last
+        for _, it in ipairs(WC.GroupItems(g)) do
+            if not byStep[it.step] then
+                n = n + 1
+                byStep[it.step] = n
+            end
+            first = first or byStep[it.step]
+            last = byStep[it.step]
+        end
+        if first then
+            g.steps.liveLabel = first == last and tostring(first) or (first .. "\194\183" .. last)
+            g.steps.liveNums = byStep
+        end
+    end
+    return { byStep = byStep, count = n }
+end
+
+-- Pure. A plan's `after` (plan step numbers) as live numbers for the step numbered `own`: a step already done is
+-- dropped, a step with no live number is dropped, and so is any number not smaller than `own` (a step never waits on
+-- itself or on something later). `nums` is a LiveNumber result (nil: no live order, plan numbers stand).
+function WC.LiveAfter(after, plan, nums, own)
+    local out, seen = {}, {}
+    for _, n in ipairs(after or {}) do
+        if not (plan and plan.done and plan.done[n]) then
+            local live = n
+            if nums then
+                live = nil
+                for _, st in ipairs(plan and plan.steps or {}) do
+                    if st.n == n then live = nums.byStep[st] break end
+                end
+            end
+            if live and (not own or live < own) and not seen[live] then
+                seen[live] = true
+                out[#out + 1] = live
+            end
+        end
+    end
+    table.sort(out)
+    return out
+end
+
 -- Puts the badge groups of the player's own map in live order and marks the first one NOW. `groups` is a PinGroups
 -- result; returns the same list, re-ordered, with each numbered badge relabelled to its place in the order
 -- (steps.liveLabel). With no position, or on another map than the player's, the plan's order stands.
@@ -215,10 +279,7 @@ function WC.LiveGroups(groups, mapID, px, py, now)
     table.sort(sorted, function(a, b) return a.r < b.r end)
     local out, hadNext = {}, false
     for i, e in ipairs(sorted) do out[i] = e.g if e.g.isNext then hadNext = true end end
-    for i, g in ipairs(out) do
-        local label, isName = WC.PinLabel(g.steps)
-        if not isName then g.steps.liveLabel = tostring(i) end
-    end
+    out.nums = WC.LiveNumber(out)
     st.now, st.nowGroup = nil, nil
     local first = out[1]
     if first and not all_unready(first) then
@@ -253,9 +314,10 @@ function WC.LiveRefresh(mapID, px, py)
     end
 end
 
--- Pure. The plan's known flight masters on this map (a list of { name, map, x, y }), a stop, and the player: a hint
--- "Fly A to B, then N yd D" when the stop is farther than FLIGHT_MIN_YARDS and flying saves real walking; else nil.
-function WC.FlightHint(flights, mapID, px, py, target, w, h)
+-- Pure. The plan's known flight masters on this map (a list of { name, map, x, y }), a stop, and the player: the flight
+-- { from, to, yards, dir } (the flight masters' names, then the walk from the landing to the stop) when the stop is
+-- farther than FLIGHT_MIN_YARDS and flying saves real walking; else nil.
+function WC.FlightLeg(flights, mapID, px, py, target, w, h)
     if type(flights) ~= "table" or not (px and target and target.x) then return nil end
     local direct = yards(px, py, target.x, target.y, w, h)
     if direct <= WC.FLIGHT_MIN_YARDS then return nil end
@@ -270,7 +332,13 @@ function WC.FlightHint(flights, mapID, px, py, target, w, h)
     if not from or not to or from == to or from.name == to.name then return nil end
     if fd + td > direct - WC.FLIGHT_MIN_SAVING then return nil end
     local d, dir = WC.PlanDistance(to.x, to.y, target.x, target.y, w, h)
-    return string.format(L.FLIGHT_HINT, from.name, to.name, math.floor(d + 0.5), dir)
+    return { from = from.name, to = to.name, yards = math.floor(d + 0.5), dir = dir }
+end
+
+-- A hint "Fly A to B, then N yd D" for the NOW stop, or nil.
+function WC.FlightHint(flights, mapID, px, py, target, w, h)
+    local f = WC.FlightLeg(flights, mapID, px, py, target, w, h)
+    return f and string.format(L.FLIGHT_HINT, f.from, f.to, f.yards, f.dir) or nil
 end
 
 -- True when the player is on the plan's start map and farther than REROUTE_YARDS from where the app drew the plan.

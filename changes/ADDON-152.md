@@ -1,0 +1,5 @@
+- Every stop now has one live number, the same on the map badge, tooltip and panel.
+- "after" lines use those live numbers and are dropped once the step is done.
+- Steps with no map spot are numbered last and marked "(no map spot)".
+- Short "-> ride", "-> fly" and "-> boat" lines now narrate long legs between stops.
+- A place already named in a step is no longer repeated ("in Stranglethorn Vale").
