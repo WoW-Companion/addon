@@ -253,7 +253,7 @@ function WC.ParsePanelFields(entry)
     for _, q in ipairs(type(list) == "table" and list or {}) do
         local id = type(q) == "table" and tonumber(q.questID)
         if id and id > 0 and str(q.why) then
-            parked[#parked + 1] = { questID = id, quest = str(q.quest) or "", why = str(q.why), kind = str(q.kind) }
+            parked[#parked + 1] = { questID = id, quest = str(q.quest) or "", why = str(q.why), kind = str(q.kind), level = tonumber(q.level), diff = tonumber(q.diff) }
         end
     end
     -- `find`: quests whose next move is a hunt, { questID, quest, hint, zone, map }; a hint or a name is enough.
@@ -261,7 +261,7 @@ function WC.ParsePanelFields(entry)
     for _, q in ipairs(type(entry.find) == "table" and entry.find or {}) do
         local id = type(q) == "table" and tonumber(q.questID)
         if id and id > 0 and (str(q.hint) or str(q.quest)) then
-            find[#find + 1] = { questID = id, quest = str(q.quest) or "", hint = str(q.hint), zone = str(q.zone), map = tonumber(q.map) }
+            find[#find + 1] = { questID = id, quest = str(q.quest) or "", hint = str(q.hint), zone = str(q.zone), map = tonumber(q.map), level = tonumber(q.level), diff = tonumber(q.diff) }
         end
     end
     -- `errands`: stops that are chores, { n = step number and/or questID, kind = train | bank | class | profession }.
@@ -322,7 +322,7 @@ function WC.ParsePlan(plan, player)
                 map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100),
                 unplaced = s.unplaced == true or tonumber(s.x) < 0 or tonumber(s.y) < 0 or (tonumber(s.x) == 0 and tonumber(s.y) == 0) or nil,
                 -- optional, shown in tooltips only when the plan carries them: quest level, class-quest name, NPC level text
-                level = tonumber(s.level), class = type(s.class) == "string" and s.class ~= "" and plain(s.class) or nil,
+                level = tonumber(s.level), diff = tonumber(s.diff), elite = s.elite == true or nil, class = type(s.class) == "string" and s.class ~= "" and plain(s.class) or nil,
                 npcLevel = (type(s.npcLevel) == "string" or type(s.npcLevel) == "number") and plain(tostring(s.npcLevel)) or nil,
                 -- Plan.lua 1.1 chain fields: a follow-up is locked until every quest in unlockedBy is turned in;
                 -- a turn-in lists what it unlocks. A 1.0 plan has none of them and nothing is ever locked.
@@ -524,7 +524,9 @@ WC.RouteNext = route_next
 function WC.PlanBaseNext()
     local p = WC.plan
     if not p then return end
-    return p.liveNow or route_next()
+    local live = p.liveNow
+    if live and WC.StepDismissed and WC.StepDismissed(live) then live = nil end
+    return live or route_next()
 end
 
 -- True when the step's map is the player's map or its parent zone.
@@ -640,7 +642,7 @@ function WC.PlanNext()
     local cur = WC.PlanBaseNext()
     if not cur then return end
     local ok, v = pcall(lead_step, p, cur) -- ADDON-119's live-path rule: a failure here shows the plan's own step
-    if ok and v then return v end
+    if ok and v and not (WC.StepDismissed and WC.StepDismissed(v)) then return v end
     return cur
 end
 
@@ -665,6 +667,7 @@ end
 -- so un-marking or re-doing a turn-in locks the step again with no extra bookkeeping.
 function WC.StepLocked(step)
     local p = WC.plan
+    if p and step and WC.StepDismissed and WC.StepDismissed(step) then return true end -- hidden by the player, or out of reach
     if not (p and step and step.locked) or #step.unlockedBy == 0 then return false end
     if (step.questID or 0) > 0 then
         local st = WC.PlanQuestState(step.questID)
@@ -694,7 +697,7 @@ function WC.GhostSteps(steps, perChain)
     perChain = math.max(0, tonumber(perChain) or 1)
     local byQuest, locked = {}, {}
     for _, s in ipairs(steps or {}) do
-        if s.kind == "pickup" and WC.StepLocked(s) then
+        if s.kind == "pickup" and WC.StepLocked(s) and not WC.StepDismissed(s) then
             locked[#locked + 1] = s
             byQuest[s.questID] = byQuest[s.questID] or s
         end
@@ -777,7 +780,7 @@ function WC.ThenInfo(questID)
         if s.kind == "turnin" and s.questID == questID then turnin = s break end
     end
     for _, s in ipairs(p.steps) do
-        if s.kind == "pickup" and s.locked and WC.StepLocked(s) then
+        if s.kind == "pickup" and s.locked and WC.StepLocked(s) and not WC.StepDismissed(s) then
             for _, id in ipairs(s.unlockedBy) do
                 if id == questID then
                     local title = (s.questID or 0) > 0 and WC.QuestTitle(s.questID) or nil

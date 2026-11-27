@@ -23,7 +23,7 @@ WC.SECTION_OF = { next_quests = "quests", upgrades = "upgrades", keep_materials 
 -- look), and which options page and box show it. The options window is built from these rows, and
 -- InitSettings, Setting and the Defaults buttons all read the same ones.
 -- page ids, in display order:
-WC.PAGES = { "panel", "map", "badges", "tracker", "minimap", "tooltips" }
+WC.PAGES = { "panel", "plan", "map", "badges", "tracker", "minimap", "tooltips" }
 local GOLD_LINE = { 1, 0.82, 0 }
 local D = {
     -- Panel
@@ -53,6 +53,9 @@ local D = {
     { key = "hoverDim", type = "bool", default = false, page = "panel", box = "interact", label = "HOVER_DIM", name = "HoverDim" },
     { key = "clickAction", type = "choice", default = "questlog", choices = { "questlog", "card" }, page = "panel", box = "interact", label = "CLICK_ACTION_LABEL", name = "ClickAction", choiceKey = "CLICK_", widget = "dropdown" },
     { key = "cardSide", type = "choice", default = "right", choices = { "right", "left" }, page = "panel", box = "interact", label = "CARD_SIDE_LABEL", name = "CardSide", choiceKey = "SIDE_", widget = "dropdown" },
+    -- Plan: what the plan holds for you (the app reads these from planPrefs on its next save)
+    { key = "planReach", type = "limit", default = 3, min = 0, max = 11, page = "plan", box = "reach", label = "PLAN_REACH_LABEL", labelAll = "PLAN_REACH_ANY", name = "PlanReach", show = "limit" },
+    { key = "planElite", type = "bool", default = false, page = "plan", box = "reach", label = "PLAN_ELITE", name = "PlanElite" },
     -- Map & route
     { key = "planMap", type = "bool", default = true, page = "map", box = "map", label = "SHOW_PLAN_MAP", name = "PlanMap" },
     { key = "alsoDoingMax", type = "range", default = 3, min = 0, max = 10, step = 1, page = "map", box = "map", label = "ALSO_DOING_MAX_LABEL", name = "AlsoDoingMax", show = "int" },
@@ -71,8 +74,14 @@ local D = {
     { key = "planChevrons", type = "bool", default = true, page = "map", box = "route", label = "SHOW_CHEVRONS", name = "Chevrons" },
     { key = "lineColor", visual = true, type = "color", default = GOLD_LINE, page = "map", box = "route", label = "LINE_COLOR", name = "LineColor" },
     { key = "lineWidth", visual = true, type = "range", default = 2.5, min = 1, max = 6, step = 0.5, page = "map", box = "route", label = "LINE_WIDTH_LABEL", name = "LineWidth", show = "num1" },
-    { key = "lineOpacity", visual = true, type = "range", default = 0.7, min = 0.1, max = 1, step = 0.05, page = "map", box = "route", label = "LINE_OPACITY_LABEL", name = "LineOpacity", show = "pct" },
+    { key = "lineOpacity", visual = true, type = "range", default = 0.7, min = 0.1, max = 1, step = 0.05, page = "map", box = "opacity", label = "LINE_OPACITY_LABEL", name = "LineOpacity", show = "pct" },
     { key = "arrowSize", visual = true, type = "range", default = 8, min = 2, max = 24, step = 1, page = "map", box = "route", label = "ARROW_SIZE_LABEL", name = "ArrowSize", show = "int" },
+    { key = "opacBadge", visual = true, type = "range", default = 0.9, min = 0.1, max = 1, step = 0.1, page = "map", box = "opacity", label = "OPAC_BADGE_LABEL", name = "OpacBadge", show = "pct" },
+    { key = "opacLabel", visual = true, type = "range", default = 0.8, min = 0.1, max = 1, step = 0.1, page = "map", box = "opacity", label = "OPAC_LABEL_LABEL", name = "OpacLabel", show = "pct" },
+    { key = "opacNext", visual = true, type = "range", default = 0.9, min = 0.1, max = 1, step = 0.1, page = "map", box = "opacity", label = "OPAC_NEXT_LABEL", name = "OpacNext", show = "pct" },
+    { key = "opacRing", visual = true, type = "range", default = 0.5, min = 0.1, max = 1, step = 0.1, page = "map", box = "opacity", label = "OPAC_RING_LABEL", name = "OpacRing", show = "pct" },
+    { key = "opacMinimap", visual = true, type = "range", default = 0.9, min = 0.1, max = 1, step = 0.1, page = "map", box = "opacity", label = "OPAC_MINIMAP_LABEL", name = "OpacMinimap", show = "pct" },
+    { key = "hoverFull", visual = true, type = "bool", default = true, page = "map", box = "opacity", label = "OPAC_HOVER_FULL", name = "OpacHoverFull" },
     -- Badges
     { key = "planSize", visual = true, type = "choice", default = "normal", choices = { "small", "normal", "large" }, page = "badges", box = "size", label = "PLAN_SIZE_LABEL", name = "PlanSize", choiceKey = "PLAN_SIZE_" },
     { key = "badgeScale", visual = true, type = "range", default = 1, min = 0.7, max = 1.5, step = 0.05, page = "badges", box = "size", label = "BADGE_SCALE_LABEL", name = "BadgeScale", show = "num2" },
@@ -193,8 +202,9 @@ function WC.Repair(def, v)
         end
         return out
     elseif t == "limit" then
+        if v == "all" then return "all" end
         local n = tonumber(v)
-        return (n and n >= 1 and n == n and n < 1e6) and math.floor(n) or "all"
+        return (n and n >= (def.min or 1) and n == n and n < 1e6) and math.floor(n) or def.default
     end
     local n = tonumber(v)
     return n and n == n and n or def.default
@@ -332,6 +342,7 @@ end
 
 -- Applies the saved settings to the panel and redraws it.
 function WC.ApplySettings()
+    if WC.SyncPlanPrefs then WC.SyncPlanPrefs() end
     if WC.panel then WC.panel:SetScale(WC.db.settings.scale) end
     if WC.ApplyButtons then WC.ApplyButtons() end
     WC.Refresh()

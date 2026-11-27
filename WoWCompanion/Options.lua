@@ -48,6 +48,7 @@ end
 
 local function label_text(def, v)
     local text = L[def.label]
+    if def.labelAll and v == "all" then return L[def.labelAll] end
     if def.type == "range" or def.type == "limit" then return string.format(text, show_value(def, v)) end
     if def.type == "choice" then
         if not text:find("%s", 1, true) then return text end
@@ -249,6 +250,7 @@ local function build_page(f, page, body)
             list[#list + 1] = def
         end
     end
+    if page == "plan" then boxes.hidden = {}; order[#order + 1] = "hidden" end -- a custom box: the hidden quests
     local top = -PAGE_TOP
     for _, id in ipairs(order) do
         local box = CreateFrame("Frame", nil, pf, "BackdropTemplate")
@@ -275,6 +277,32 @@ local function build_page(f, page, body)
                 end
                 y = y - ROW[def.type == "limit" and "range" or def.type]
             end
+        end
+        if page == "plan" and id == "reach" then
+            local note = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            note:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, y - 2)
+            f.widgets[#f.widgets + 1] = { sync = function() note:SetText(WC.PlanPrefsPending() and L.PLAN_PENDING or "") end }
+            y = y - 20
+        end
+        if page == "plan" and id == "hidden" then
+            local list = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            list:SetPoint("TOPLEFT", box, "TOPLEFT", PAD, y - 2)
+            list:SetWidth(BOX_W - 2 * PAD)
+            list:SetJustifyH("LEFT")
+            local btn = make_button("WoWCompanionOptionsUnhideAll", box, L.UNHIDE_ALL, 120, "TOPLEFT", PAD, y - 50, function() WC.UnhideAll() end)
+            f.widgets[#f.widgets + 1] = { sync = function()
+                local names = {}
+                for _, h in ipairs(WC.HiddenQuests()) do names[#names + 1] = h.name end
+                if #names == 0 then
+                    list:SetText(L.HIDDEN_NONE)
+                else
+                    local shown = {}
+                    for i = 1, math.min(#names, 6) do shown[i] = names[i] end
+                    list:SetText(string.format(L.HIDDEN_COUNT, #names, table.concat(shown, ", ") .. (#names > 6 and ", ..." or "")))
+                end
+                if btn.SetEnabled then btn:SetEnabled(#names > 0) end
+            end }
+            y = y - 80
         end
         if page == "minimap" and id == "button" then
             make_button("WoWCompanionOptionsResetButton", box, L.RESET_BUTTON, 190, "TOPLEFT", PAD, y - 2, function() WC.ResetMinimapButton() end)
