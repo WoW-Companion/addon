@@ -21,6 +21,12 @@ grep -q "^    WHATS_NEW_${key}_1 = \"First line.\",\$" "$d/WoWCompanion/Locales/
 grep -q "^    WHATS_NEW_${key}_2 = \"Second \\\\\"quoted\\\\\" line.\",\$" "$d/WoWCompanion/Locales/enUS.lua" || fail "line 2"
 grep -q "\[\"$new\"\] = { \"WHATS_NEW_${key}_1\", \"WHATS_NEW_${key}_2\" }," "$d/WoWCompanion/WhatsNew.lua" || fail "CHANGELOG"
 [ -z "$(ls "$d/changes")" ] || fail "fragments not deleted"
+# Three bullets in one fragment become three keys, "- " stripped.
+printf -- '- One.\n- Two.\n- Three.\n' > "$d/changes/ADDON-4.md"
+sh "$d/scripts/release-prep.sh" "$d" >/dev/null || fail "three bullets failed"
+v=$(sed -n 's/^## Version: *//p' "$d/WoWCompanion/WoWCompanion.toc"); k=$(echo "$v" | tr . _)
+[ "$(grep -c "^    WHATS_NEW_${k}_[0-9]* = " "$d/WoWCompanion/Locales/enUS.lua")" = 3 ] || fail "three bullets, three keys"
+grep -q "^    WHATS_NEW_${k}_3 = \"Three.\",\$" "$d/WoWCompanion/Locales/enUS.lua" || fail "bullet dash not stripped"
 BUMP=minor; export BUMP
 echo "- Minor." > "$d/changes/ADDON-3.md"
 sh "$d/scripts/release-prep.sh" "$d" >/dev/null || fail "minor failed"

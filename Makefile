@@ -11,6 +11,7 @@ verify:
 	$(LUA) tests/layout.lua
 	scripts/package.sh | xargs $(LUA) tests/layout.lua
 	scripts/check-changes.sh
+	sh tests/checkchanges.sh
 	sh tests/releaseprep.sh
 	$(LUA) tests/run.lua WoWCompanion
 

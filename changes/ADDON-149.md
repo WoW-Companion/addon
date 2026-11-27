@@ -1,0 +1,2 @@
+- What's new now shows short bullets instead of one long paragraph.
+- Older notes with long entries are split into bullets at sentence ends.
