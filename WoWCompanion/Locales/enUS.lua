@@ -708,6 +708,16 @@ local L = {
     WHATS_NEW_0_6_71_7 = "Headers now read \"NOW · your next step\" and \"HERE · rest of <zone> (N stops, ~yd)\", with tooltips.",
     WHATS_NEW_0_6_71_8 = "The panel says \"re-routed from where you are\" when you are far from where the plan began.",
     WHATS_NEW_0_6_71_9 = "Settings, Plan has \"Re-order stops from where I stand\" to switch the live order off.",
+    WHATS_NEW_0_6_72_1 = "Every stop now has one live number, the same on the map badge, tooltip and panel.",
+    WHATS_NEW_0_6_72_2 = "\"after\" lines use those live numbers and are dropped once the step is done.",
+    WHATS_NEW_0_6_72_3 = "Steps with no map spot are numbered last and marked \"(no map spot)\".",
+    WHATS_NEW_0_6_72_4 = "Short \"-> ride\", \"-> fly\" and \"-> boat\" lines now narrate long legs between stops.",
+    WHATS_NEW_0_6_72_5 = "A place already named in a step is no longer repeated (\"in Stranglethorn Vale\").",
+    WHATS_NEW_0_6_72_6 = "Errands the plan bundles into a stop show as a dim \"While you're here\" line under it.",
+    WHATS_NEW_0_6_72_7 = "Each errand has a small icon: bag to restock, hammer to repair, coin to sell, envelope to mail.",
+    WHATS_NEW_0_6_72_8 = "Errands with no stop of their own are numbered rows like any other stop.",
+    WHATS_NEW_0_6_72_9 = "A stop's map tooltip adds \"+ 1 errand\"; there is no separate badge.",
+    WHATS_NEW_0_6_72_10 = "Errand kinds this version doesn't know still show, with a generic icon.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
