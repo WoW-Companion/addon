@@ -651,6 +651,7 @@ local L = {
     WHATS_NEW_0_6_68_5 = "repeats NOW.",
     WHATS_NEW_0_6_68_6 = "The panel no longer leads a row with the map badge's cut-short quest name (\"Source of Po\"), and NOW now picks a live turn-in or quest on your own map before a plan stop in another zone.",
     WHATS_NEW_0_6_68_7 = "A name shown on a world-map badge that is too long to fit is now cut at a word where it can be and ends in an ellipsis, so it no longer looks like a mistake (\"Source of Po\"), and its tooltip still shows the full quest name.",
+    WHATS_NEW_0_6_69_1 = "The panel no longer drops a whole plan because one step has a kind the addon doesn't know: errand steps (train, bank, class quest, profession, turn-in) show as verb-first rows, an unknown kind shows as a plain row, and a plan with no steps still shows its exit, trips, find and later sections. A plan that truly can't be read now says why instead of silently switching to the old advice view.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
