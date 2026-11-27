@@ -677,7 +677,12 @@ local L = {
     WHATS_NEW_0_6_68_6 = "The panel no longer leads a row with the map badge's cut-short quest name (\"Source of Po\"), and NOW now picks a live turn-in or quest on your own map before a plan stop in another zone.",
     WHATS_NEW_0_6_68_7 = "A name shown on a world-map badge that is too long to fit is now cut at a word where it can be and ends in an ellipsis, so it no longer looks like a mistake (\"Source of Po\"), and its tooltip still shows the full quest name.",
     WHATS_NEW_0_6_69_1 = "The panel no longer drops a whole plan because one step has a kind the addon doesn't know: errand steps (train, bank, class quest, profession, turn-in) show as verb-first rows, an unknown kind shows as a plain row, and a plan with no steps still shows its exit, trips, find and later sections. A plan that truly can't be read now says why instead of silently switching to the old advice view.",
-    WHATS_NEW_0_6_70_1 = "Quest rows in the panel now start with the quest level (\"[38] Kill Shadowmaw Panther\"), coloured by how hard it is for you. Each quest row has a small x and a right-click \"Hide from plan\"; hidden quests leave NOW, HERE, TRIPS and the map badges at once and wait under LATER, \"Hidden by you\", with an Unhide link (Settings, Plan, lists them with \"Unhide all\"). A new Plan page sets how many levels above you the plan reaches (default 3, or no limit) and whether elite quests are included. Settings, Map has opacity sliders for stop badges, badge labels, route lines, the line to your next stop, area rings and zones, and minimap pins, plus \"Full opacity on hover\".",
+    WHATS_NEW_0_6_70_1 = "Quest rows in the panel now start with the quest level, like \"[38] Kill Shadowmaw Panther\", coloured by how hard it is for you.",
+    WHATS_NEW_0_6_70_2 = "Each quest row has a small x and a right-click \"Hide from plan\".",
+    WHATS_NEW_0_6_70_3 = "Hidden quests leave NOW, HERE, TRIPS and the map badges at once.",
+    WHATS_NEW_0_6_70_4 = "They wait under LATER, \"Hidden by you\", with an Unhide link (Settings, Plan, lists them with \"Unhide all\").",
+    WHATS_NEW_0_6_70_5 = "A new Plan page sets how many levels above you the plan reaches (default 3, or no limit) and whether elite quests are included.",
+    WHATS_NEW_0_6_70_6 = "Settings, Map has opacity sliders for stop badges, badge labels, route lines, the line to your next stop, area rings and zones, and minimap pins, plus \"Full opacity on hover\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
