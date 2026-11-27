@@ -718,6 +718,9 @@ local L = {
     WHATS_NEW_0_6_72_8 = "Errands with no stop of their own are numbered rows like any other stop.",
     WHATS_NEW_0_6_72_9 = "A stop's map tooltip adds \"+ 1 errand\"; there is no separate badge.",
     WHATS_NEW_0_6_72_10 = "Errand kinds this version doesn't know still show, with a generic icon.",
+    WHATS_NEW_0_6_73_1 = "The character capture now records Hearthstone readiness next to the bind location.",
+    WHATS_NEW_0_6_73_2 = "New fields: hearthHave, hearthReadyIn (seconds, 0 when ready) and hearthCooldown.",
+    WHATS_NEW_0_6_73_3 = "Re-read on bag cooldown changes; read-only APIs only.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })

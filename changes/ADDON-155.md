@@ -1,3 +1,0 @@
-- The character capture now records Hearthstone readiness next to the bind location.
-- New fields: hearthHave, hearthReadyIn (seconds, 0 when ready) and hearthCooldown.
-- Re-read on bag cooldown changes; read-only APIs only.
