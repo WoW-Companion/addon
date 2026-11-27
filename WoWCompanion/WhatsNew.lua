@@ -137,6 +137,45 @@ function WC.WhatsNewWindowHeight(h)
     return math.max(WC.WHATS_NEW_MIN_H, math.min(WC.WHATS_NEW_MAX_H, h + 28 + 38 + 6))
 end
 
+WC.WHATS_NEW_LONG = 140 -- an entry over this many characters is split into bullets
+WC.WHATS_NEW_INDENT, WC.WHATS_NEW_GAP = 10, 4
+
+-- Splits one long legacy entry at sentence ends (". " before a capital) and at "; ". A short entry is returned whole.
+function WC.WhatsNewSplit(text)
+    if #text <= WC.WHATS_NEW_LONG then return { text } end
+    local out, start, i, semi = {}, 1, 1, {}
+    while i <= #text do
+        local c = text:sub(i, i)
+        local cut
+        if c == ";" and text:sub(i + 1, i + 1) == " " then cut = i
+        elseif c == "." and text:sub(i + 1, i + 1) == " " and text:sub(i + 2, i + 2):match("%u") then cut = i end
+        if cut then
+            local piece = text:sub(start, c == ";" and cut - 1 or cut)
+            if #piece > 0 then out[#out + 1] = piece; semi[#out] = c == ";" end
+            start = cut + 2
+            i = start
+        else
+            i = i + 1
+        end
+    end
+    local tail = text:sub(start)
+    if #tail > 0 then out[#out + 1] = tail end
+    for n, piece in ipairs(out) do
+        if semi[n] then out[n] = piece .. "." end -- a "; " cut drops the stop
+        if semi[n - 1] then out[n] = out[n]:sub(1, 1):upper() .. out[n]:sub(2) end
+    end
+    return out
+end
+
+-- The bullet texts for a version's keys, long entries split.
+function WC.WhatsNewBullets(keys)
+    local out = {}
+    for _, key in ipairs(keys) do
+        for _, piece in ipairs(WC.WhatsNewSplit(L[key])) do out[#out + 1] = piece end
+    end
+    return out
+end
+
 local function create_box(version, keys)
     local f = CreateFrame("Frame", "WoWCompanionWhatsNew", WC.panel, "BasicFrameTemplateWithInset")
     f:SetSize(340, 150) -- resized below to fit the text
@@ -145,8 +184,7 @@ local function create_box(version, keys)
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     f.title:SetPoint("TOP", f, "TOP", 0, -5)
     f.title:SetText(string.format(L.WHATS_NEW_TITLE, version))
-    local lines = {}
-    for i, key in ipairs(keys) do lines[i] = "- " .. L[key] end
+    local bullets = WC.WhatsNewBullets(keys)
     -- The text lives in a scroll frame (its bar shows when the text overflows); the Got it button sits below it.
     f.scroll = CreateFrame("ScrollFrame", "WoWCompanionWhatsNewScroll", f, "UIPanelScrollFrameTemplate")
     f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -28)
@@ -154,14 +192,27 @@ local function create_box(version, keys)
     f.content = CreateFrame("Frame", nil, f.scroll)
     f.content:SetSize(WC.WHATS_NEW_TEXT_W, 1)
     f.scroll:SetScrollChild(f.content)
-    f.body = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    f.body:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, 0)
-    f.body:SetWidth(WC.WHATS_NEW_TEXT_W)
-    f.body:SetJustifyH("LEFT")
-    if WC.StyleText then WC.StyleText(f.body) end
-    f.body:SetText(WC.SafeText(table.concat(lines, "\n")))
-    local h = (f.body.GetStringHeight and f.body:GetStringHeight()) or 0
-    if h <= 0 then h = 14 * #lines end
+    -- One row per bullet: a marker, and the text indented past it so wrapped lines line up under the first.
+    f.rows, f.marks = {}, {}
+    local indent, gap = WC.WHATS_NEW_INDENT, WC.WHATS_NEW_GAP
+    local h = 0
+    for i, text in ipairs(bullets) do
+        local row = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        if i == 1 then row:SetPoint("TOPLEFT", f.content, "TOPLEFT", indent, 0)
+        else row:SetPoint("TOPLEFT", f.rows[i - 1], "BOTTOMLEFT", 0, -gap) end
+        row:SetWidth(WC.WHATS_NEW_TEXT_W - indent)
+        row:SetJustifyH("LEFT")
+        if WC.StyleText then WC.StyleText(row) end
+        row:SetText(WC.SafeText(text))
+        local mark = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        mark:SetPoint("TOPLEFT", row, "TOPLEFT", -indent, 0)
+        mark:SetText("·")
+        if WC.StyleText then WC.StyleText(mark) end
+        f.rows[i], f.marks[i] = row, mark
+        local rh = (row.GetStringHeight and row:GetStringHeight()) or 0
+        if rh <= 0 then rh = 14 end
+        h = h + rh + (i > 1 and gap or 0)
+    end
     f.content:SetHeight(h + 4)
     f.window = WC.WhatsNewWindowHeight(h)
     f:SetSize(340, f.window)

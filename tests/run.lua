@@ -467,7 +467,7 @@ end
 cases[#cases + 1] = { "what's new shows once per version", function()
     local box = upgrade_client("0.0.0")
     assert(box and box.title.text == "What's new in " .. TOC_VERSION)
-    assert(#box.body.text:gsub("%s", "") > 0 and not box.body.text:find("WHATS_NEW", 1, true), "note exists and is not a raw key")
+    assert(#box.rows[1].text:gsub("%s", "") > 0 and not box.rows[1].text:find("WHATS_NEW", 1, true), "note exists and is not a raw key")
     assert(WoWCompanionDB.lastSeenVersion == "0.0.0", "not recorded until dismissed")
     -- Ignored, the note comes back on the next load.
     box = upgrade_client("0.0.0")
@@ -3324,6 +3324,34 @@ cases[#cases + 1] = { "what's new: body sits in a scroll frame, window sized to 
     local WC = WoWCompanion
     assert(WC.WhatsNewWindowHeight(0) == WC.WHATS_NEW_MIN_H and WC.WhatsNewWindowHeight(9999) == WC.WHATS_NEW_MAX_H)
     assert(WC.WhatsNewWindowHeight(100) == 172)
+end }
+cases[#cases + 1] = { "what's new: bullets with a hanging indent, 4px apart", function()
+    local box = upgrade_client("0.0.0")
+    local WC = WoWCompanion
+    assert(#box.rows == #WC.CHANGELOG[TOC_VERSION] and #box.rows >= 1 and #box.marks == #box.rows)
+    for i, row in ipairs(box.rows) do
+        assert(box.marks[i].text == "\194\183", "bullet marker")
+        local _, rel, _, x = box.marks[i]:GetPoint()
+        assert(rel == row and x == -WC.WHATS_NEW_INDENT, "marker hangs left of the text")
+        assert(row.w == WC.WHATS_NEW_TEXT_W - WC.WHATS_NEW_INDENT, "text width leaves the indent")
+        local _, prev, _, _, y = row:GetPoint()
+        if i == 1 then assert(prev == box.content and select(4, row:GetPoint()) == WC.WHATS_NEW_INDENT)
+        else assert(prev == box.rows[i - 1] and y == -WC.WHATS_NEW_GAP and WC.WHATS_NEW_GAP == 4) end
+    end
+end }
+cases[#cases + 1] = { "what's new: a long legacy entry splits at sentence ends", function()
+    fresh_client(nil)
+    local WC = WoWCompanion
+    local long = {}
+    for i = 1, 7 do long[i] = "Sentence number " .. i .. " says something about the plan panel and how the rows look now in the list" .. (i == 3 and "; and then more" or "") .. "." end
+    local text = table.concat(long, " ")
+    assert(#text > 600)
+    local out = WC.WhatsNewSplit(text)
+    assert(#out == 8, #out)
+    for _, piece in ipairs(out) do assert(#piece <= 140 and piece:match("^%u") and piece:match("%.$"), piece) end
+    local short = "A short line. With two sentences."
+    assert(#WC.WhatsNewSplit(short) == 1 and WC.WhatsNewSplit(short)[1] == short)
+    assert(#WC.WhatsNewSplit(("word "):rep(40)) == 1, "no boundary, no split")
 end }
 
 cases[#cases + 1] = { "advice age uses the capture time as loaded from disk, not the live login refresh", function()

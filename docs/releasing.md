@@ -6,8 +6,11 @@ Two branches that bump the version conflict; fragments never do.
 
 ## A change
 
-Add `changes/<MISSION-ID>.md` with its player-facing What's-new lines: one line per bullet (`- text`), plain
-words for a player, no `/reload` advice. Blank lines and lines starting with `#` are ignored. A purely internal
+Add `changes/<MISSION-ID>.md` with its player-facing What's-new lines: one change per line, each a bullet
+(`- text`) of at most 100 characters, plain words for a player, no `/reload` advice. Split a long change into
+several bullets. Blank lines and lines starting with `#` are ignored. `scripts/check-changes.sh` (in
+`make verify`) fails a line that is not a bullet or is over 100 characters, naming the file and line. Each bullet
+becomes its own What's-new line, shown with a bullet mark and a hanging indent. A purely internal
 change adds no fragment.
 
 `make verify` runs `scripts/check-changes.sh`, which fails a branch whose commits change the version or What's
