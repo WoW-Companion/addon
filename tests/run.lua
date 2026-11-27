@@ -5483,7 +5483,7 @@ local function capture_client()
     return WC, run_timers
 end
 local function capture_clear()
-    for _, n in ipairs({ "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "GetMoney", "UnitXP", "UnitXPMax", "GetXPExhaustion", "GetBindLocation", "C_Map", "GetInventoryItemID", "GetInventoryItemLink", "ITEM_INFO", "C_Item", "BAGS", "C_Container", "GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard", "GetQuestsCompleted", "GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetNumSkillLines", "GetSkillLineInfo", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellLink", "GetNumFactions", "GetFactionInfo", "TRADE_NAME", "TRADE_OPEN", "GetTradeSkillLine", "GetNumTradeSkills", "GetTradeSkillInfo", "GetTradeSkillItemLink" }) do _G[n] = nil end
+    for _, n in ipairs({ "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "GetMoney", "UnitXP", "UnitXPMax", "GetXPExhaustion", "GetBindLocation", "GetItemCount", "GetItemCooldown", "GetTime", "C_Map", "GetInventoryItemID", "GetInventoryItemLink", "ITEM_INFO", "C_Item", "BAGS", "C_Container", "GetNumQuestLogEntries", "GetQuestLogTitle", "GetNumQuestLeaderBoards", "GetQuestLogLeaderBoard", "GetQuestsCompleted", "GetNumTalentTabs", "GetTalentTabInfo", "GetNumTalents", "GetTalentInfo", "GetNumSkillLines", "GetSkillLineInfo", "GetNumSpellTabs", "GetSpellTabInfo", "GetSpellLink", "GetNumFactions", "GetFactionInfo", "TRADE_NAME", "TRADE_OPEN", "GetTradeSkillLine", "GetNumTradeSkills", "GetTradeSkillInfo", "GetTradeSkillItemLink" }) do _G[n] = nil end
 end
 
 cases[#cases + 1] = { "capture: item links parse by field position, empty fields kept", function()
@@ -5559,6 +5559,34 @@ cases[#cases + 1] = { "capture: uncached item info is left out, then filled on G
     run()
     it = WoWCompanionDB.characters["Testrealm:Thrall"].bags[0].items[1]
     assert(it.quality == 2 and it.ilvl == 12 and it.reqLevel == 8 and it.equipLoc == "INVTYPE_CHEST")
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "capture: hearthstone readiness (ready, on cooldown, none in bags, API missing)", function()
+    local WC, run = capture_client()
+    local function c() return WoWCompanionDB.characters["Testrealm:Thrall"] end
+    local oldTime = GetTime
+    GetTime = function() return 5000 end
+    GetItemCount = function(id) assert(id == 6948); return 1 end
+    GetItemCooldown = function() return 0, 0, 1 end
+    WC.CaptureMark("hearth"); run()
+    assert(c().hearthHave == true and c().hearthReadyIn == 0 and c().hearthCooldown == nil)
+    GetItemCooldown = function() return 4000, 3600, 1 end -- 2600 s left
+    Stub.fire(frames, "BAG_UPDATE_COOLDOWN"); run()
+    assert(c().hearthHave == true and c().hearthReadyIn == 2600 and c().hearthCooldown == 3600)
+    GetItemCooldown = function() return 4999.5, 1.5, 1 end -- global cooldown only
+    WC.CaptureMark("hearth"); run()
+    assert(c().hearthReadyIn == 0 and c().hearthCooldown == 3600, "GCD is not the cooldown; last value kept")
+    GetItemCooldown = function() return 0, 0, 1 end
+    WC.CaptureMark("hearth"); run()
+    assert(c().hearthReadyIn == 0 and c().hearthCooldown == 3600, "last observed cooldown kept when ready")
+    GetItemCount = function() return 0 end
+    WC.CaptureMark("hearth"); run()
+    assert(c().hearthHave == false)
+    GetItemCount, GetItemCooldown = nil, nil
+    WC.CaptureMark("hearth"); run()
+    assert(c().hearthHave == nil and c().hearthReadyIn == nil)
+    GetTime = oldTime
     capture_clear()
 end }
 

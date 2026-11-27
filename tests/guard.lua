@@ -16,7 +16,7 @@ local denied = {
 local capture_allowed = {}
 for name in ([[
     UnitName GetRealmName UnitLevel UnitClass UnitRace UnitFactionGroup GetBuildInfo time InCombatLockdown
-    GetMoney UnitXP UnitXPMax GetXPExhaustion GetBindLocation
+    GetMoney UnitXP UnitXPMax GetXPExhaustion GetBindLocation GetItemCount GetItemCooldown GetTime
     GetInventoryItemID GetInventoryItemLink GetItemStats C_Item.GetItemStats
     GetContainerNumSlots GetContainerItemID GetContainerItemInfo
     C_Container.GetContainerNumSlots C_Container.GetContainerItemInfo
