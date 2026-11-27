@@ -393,7 +393,7 @@ function WC.PanelSections(mapID, px, py)
             local w, h = WC.MapYards(hereMap)
             hint = WC.FlightHint(p.flights, hereMap, px, py, cur, w, h)
         end
-        S.now = { label = label, plabel = plabel, text = text, where = where, step = cur, hint = hint }
+        S.now = { label = label, plabel = plabel, text = text, where = where, step = cur, hint = hint, steps = steps }
         note(cur)
     end
 
@@ -596,6 +596,13 @@ local function stop_text(stop)
     return text
 end
 
+-- Dim "While you're here" sub-lines for the errands riding on a stop's steps.
+local function chore_rows(out, steps, indent)
+    for _, e in ipairs(WC.ChoresFor(steps)) do
+        out[#out + 1] = { kind = "status", indent = indent, text = WC.ChoreText(e), color = WC.COLORS.dim }
+    end
+end
+
 local function header(id, text, click)
     local color = WC.Setting("sectionColor")
     local tip = (id == "panel_now" or id == "panel_here" or id == "panel_trips") and L.PANEL_SECTIONS_TIP or nil
@@ -670,6 +677,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
     if S.now then
         local id = S.now.step and (S.now.step.questID or 0) > 0 and S.now.step.questID or nil
         add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest, S.now.step, S.nums)
+        if S.now.step then chore_rows(rows, S.now.steps or { S.now.step }, 1) end
         if S.now.hint then rows[#rows + 1] = { kind = "line", indent = 1, text = S.now.hint, color = WC.COLORS.dim } end
     else
         rows[#rows + 1] = { kind = "line", text = L.PANEL_NOTHING_NOW }
@@ -702,6 +710,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
             add_quest(rows, { kind = "line", indent = 1, text = stop_text(stop) },
                 (stop.step.questID or 0) > 0 and stop.step.questID or nil, stop.step.quest, stop.step, S.nums)
         end
+        chore_rows(rows, stop.group and stop.group.steps or { stop.step }, 2)
     end
     if h.exit and #h.stops + (S.now and 1 or 0) > 0 then
         rows[#rows + 1] = { kind = "line", indent = 1, text = string.format(L.PANEL_THEN, h.exit), color = WC.COLORS.dim }
