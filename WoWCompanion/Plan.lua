@@ -277,6 +277,21 @@ function WC.ParsePanelFields(entry)
     return exit, #trips > 0 and trips or nil, #parked > 0 and parked or nil, #find > 0 and find or nil, #errands > 0 and errands or nil
 end
 
+-- `flights`: the flight masters the character knows, { name, map, x, y }; `start`: where the app drew the plan from,
+-- { map, x, y }. Both optional; a malformed entry is dropped.
+function WC.ParseLiveFields(entry)
+    local flights = {}
+    for _, f in ipairs(type(entry.flights) == "table" and entry.flights or {}) do
+        if type(f) == "table" and type(f.name) == "string" and f.name ~= "" and tonumber(f.map) and tonumber(f.x) and tonumber(f.y) and f.known ~= false then
+            flights[#flights + 1] = { name = plain(f.name), map = tonumber(f.map), x = clamp(tonumber(f.x), 0, 100), y = clamp(tonumber(f.y), 0, 100) }
+        end
+    end
+    local s = entry.start
+    local start = type(s) == "table" and tonumber(s.map) and tonumber(s.x) and tonumber(s.y)
+        and { map = tonumber(s.map), x = clamp(tonumber(s.x), 0, 100), y = clamp(tonumber(s.y), 0, 100) } or nil
+    return #flights > 0 and flights or nil, start
+end
+
 -- True when a stop has a real place on its map: x and y are numbers, not negative, not both exactly 0 (the plan's
 -- "no spot" filler), and it is not flagged unplaced. Never draw a badge, ring, line or minimap pin without it.
 function WC.HasPlace(s)
@@ -330,11 +345,14 @@ function WC.ParsePlan(plan, player)
                 locked = s.locked == true, unlockedBy = id_list(s.unlockedBy), unlocks = id_list(s.unlocks),
                 chain = type(s.chain) == "string" and s.chain ~= "" and plain(s.chain) or nil,
                 place = type(s.place) == "string" and s.place ~= "" and plain(s.place) or nil, -- 1.3: where the work is done
+                after = type(s.after) == "table" and #id_list(s.after) > 0 and id_list(s.after) or nil, -- route steps to finish first
             }
         end
     end
+    local exit, trips, parked, find, errands = WC.ParsePanelFields(entry)
+    local flights, start = WC.ParseLiveFields(entry)
     return steps, nil, tonumber(plan.generated) or 0, WC.ParseGuidance(entry.guidance), WC.ParseHere(entry.here), WC.ParseLater(entry.later),
-        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), WC.ParsePanelFields(entry)
+        WC.ParseFinishers(entry.finishers), WC.ParseZones(entry.zones, steps), exit, trips, parked, find, errands, flights, start
 end
 
 -- Yards and compass point from (x1,y1) to (x2,y2), both in map percent, on a map w by h yards.
@@ -455,7 +473,7 @@ function WC.DismissPlanLag() WC.lagDismissed = true end
 
 -- Loads the plan for this character and its saved done marks (a new plan starts clean).
 function WC.PlanInit()
-    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
+    local steps, _, generated, guidance, here, later, finishers, zones, exit, trips, parked, find, errands, flights, start = WC.ParsePlan(WoWCompanionPlan, UnitName("player"))
     WC.plan = nil
     WC.planError = nil
     if not steps then
@@ -475,6 +493,8 @@ function WC.PlanInit()
     for _, st in ipairs(steps) do
         if st.locked then WC.plan.hasLocked = true end
     end
+    WC.liveState = nil
+    WC.plan.flights, WC.plan.start = flights, start
     WC.plan.behind = WC.ComputePlanBehind(WoWCompanionPlan, generated)
     WC.PlanScan()
     WC.PlanUnlockCheck(true)
@@ -636,14 +656,16 @@ end
 
 -- What to show now: the base step, or, when the player is already in the zone of a later step, that step (a travel
 -- step as its action). Plan order returns once the zone's steps are done or the player leaves.
-function WC.PlanNext()
+function WC.PlanNext(raw)
     local p = WC.plan
     if not p then return end
     local cur = WC.PlanBaseNext()
     if not cur then return end
     local ok, v = pcall(lead_step, p, cur) -- ADDON-119's live-path rule: a failure here shows the plan's own step
-    if ok and v and not (WC.StepDismissed and WC.StepDismissed(v)) then return v end
-    return cur
+    local res = cur
+    if ok and v and not (WC.StepDismissed and WC.StepDismissed(v)) then res = v end
+    if raw or not WC.LiveNowStep then return res end
+    return WC.LiveNowStep(res) -- the best next stop from where the player stands
 end
 
 -- ---------------------------------------------------------------- chains: locked steps, unlocks, "New"

@@ -55,6 +55,7 @@ local D = {
     { key = "cardSide", type = "choice", default = "right", choices = { "right", "left" }, page = "panel", box = "interact", label = "CARD_SIDE_LABEL", name = "CardSide", choiceKey = "SIDE_", widget = "dropdown" },
     -- Plan: what the plan holds for you (the app reads these from planPrefs on its next save)
     { key = "planReach", type = "limit", default = 3, min = 0, max = 11, page = "plan", box = "reach", label = "PLAN_REACH_LABEL", labelAll = "PLAN_REACH_ANY", name = "PlanReach", show = "limit" },
+    { key = "planLive", type = "bool", default = true, page = "plan", box = "reach", label = "PLAN_LIVE", name = "PlanLive" },
     { key = "planElite", type = "bool", default = false, page = "plan", box = "reach", label = "PLAN_ELITE", name = "PlanElite" },
     -- Map & route
     { key = "planMap", type = "bool", default = true, page = "map", box = "map", label = "SHOW_PLAN_MAP", name = "PlanMap" },

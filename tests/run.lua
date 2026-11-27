@@ -1041,6 +1041,7 @@ local function plan_client(file)
         GetLogIndexForQuestID = function(id) local q = QUESTS[id]; return (q == "active" or q == "ready") and 1 or nil end,
         IsComplete = function(id) return QUESTS[id] == "ready" end,
     }
+    WoWCompanion.db.settings.planLive = false -- the older cases check the plan's own order; the live-order cases turn it on
     Stub.fire(frames, "PLAYER_LOGIN")
     return WoWCompanion
 end
@@ -7468,7 +7469,7 @@ end
 cases[#cases + 1] = { "panel plan: an old plan with no trips renders NOW and HERE, no TRIPS or LATER, no error", function()
     local WC = panel_client("full")
     local lines = panel_lines(WC)
-    assert(lines[1] == "NOW" and lines[2]:find("Pick up Quest 10", 1, true), table.concat(lines, "|"))
+    assert(lines[1]:find("^NOW") and lines[2]:find("Pick up Quest 10", 1, true), table.concat(lines, "|"))
     assert(count_of(lines, "HERE") == 1 and count_of(lines, "TRIPS") == 0 and count_of(lines, "LATER") == 0)
     assert(WC.PanelSections(7001, 50, 50).now and WC.plan.trips == nil)
 end }
@@ -7871,6 +7872,125 @@ cases[#cases + 1] = { "opacity: each slider sets alpha on its own layer; hover s
     assert(pin.fill.alpha == 0.7 and pin.num.alpha == 0.3, "hover off: unchanged")
     assert(WC.Setting("opacNext") == 0.9 and WC.Setting("opacMinimap") == 0.9 and WC.Setting("lineOpacity") == 0.7)
     assert(WC.SetSetting("opacMinimap", 5) == 1 and WC.SetSetting("opacNext", 0) == 0.1, "10-100%")
+end }
+
+
+-- ---------------------------------------------------------------- live order: NOW and HERE follow the player
+local function live_client(px, py)
+    local WC = plan_client(nil)
+    local function st(n, kind, q, x, y, extra)
+        local s = { n = n, kind = kind, questID = q, quest = "Quest " .. q, label = kind .. " " .. q, map = 7001, x = x, y = y }
+        for k, v in pairs(extra or {}) do s[k] = v end
+        return s
+    end
+    WC.plan = { steps = {
+        st(1, "pickup", 1, 50, 10), st(2, "objective", 1, 50, 14), st(3, "turnin", 1, 53, 10),
+        st(4, "pickup", 2, 52, 88), st(5, "objective", 2, 56, 84), st(6, "turnin", 2, 48, 84),
+    }, done = {}, generated = 1, live = {} }
+    WC.db.settings.planLive = true
+    LIVE_POS = { px, py }
+    LIVE_TIME = 100
+    GetTime = function() return LIVE_TIME end
+    C_Map = { GetBestMapForUnit = function() return 7001 end, GetMapWorldSize = function() return 3000, 3000 end,
+        GetMapInfo = function() return { name = "Testisle", parentMapID = 0 } end,
+        GetPlayerMapPosition = function() return { GetXY = function() return LIVE_POS[1] / 100, LIVE_POS[2] / 100 end } end }
+    return WC
+end
+local function live_ns(groups)
+    local t = {}
+    for _, g in ipairs(groups) do t[#t + 1] = g.steps[1].n end
+    return table.concat(t, ",")
+end
+
+cases[#cases + 1] = { "live order: in the south NOW is the nearest available southern step, a turn-in never precedes its objective", function()
+    local WC = live_client(50, 90)
+    local groups = WC.MapBadgeGroups(7001, 50, 90)
+    local order = live_ns(groups)
+    assert(order:sub(1, 1) == "4", order)
+    assert(groups[1].isNext and WC.PlanNext().n == 4, "NOW is the live first stop")
+    local at = {}
+    for i, g in ipairs(groups) do for _, s in ipairs(g.steps) do at[s.n] = i end end
+    assert(at[5] < at[6] and at[2] < at[3] and at[4] < at[5], order)
+    assert(groups[1].steps.liveLabel == "1" and groups[2].steps.liveLabel == "2", "badges are numbered in the live order")
+    assert(WC.PinLabel(groups[1].steps) == "1")
+end }
+
+cases[#cases + 1] = { "live order: moving north re-orders, within the throttle it does not", function()
+    local WC = live_client(50, 90)
+    assert(live_ns(WC.MapBadgeGroups(7001, 50, 90)):sub(1, 1) == "4")
+    LIVE_POS = { 50, 12 }
+    LIVE_TIME = 101 -- under two seconds: the earlier order stands
+    assert(live_ns(WC.MapBadgeGroups(7001, 50, 12)):sub(1, 1) == "4" and WC.liveState.runs == 1)
+    LIVE_TIME = 102.5
+    local groups = WC.MapBadgeGroups(7001, 50, 12)
+    assert(WC.liveState.runs == 2 and groups[1].steps[1].n == 1, live_ns(groups))
+    assert(WC.PlanNext().n == 1 and WC.liveChanged == true)
+    LIVE_TIME = 110 -- standing still: no new run
+    WC.MapBadgeGroups(7001, 50, 12)
+    assert(WC.liveState.runs == 2, "a small move is no reason to order again")
+    LIVE_POS = { 50, 40 }
+    WC.MapBadgeGroups(7001, 50, 40)
+    assert(WC.liveState.runs == 3, "more than 200 yards: order again")
+end }
+
+cases[#cases + 1] = { "live order: pure order honours dependencies, ready turn-ins within 250 yards lead, blocked stops go last", function()
+    local near = { { x = 50, y = 50, deps = { 2 } }, { x = 52, y = 50 }, { x = 90, y = 90 } }
+    local o = WoWCompanion.LiveOrder(near, 50, 50, 1000, 1000)
+    assert(table.concat(o, ",") == "2,1,3", table.concat(o, ","))
+    local items = { { x = 50, y = 51 }, { x = 52, y = 50, turnin = true }, { x = 51, y = 50 } }
+    o = WoWCompanion.LiveOrder(items, 50, 50, 1000, 1000) -- the turn-in is 20 yards away: first, though stop 3 is nearer
+    assert(o[1] == 2 or o[1] == 3, table.concat(o, ","))
+    items = { { x = 50, y = 50 }, { x = 51, y = 50, turnin = true }, { x = 50.2, y = 50 } }
+    o = WoWCompanion.LiveOrder(items, 50, 50, 1000, 1000)
+    assert(o[1] == 2, "a ready turn-in within 250 yd leads: " .. table.concat(o, ","))
+    items = { { x = 50, y = 50, blocked = true }, { x = 90, y = 90 } }
+    o = WoWCompanion.LiveOrder(items, 50, 50, 1000, 1000)
+    assert(o[1] == 2 and o[2] == 1, "a stop that cannot be done yet waits")
+    items = { { x = 1, y = 1, deps = { 2 } }, { x = 2, y = 2, deps = { 1 } } } -- a cycle still places both
+    assert(#WoWCompanion.LiveOrder(items, 50, 50, 1000, 1000) == 2)
+end }
+
+cases[#cases + 1] = { "live order: far NOW with a known flight gives the hint, unknown or small savings give none", function()
+    local WC = live_client(50, 88)
+    local flights = { { name = "Booty Bay", map = 7001, x = 50, y = 90 }, { name = "Grom'gol", map = 7001, x = 50, y = 20 } }
+    local hint = WC.FlightHint(flights, 7001, 50, 88, { x = 50, y = 10 }, 3000, 3000)
+    assert(hint == "Fly Booty Bay to Grom'gol, then 300 yd N", tostring(hint))
+    assert(WC.FlightHint(flights, 7001, 50, 88, { x = 50, y = 70 }, 3000, 3000) == nil, "near: no hint")
+    assert(WC.FlightHint({ flights[1] }, 7001, 50, 88, { x = 50, y = 10 }, 3000, 3000) == nil, "one master: no flight")
+    assert(WC.FlightHint(nil, 7001, 50, 88, { x = 50, y = 10 }, 3000, 3000) == nil)
+    local f = WC.ParseLiveFields({ flights = { { name = "Booty Bay", map = 7001, x = 50, y = 90 }, { name = "Grom'gol", map = 7001, x = 50, y = 20, known = false },
+        { name = "", map = 7001, x = 1, y = 1 } }, start = { map = 7001, x = 10, y = 20 } })
+    assert(#f == 1 and f[1].name == "Booty Bay", "an unknown flight path is never kept")
+    local _, start = WC.ParseLiveFields({ start = { map = 7001, x = 10, y = 20 } })
+    assert(start.map == 7001 and start.x == 10)
+    WC.plan.flights = { flights[1] }
+    local S = WC.PanelSections(7001, 50, 12)
+    assert(S.now.hint == nil, "an unknown flight gives no hint")
+    WC.plan.flights = flights
+    LIVE_POS = { 50, 88 }
+    LIVE_TIME = 200
+    WC.plan.done[4], WC.plan.done[5], WC.plan.done[6] = true, true, true
+    S = WC.PanelSections(7001, 50, 88)
+    assert(S.now.step.n == 1 and S.now.hint == "Fly Booty Bay to Grom'gol, then 300 yd N", tostring(S.now.hint))
+end }
+
+cases[#cases + 1] = { "live order: the section headers read plainly and explain themselves; a far start says re-routed", function()
+    local WC = live_client(50, 90)
+    local S = WC.PanelSections(7001, 50, 90)
+    local rows = WC.PanelSectionRows(S, 7001, 50, 90)
+    local now, here
+    for _, r in ipairs(rows) do
+        if r.id == "panel_now" then now = r elseif r.id == "panel_here" then here = r end
+    end
+    assert(now.title == "NOW \194\183 your next step", now.title)
+    assert(here.title:find("^HERE \194\183 rest of Testisle %(5 stops, ~%d+ yd%)$"), here.title)
+    local tip = "NOW is the best next step from where you stand. HERE is everything else in this zone, in the order to do it from here. TRIPS are other zones."
+    assert(now.tip == tip and here.tip == tip)
+    WC.plan.start = { map = 7001, x = 50, y = 10 }
+    assert(WC.PlanRerouted(7001, 50, 90) == true and WC.PlanRerouted(7001, 50, 10) == false)
+    assert(WC.L.PLAN_REROUTED:find("re-routed from where you are", 1, true))
+    WC.plan.start = nil
+    assert(WC.PlanRerouted(7001, 50, 90) == false)
 end }
 
 local failed = 0

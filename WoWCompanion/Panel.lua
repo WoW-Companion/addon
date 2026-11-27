@@ -706,6 +706,7 @@ function WC.Refresh()
         advice = advice .. L.PLAN_BEHIND
         if WC.lagDismissed then f.title:SetText(f.title:GetText() .. L.PLAN_BEHIND_MARK) end
     end
+    if meta and WC.PlanRerouted and WC.PlayerPos and WC.PlanRerouted(WC.PlayerPos()) then advice = advice .. L.PLAN_REROUTED end
     f.header:SetText(WC.SafeText(advice))
     f.stale = meta and meta.stale or false
     local hc = f.stale and WC.COLORS.amber or WC.COLORS.dim
@@ -779,17 +780,23 @@ function WC.Refresh()
         if r.entry then entries[r.group] = r.entry end
         row.entry, row.group, row.quest = r.entry or (r.group and entries[r.group]) or nil, r.group, r.quest
         row.hideId = r.hideId
+        row.tip = r.tip
         if row.hideBtn and not r.hideId then row.hideBtn:Hide() end
-        local interactive = row.link ~= nil or r.kind == "header" or row.entry ~= nil or r.ask ~= nil or r.click ~= nil or r.hideId ~= nil
+        local interactive = row.link ~= nil or r.tip ~= nil or r.kind == "header" or row.entry ~= nil or r.ask ~= nil or r.click ~= nil or r.hideId ~= nil
         row:EnableMouse(interactive)
         row:SetScript("OnEnter", function(self)
             if self.link then show_tooltip(self) end
+            if self.tip then
+                WC.TipOpen(GameTooltip, self, "ANCHOR_RIGHT")
+                WC.TipLine(GameTooltip, self.tip, 1, 1, 1)
+                GameTooltip:Show()
+            end
             if self.hideId then hide_button(self):Show() end
             if self.group then WC.HoverEnterRow(self) end
             if self.quest and WC.ClearNew and WC.ClearNew(self.quest) then WC.Refresh() end -- hovering dismisses "New"
         end)
         row:SetScript("OnLeave", function(self)
-            if self.link then GameTooltip:Hide() end
+            if self.link or self.tip then GameTooltip:Hide() end
             if self.hideBtn and not self.hideBtn:IsMouseOver() then self.hideBtn:Hide() end
             if self.group then WC.HoverLeaveRow() end
         end)
