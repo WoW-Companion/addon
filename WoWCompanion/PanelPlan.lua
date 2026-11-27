@@ -37,6 +37,7 @@ local function trip_zone(t)
 end
 
 local function errand_of(plan, step)
+    if step.errand and rawget(L, "ERRAND_" .. step.errand) then return step.errand end
     for _, e in ipairs(plan and plan.errands or {}) do
         if (e.n and e.n == step.n) or (e.questID and not e.n and e.questID == step.questID) then return e.kind end
     end
@@ -137,11 +138,13 @@ function WC.PanelSections(mapID, px, py)
         local label, steps
         for _, g in ipairs(groups) do if g.isNext then label, steps = WC.PinLabel(g.steps), g.steps end end
         label = label or WC.PinLabel({ cur })
-        local plabel = panel_label(steps or { cur })
+        local plabel = cur.unplaced and "" or panel_label(steps or { cur })
         local view = cur.kind == "travel" and WC.PlanTipStep(cur) or cur
         local text = WC.PlanLiveText(view, view.label or "")
         local where
-        if hereMap == cur.map and px then
+        if cur.unplaced then -- no spot to walk to: say where the work is done
+            where = cur.place and string.format(L.PANEL_IN_PLACE, cur.place) or ""
+        elseif hereMap == cur.map and px then
             local d, dir = WC.PlanDistance(px, py, cur.x, cur.y, WC.MapYards(hereMap))
             where = string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
         else
@@ -168,6 +171,16 @@ function WC.PanelSections(mapID, px, py)
             prev = stop
             S.here.stops[#S.here.stops + 1] = stop
             for _, s in ipairs(g.steps) do note(s) end
+        end
+    end
+    -- Steps with no spot on the map (an errand "in Undercity") have no badge: each is a plain HERE row on its own map.
+    for _, s in ipairs(p.steps) do
+        if s.unplaced and s.kind ~= "travel" and not p.done[s.n] and (s.map == hereMap or s.map == 0) and not (cur and cur.n == s.n) then
+            local stop = { label = "", plabel = "", step = s, group = { steps = { s } }, errand = errand_of(p, s),
+                text = s.label ~= "" and s.label or (s.quest or "") }
+            if s.place then stop.text = stop.text .. string.format(L.PANEL_IN_PLACE, s.place) end
+            S.here.stops[#S.here.stops + 1] = stop
+            note(s)
         end
     end
     local nowOnHere = false
@@ -219,9 +232,13 @@ function WC.PanelSections(mapID, px, py)
     end
 
     -- Zone done: the first trip's travel legs become NOW.
+    if S.here.done and not S.now and p.exit and p.exit.label and p.exit.label ~= "" and (firstTrip or #p.steps == 0) then
+        S.now = { label = "", text = p.exit.label, where = "", travel = true }
+    end
     if S.here.done and firstTrip then
         S.here.next = firstTrip.zone
-        if #firstTrip.travel > 0 then
+        local nowHere = S.now and S.now.step and S.now.step.unplaced and (S.now.step.map == hereMap or S.now.step.map == 0)
+        if #firstTrip.travel > 0 and not nowHere then
             S.now = { label = "", text = table.concat(firstTrip.travel, " > "), where = "", travel = true, step = S.now and S.now.step }
         end
     end
@@ -273,7 +290,11 @@ end
 local function now_text(S)
     local n = S.now
     if n.travel then return string.format(L.PANEL_NOW_TRAVEL, n.text) end
-    return labelled(L.PANEL_NOW_LINE, n.plabel or n.label, n.text) .. n.where
+    local text = n.text
+    local kind = n.step and errand_of(WC.plan, n.step)
+    local errandName = kind and L["ERRAND_" .. kind]
+    if errandName then text = string.format(L.ERRAND_ROW, text, string.format(L.ERRAND_TAG, errandName)) end
+    return labelled(L.PANEL_NOW_LINE, n.plabel or n.label, text) .. n.where
 end
 
 local function stop_text(stop)

@@ -499,6 +499,7 @@ function WC.PlanDebug()
         if WC.PinWanted(s, mapID, WC.plan.done) then lines[#lines + 1] = WC.PlanDebugLine(s, stepPin[s.n]) end
     end
     print(string.format(L.PLAN_DEBUG_HEAD, tostring(mapID), #lines))
+    for kind, n in pairs(WC.planUnknownKinds or {}) do print(string.format(L.PLAN_KIND_DEBUG, kind, n)) end
     for id, title in pairs(WC.planGaps or {}) do print(string.format(L.PLAN_GAP_DEBUG, id, title)) end
     local drawn = 0
     for _, a in ipairs(arrows) do if a:IsShown() then drawn = drawn + 1 end end

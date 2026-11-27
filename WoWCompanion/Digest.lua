@@ -348,7 +348,7 @@ function WC.UnplannedRows(collapsed, playerLevel)
         if rows then
             rows[1].right = L.UNPLANNED_TAG
             rows[1].id = "u" .. q.id
-            rows[#rows + 1] = { kind = "status", indent = 2, text = q.new and L.UNPLANNED_HINT or L.UNPLANNED_OLD, color = WC.COLORS.dim, group = rows[1].group }
+            rows[#rows + 1] = { kind = "status", indent = 2, text = q.new and not WC.planError and L.UNPLANNED_HINT or L.UNPLANNED_OLD, color = WC.COLORS.dim, group = rows[1].group }
             for _, r in ipairs(rows) do out[#out + 1] = r end
         end
     end

@@ -7581,7 +7581,7 @@ end }
 cases[#cases + 1] = { "panel plan: an old plan with no find or errands renders as before", function()
     local WC = panel_client("full")
     local text = table.concat(panel_lines(WC), "\n")
-    assert(not text:find("FIND", 1, true) and not text:find("errand", 1, true))
+    assert(not text:find("FIND", 1, true) and not text:find("errand", 1, true), text)
     assert(WC.plan.find == nil and WC.plan.errands == nil)
     assert(text:find("Pick up Quest 10", 1, true))
 end }
@@ -7716,6 +7716,29 @@ cases[#cases + 1] = { "panel plan: an unplanned quest is New after the plan's sa
     for _, r in ipairs(rows) do if r.kind == "status" then hints[#hints + 1] = r.text end end
     assert(table.concat(hints, "|") == "Not in this plan|New: the overlay will route this after your next save", table.concat(hints, "|"))
     assert(WC.planGaps and WC.planGaps[98] and not WC.planGaps[99], "the old one is logged as a plan gap")
+end }
+
+cases[#cases + 1] = { "plan: an errand step and an unknown kind never drop the plan; an unreadable plan says so", function()
+    local WC = plan_client("errand")
+    assert(WC.plan and #WC.plan.steps == 1 and WC.plan.steps[1].kind == "errand" and WC.plan.steps[1].unplaced)
+    local S = WC.PanelSections(7001, 50, 50)
+    local text = {}
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, 50, 50)) do text[#text + 1] = (r.title or r.text or "") end
+    text = table.concat(text, "\n")
+    for _, want in ipairs({ "Train now at your class trainer", "errand: Train", "done \226\128\148 next: Farisle", "Take the boat to Farisle", "FIND", "TRIPS", "LATER" }) do
+        assert(text:find(want, 1, true) or text:upper():find(want, 1, true), want .. " in:\n" .. text)
+    end
+    assert(WC.planError == nil)
+    WC = plan_client("futurekind")
+    assert(WC.plan and #WC.plan.steps == 2 and WC.plan.steps[1].kind == "other" and WC.planUnknownKinds.hologram == 1)
+    S = WC.PanelSections(7001, 50, 50)
+    local rows = {}
+    for _, r in ipairs(WC.PanelSectionRows(S, 7001, 50, 50)) do rows[#rows + 1] = (r.title or r.text or "") end
+    rows = table.concat(rows, "\n")
+    assert(rows:find("Consult the oracle", 1, true) and rows:find("TRIPS", 1, true), rows)
+    -- a wrong schema is not silent
+    WC = plan_client("badschema")
+    assert(WC.plan == nil and WC.planError == "schema")
 end }
 
 local failed = 0
