@@ -127,6 +127,7 @@ end
 -- The text in a badge: "4", or "4·5" when steps share a spot (first and last of the group).
 -- Only real step numbers are shown: a live step with no route number, or an id-sized number, never is.
 function WC.PinLabel(steps)
+    if steps.liveLabel then return steps.liveLabel end -- the place in the live order (LiveOrder.lua)
     local first, last
     for _, s in ipairs(steps) do
         local n = tonumber(s.n)
@@ -879,7 +880,7 @@ end
 -- Redraws the pins and lines for the map the world map is showing.
 -- The badges the map draws for mapID, in order: the plan's shown steps plus live steps and live turn-ins. The panel's
 -- HERE list is built from this same call, so the two always agree.
-function WC.MapBadgeGroups(mapID)
+function WC.MapBadgeGroups(mapID, px, py)
     local shown = WC.ShownSteps(WC.plan.steps, WC.plan.done, WC.db.settings.planShow)
     if #(WC.plan.live or {}) > 0 then
         local withLive = { unpack(shown) }
@@ -891,7 +892,13 @@ function WC.MapBadgeGroups(mapID)
         shown = { unpack(shown) }
         for _, st in ipairs(extras) do if not WC.StepDismissed(st) then shown[#shown + 1] = st end end
     end
-    return WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext()), shown
+    local groups = WC.PinGroups(shown, mapID, WC.plan.done, WC.PlanNext(true))
+    if not px and WC.PlayerPos then
+        local pm, x, y = WC.PlayerPos()
+        if pm == mapID then px, py = x, y end
+    end
+    if WC.LiveGroups then groups = WC.LiveGroups(groups, mapID, px, py) end -- the player's own map: live order
+    return groups, shown
 end
 
 function WC.RefreshMapPins()
@@ -1177,6 +1184,7 @@ local function tick()
         return
     end
     if f and f:IsShown() then f.label:SetText(WC.SafeText(WC.PlanText(step, mapID, px, py))) end
+    if WC.LiveRefresh then WC.LiveRefresh(mapID, px, py) end
     if WC.panel and WC.panel:IsShown() and WC.RefreshNextLine then WC.RefreshNextLine() end
     if WC.UpdateMapPanelHeader then WC.UpdateMapPanelHeader() end
     if WC.HereTick then WC.HereTick(mapID, px, py) end

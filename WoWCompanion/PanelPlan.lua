@@ -308,9 +308,10 @@ end
 function WC.PanelSections(mapID, px, py)
     local p = WC.plan
     if not p then return nil end
-    local cur = guarded(WC.PlanNext, nil)
+    local cur = mapID == nil and guarded(WC.PlanNext, nil) or nil
     local hereMap = mapID or (cur and cur.map)
-    local groups = hereMap and guarded(WC.MapBadgeGroups, {}, hereMap) or {}
+    local groups = hereMap and guarded(WC.MapBadgeGroups, {}, hereMap, px, py) or {} -- in the live order for the player's map
+    cur = cur or guarded(WC.PlanNext, nil)
     local seen = {}
     local function note(step)
         for _, id in ipairs(ids_of(step)) do if (id or 0) > 0 then seen[id] = true end end
@@ -335,7 +336,12 @@ function WC.PanelSections(mapID, px, py)
         else
             where = L.PLAN_ELSEWHERE
         end
-        S.now = { label = label, plabel = plabel, text = text, where = where, step = cur }
+        local hint
+        if not cur.unplaced and hereMap == cur.map and px and cur.kind ~= "travel" then
+            local w, h = WC.MapYards(hereMap)
+            hint = WC.FlightHint(p.flights, hereMap, px, py, cur, w, h)
+        end
+        S.now = { label = label, plabel = plabel, text = text, where = where, step = cur, hint = hint }
         note(cur)
     end
 
@@ -537,7 +543,8 @@ end
 
 local function header(id, text, click)
     local color = WC.Setting("sectionColor")
-    return { kind = "header", id = id, title = text, text = text, color = color, click = click }
+    local tip = (id == "panel_now" or id == "panel_here" or id == "panel_trips") and L.PANEL_SECTIONS_TIP or nil
+    return { kind = "header", id = id, title = text, text = text, color = color, click = click, tip = tip }
 end
 
 -- The digest's own line for a quest (its next_quests entry), so a row can open the same card as before; nil when none.
@@ -603,6 +610,7 @@ function WC.PanelSectionRows(S, mapID, px, py)
     if S.now then
         local id = S.now.step and (S.now.step.questID or 0) > 0 and S.now.step.questID or nil
         add_quest(rows, { kind = "line", text = now_text(S), color = WC.COLORS.gold }, id, S.now.step and S.now.step.quest, S.now.step)
+        if S.now.hint then rows[#rows + 1] = { kind = "line", indent = 1, text = S.now.hint, color = WC.COLORS.dim } end
     else
         rows[#rows + 1] = { kind = "line", text = L.PANEL_NOTHING_NOW }
     end
@@ -614,8 +622,8 @@ function WC.PanelSectionRows(S, mapID, px, py)
         if #h.stops == 0 then
             title = string.format(L.PANEL_HERE_NONE, h.zone)
         else
-            title = string.format(#h.stops == 1 and L.PANEL_HERE_ONE or L.PANEL_HERE, h.zone, #h.stops)
-            if h.yards > 0 then title = title .. string.format(L.PANEL_HERE_YARDS, math.floor(h.yards + 0.5)) end
+            local far = h.yards > 0 and string.format(L.PANEL_HERE_YARDS, math.floor(h.yards + 0.5)) or ""
+            title = string.format(#h.stops == 1 and L.PANEL_HERE_ONE or L.PANEL_HERE, h.zone, #h.stops, far)
         end
         rows[#rows + 1] = header("panel_here", title)
     end
