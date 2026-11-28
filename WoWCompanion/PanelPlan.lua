@@ -109,11 +109,13 @@ function WC.LevelTag(id, neutral)
     return tag .. " "
 end
 
--- True when a quest is further above the player than the reach allows (and not yet in the quest log), or is elite
--- while elite quests are off. A quest already in the log is never dropped by this.
+-- True when a quest is further above the player than the reach allows (in the log or not, as the app parks it), or is
+-- elite while elite quests are off (never one already in the log). A turned-in quest is never dropped.
 local function out_of_reach(id, level, elite)
-    if not id or id <= 0 or WC.PlanQuestState(id) ~= "none" then return false end
-    if elite and not WC.Setting("planElite") then return true end
+    if not id or id <= 0 then return false end
+    local state = WC.PlanQuestState(id)
+    if state == "turnedin" then return false end
+    if state == "none" and elite and not WC.Setting("planElite") then return true end
     local reach, mine = WC.PlanReach(), UnitLevel and UnitLevel("player")
     return reach ~= nil and level ~= nil and mine ~= nil and level > mine + reach
 end
@@ -438,7 +440,7 @@ function WC.PanelSections(mapID, px, py)
     S.find = {}
     for _, q in ipairs(p.find or {}) do
         if not seen[q.questID] and WC.PlanQuestState(q.questID) ~= "turnedin" and not WC.QuestHidden(q.questID)
-            and not (WC.PlanQuestState(q.questID) == "none" and q.level and WC.QuestOutOfReach(q.questID)) then
+            and not (q.level and WC.QuestOutOfReach(q.questID)) then
             seen[q.questID] = true
             local name = q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or L.QUEST_UNKNOWN:format(q.questID))
             local text = q.hint and string.format(L.FIND_LINE, name, q.hint) or string.format(L.FIND_LINE_NOHINT, name)
@@ -499,6 +501,22 @@ function WC.PanelSections(mapID, px, py)
             S.later[#S.later + 1] = { id = q.questID, text = string.format(L.LATER_LINE, q.quest ~= "" and q.quest or (WC.QuestTitle(q.questID) or L.QUEST_UNKNOWN:format(q.questID)), q.why) }
         end
     end
+    -- LATER, too: a quest in the log that the reach dropped from the plan above. Display only; the game is never touched.
+    local mine = UnitLevel and UnitLevel("player")
+    local function reach_later(id, level, name)
+        local r = WC.PlanReach()
+        if not (id and id > 0 and level and mine and r and not seen[id] and not WC.QuestHidden(id)) then return end
+        local st = WC.PlanQuestState(id)
+        if (st ~= "active" and st ~= "ready") or not WC.QuestOutOfReach(id) then return end
+        seen[id] = true
+        local nm = (name and name ~= "") and name or WC.QuestTitle(id) or L.QUEST_UNKNOWN:format(id)
+        local why = string.format(L.LATER_REACH, r, math.floor(level))
+        S.later[#S.later + 1] = { id = id, name = nm, text = WC.LevelTag(id) .. string.format(L.LATER_LINE, nm, why) }
+    end
+    for _, st in ipairs(p.steps) do
+        for _, id in ipairs(ids_of(st)) do reach_later(tonumber(id), st.level, st.quest) end
+    end
+    for _, q in ipairs(p.find or {}) do reach_later(q.questID, q.level, q.quest) end
     return S
 end
 

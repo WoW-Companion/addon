@@ -1,0 +1,3 @@
+- Level reach now applies to quests already in the log, as the app parks them.
+- A log quest above your reach shows under LATER with its level, never abandoned.
+- Plan page note reads "Shown now. The route's order catches up after your next /reload."
