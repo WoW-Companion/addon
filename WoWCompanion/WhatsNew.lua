@@ -6,6 +6,7 @@ local L = WC.L
 
 -- Per version, the keys (in L) of its main lines.
 WC.CHANGELOG = {
+    ["0.6.74"] = { "WHATS_NEW_0_6_74_1", "WHATS_NEW_0_6_74_2", "WHATS_NEW_0_6_74_3", "WHATS_NEW_0_6_74_4", "WHATS_NEW_0_6_74_5", "WHATS_NEW_0_6_74_6" },
     ["0.6.73"] = { "WHATS_NEW_0_6_73_1", "WHATS_NEW_0_6_73_2", "WHATS_NEW_0_6_73_3" },
     ["0.6.72"] = { "WHATS_NEW_0_6_72_1", "WHATS_NEW_0_6_72_2", "WHATS_NEW_0_6_72_3", "WHATS_NEW_0_6_72_4", "WHATS_NEW_0_6_72_5", "WHATS_NEW_0_6_72_6", "WHATS_NEW_0_6_72_7", "WHATS_NEW_0_6_72_8", "WHATS_NEW_0_6_72_9", "WHATS_NEW_0_6_72_10" },
     ["0.6.71"] = { "WHATS_NEW_0_6_71_1", "WHATS_NEW_0_6_71_2", "WHATS_NEW_0_6_71_3", "WHATS_NEW_0_6_71_4", "WHATS_NEW_0_6_71_5", "WHATS_NEW_0_6_71_6", "WHATS_NEW_0_6_71_7", "WHATS_NEW_0_6_71_8", "WHATS_NEW_0_6_71_9" },
