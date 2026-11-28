@@ -265,6 +265,31 @@ local function qcall(fn, ...)
     return nil
 end
 
+-- Quest tags the game shows as "+" in its log: group (1), raid (62), dungeon (81), heroic (85), raid 10/25 (88, 89).
+local GROUP_TAGS = { [1] = true, [62] = true, [81] = true, [85] = true, [88] = true, [89] = true }
+local GROUP_WORDS = { elite = true, group = true, dungeon = true, raid = true, heroic = true }
+
+-- Whether the game marks a quest log entry as elite or group, and its suggested group size (> 0) or nil. Reads only:
+-- the log's suggestedGroup / tag, then GetQuestTagInfo (C_QuestLog first, the global otherwise) where present.
+-- Returns nil, nil when nothing says so: a missing API leaves the field out.
+local function elite_of(id, suggested)
+    local group = type(suggested) == "number" and suggested > 0 and suggested or nil
+    local elite = group ~= nil
+    if type(suggested) == "string" and GROUP_WORDS[suggested:lower()] then elite = true end
+    local tag
+    if C_QuestLog and type(C_QuestLog.GetQuestTagInfo) == "function" then
+        tag = qcall(C_QuestLog.GetQuestTagInfo, id)
+    elseif type(GetQuestTagInfo) == "function" then
+        tag = qcall(GetQuestTagInfo, id)
+    end
+    if type(tag) == "table" then
+        if tag.isElite == true or GROUP_TAGS[tag.tagID] then elite = true end
+    elseif type(tag) == "string" and GROUP_WORDS[tag:lower()] then
+        elite = true
+    end
+    return elite and true or nil, group
+end
+
 -- The quest log, read with C_QuestLog first and the legacy globals as a fallback. When no count API exists the
 -- field is left alone, so the app does not take "nothing read" for "no quests".
 function readers.quests(r)
@@ -284,14 +309,14 @@ function readers.quests(r)
     local objPath = -1
     for i = 1, count do
         if #list >= MAX_QUESTS then break end
-        local title, level, isHeader, complete, failed, id
+        local title, level, isHeader, complete, failed, id, suggested
         if Q and type(Q.GetInfo) == "function" then
             local info = qcall(Q.GetInfo, i)
-            if type(info) == "table" then title, level, isHeader, id = info.title, info.level, info.isHeader, info.questID end
+            if type(info) == "table" then title, level, isHeader, id = info.title, info.level, info.isHeader, info.questID; suggested = info.suggestedGroup end
         elseif type(GetQuestLogTitle) == "function" then
-            local ok, t, lv, _, header, _, isComplete, _, qid = pcall(GetQuestLogTitle, i)
+            local ok, t, lv, sg, header, _, isComplete, _, qid = pcall(GetQuestLogTitle, i)
             if ok then
-                title, level, isHeader, id = t, lv, header, qid
+                title, level, isHeader, id, suggested = t, lv, header, qid, sg
                 if isComplete == 1 or isComplete == true then complete = true end
                 if isComplete == -1 then failed = true end
             end
@@ -302,6 +327,9 @@ function readers.quests(r)
                 if qcall(Q.IsFailed, id) then failed = true end
             end
             local q = { id = id, title = title, level = level }
+            local elite, group = elite_of(id, suggested)
+            if elite then q.elite = true end
+            if group then q.group = group end
             if complete then q.complete = true; ready = ready + 1 end
             if failed then q.failed = true end
             local objs = {}

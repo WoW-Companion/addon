@@ -192,6 +192,7 @@ local L = {
     PLAN_ELITE = "Include elite quests",
     PLAN_LIVE = "Re-order stops from where I stand",
     PLAN_PENDING = "Shown now. The route's order catches up after your next /reload.",
+    LATER_ELITE = "Elite: needs a group",
     LATER_REACH = "above your reach (+%d): level %d",
     HIDDEN_NONE = "You have not hidden any quest.",
     HIDDEN_COUNT = "%d hidden: %s",

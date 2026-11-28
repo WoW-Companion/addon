@@ -20,7 +20,7 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
   equipment = { [slot 1-19] = { id = <itemID>, enchant? = <id>, suffix? = <id>, quality? = <0-8>, ilvl? = <n>, reqLevel? = <n>, equipLoc? = "INVTYPE_…", stats? = { agi|str|sta|int|spi|armor = <n>, <other ITEM_MOD_* key> = <n> } } },
   bags = { [bag 0-4] = { size = <n>, items = { [slot] = { id = <itemID>, count = <n>, enchant? , suffix? , quality? , ilvl? , reqLevel? , equipLoc? } } } },   -- item info fields are left out until the client has cached the item
   bank = { [-1, 5-10] = same shape as bags }, bankSeenAt = <unix s>,   -- only written while the bank is open
-  quests = { captured = true, entries = { { id, title, level, complete?, failed?,
+  quests = { captured = true, entries = { { id, title, level, elite? = true, group? = <suggested group size>, complete?, failed?,
              objectives? = { { text, done, have?, need? } } } } },
   questPOI = { [questID] = { map, x, y (0-100), seenAt, objectiveIndex? } },  -- the game's own quest map point; quests in the log only, max 60
   completedQuests = { <questID>, ... },                      -- sorted; absent when the client offers none
@@ -44,6 +44,7 @@ WoWCompanionDB.characters["<realm>:<name>"] = {
 
 Notes:
 
+- `elite` is set when the game marks a log quest elite or group (`suggestedGroup`, or `GetQuestTagInfo`'s `isElite` / group-type tag); `group` is the suggested group size when above 0. Both are left out when the client says neither.
 - Items and spells are ids, never links; no tooltips are scanned.
 - The bank is read only while the bank window is open; otherwise the last snapshot and its `bankSeenAt` stay.
 - Recipes come from the trade skill (or craft) window when the player opens it, kept per profession; `id` is
@@ -63,7 +64,7 @@ UnitName, GetRealmName, UnitLevel, UnitClass, UnitRace, UnitFactionGroup, GetBui
 UnitXPMax, GetXPExhaustion, C_Map.GetBestMapForUnit, C_Map.GetPlayerMapPosition, GetBindLocation,
 GetItemCount, GetItemCooldown, GetTime, GetInventoryItemID, GetInventoryItemLink, C_Container.GetContainerNumSlots / GetContainerItemInfo (or the older
 GetContainerNumSlots, GetContainerItemID, GetContainerItemInfo), GetNumQuestLogEntries, GetQuestLogTitle
-(or C_QuestLog.GetInfo and IsComplete), GetNumQuestLeaderBoards, GetQuestLogLeaderBoard, GetQuestsCompleted (or
+(or C_QuestLog.GetInfo and IsComplete), GetQuestTagInfo (or C_QuestLog.GetQuestTagInfo), GetNumQuestLeaderBoards, GetQuestLogLeaderBoard, GetQuestsCompleted (or
 C_QuestLog.GetAllCompletedQuestIDs), GetNumTalentTabs, GetTalentTabInfo, GetNumTalents, GetTalentInfo,
 GetNumSkillLines, GetSkillLineInfo, GetNumSpellTabs, GetSpellTabInfo, GetSpellLink (or
 C_SpellBook.GetSpellBookItemInfo), GetNumFactions, GetFactionInfo, IsTradeSkillLinked, GetTradeSkillLine,
