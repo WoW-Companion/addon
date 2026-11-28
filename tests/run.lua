@@ -4018,7 +4018,7 @@ cases[#cases + 1] = { "no /reload in any current-locale player string (What's ne
     fresh_client(nil)
     local n = 0
     for k, v in pairs(WoWCompanion.L) do
-        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" and k ~= "PLAN_LAG_NOTE" then -- the one reload hint, shown once and only as a note
+        if not k:find("^WHATS_NEW_") and k ~= "PLAN_STALE_NOTE" and k ~= "PLAN_LAG_NOTE" and k ~= "PLAN_PENDING" then -- the one reload hint, shown once and only as a note
             n = n + 1
             assert(not tostring(v):lower():find("/reload", 1, true), k)
         end
@@ -7882,7 +7882,7 @@ cases[#cases + 1] = { "reach: the live filter hides a quest above the reach, spa
     assert(not badge_quests(WC)[14] and badge_quests(WC)[12], "level 44 is +12, level 34 is +2")
     assert(WC.StepDismissed(WC.plan.steps[4]) and not WC.StepDismissed(WC.plan.steps[3]))
     QUESTS[14] = "active"
-    assert(not WC.StepDismissed(WC.plan.steps[4]), "a quest already in the log stays")
+    assert(WC.StepDismissed(WC.plan.steps[4]), "a quest in the log obeys the reach too")
     QUESTS[14] = nil
     local pp = WC.db.characters["Testrealm:Thrall"].planPrefs
     assert(pp.levelReach == 3 or pp.levelReach == nil)
@@ -7892,6 +7892,45 @@ cases[#cases + 1] = { "reach: the live filter hides a quest above the reach, spa
     assert(WC.PlanPrefsPending() == true)
     WC.SetSetting("planReach", "all")
     assert(badge_quests(WC)[14] and WC.db.characters["Testrealm:Thrall"].planPrefs.levelReach == -1)
+end }
+
+cases[#cases + 1] = { "reach: a log quest above the reach leaves NOW/HERE/map, shows under LATER with its level; 3 and any keep it", function()
+    local WC = levels_client()
+    QUESTS[14] = "active"
+    WC.SetSetting("planReach", 1)
+    local S = WC.PanelSections(7001, 50, 50)
+    assert(not badge_quests(WC)[14] and not (S.now and S.now.step and S.now.step.questID == 14), "gone from the map and NOW")
+    for _, st in ipairs(S.here.stops) do for _, s in ipairs(st.group.steps) do assert(s.questID ~= 14, "gone from HERE") end end
+    local later
+    for _, q in ipairs(S.later) do if q.id == 14 then later = q end end
+    assert(later and later.text:find("above your reach (+1): level 44", 1, true) and later.text:find("[44]", 1, true), later and later.text)
+    local synth = { questID = 14, kind = "objective", level = 35 }
+    assert(WC.StepDismissed(synth), "level 35 at 32 is +3, above reach 1")
+    WC.SetSetting("planReach", 3)
+    assert(not WC.StepDismissed(synth), "reach 3 keeps level 35")
+    WC.SetSetting("planReach", "all")
+    assert(badge_quests(WC)[14], "any keeps all")
+    S = WC.PanelSections(7001, 50, 50)
+    for _, q in ipairs(S.later) do assert(q.id ~= 14) end
+    QUESTS[14] = nil
+end }
+
+cases[#cases + 1] = { "reach: a quest with no level is kept; numbering stays dense and the panel matches the map", function()
+    local WC = levels_client()
+    QUESTS[14] = "active"
+    WC.SetSetting("planReach", 1)
+    local nolevel = { questID = 99, kind = "objective" }
+    assert(not WC.StepDismissed(nolevel))
+    local seen, n = {}, 0
+    for _, g in ipairs(WC.MapBadgeGroups(7001)) do
+        for d in WC.PinLabel(g.steps):gmatch("%d+") do
+            local l = tonumber(d)
+            seen[l] = true
+            if l > n then n = l end
+        end
+    end
+    for i = 1, n do assert(seen[i], "map numbering has a gap at " .. i) end
+    QUESTS[14] = nil
 end }
 
 cases[#cases + 1] = { "opacity: each slider sets alpha on its own layer; hover shows full opacity", function()
