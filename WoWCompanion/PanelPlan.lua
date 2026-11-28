@@ -83,6 +83,34 @@ function WC.PlanQuestLevel(id)
     return WC.QuestLevel and WC.QuestLevel(id) or nil, nil
 end
 
+-- True when the quest is elite or group: the plan's own flag, else the live capture (this character's saved quest
+-- entries), else the quest log itself (read only). nil-safe; false when nothing says so.
+function WC.QuestElite(id)
+    if not (id and id > 0) then return false end
+    local e = plan_entry(id)
+    if e and e.elite then return true end
+    local db = WC.db
+    if db and type(db.characters) == "table" and UnitName and GetRealmName then
+        local rec = db.characters[(GetRealmName() or "") .. ":" .. tostring(UnitName("player"))]
+        local qs = type(rec) == "table" and type(rec.quests) == "table" and rec.quests.entries
+        for _, q in ipairs(type(qs) == "table" and qs or {}) do
+            if q.id == id and q.elite then return true end
+        end
+    end
+    local Q = C_QuestLog
+    if Q and type(Q.GetLogIndexForQuestID) == "function" and type(Q.GetInfo) == "function" then
+        local ok, idx = pcall(Q.GetLogIndexForQuestID, id)
+        local info = ok and idx and select(2, pcall(Q.GetInfo, idx))
+        if type(info) == "table" and tonumber(info.suggestedGroup) and info.suggestedGroup > 0 then return true end
+    end
+    local tagFn = (Q and Q.GetQuestTagInfo) or GetQuestTagInfo
+    if type(tagFn) == "function" then
+        local ok, tag = pcall(tagFn, id)
+        if ok and type(tag) == "table" and tag.isElite == true then return true end
+    end
+    return false
+end
+
 -- The colour of a level: from the plan's diff when it has one, else the game's own bands against your level.
 function WC.LevelColor(level, diff)
     if diff then return WC.DifficultyColor(level, level - diff) end
@@ -104,18 +132,18 @@ function WC.LevelTag(id, neutral)
     if not WC.Setting("showLevels") then return "" end
     local level = id and WC.PlanQuestLevel(id)
     if not (level and level > 0) then return "" end
-    local tag = string.format("[%d]", math.floor(level))
+    local tag = string.format("[%d%s]", math.floor(level), WC.QuestElite(id) and "+" or "")
     if neutral then return WC.NeutralTag(tag) end
     return tag .. " "
 end
 
 -- True when a quest is further above the player than the reach allows (in the log or not, as the app parks it), or is
--- elite while elite quests are off (never one already in the log). A turned-in quest is never dropped.
+-- elite while elite quests are off (one in the log once the addon knows it is elite). A turned-in quest is never dropped.
 local function out_of_reach(id, level, elite)
     if not id or id <= 0 then return false end
     local state = WC.PlanQuestState(id)
     if state == "turnedin" then return false end
-    if state == "none" and elite and not WC.Setting("planElite") then return true end
+    if not WC.Setting("planElite") and (elite or (state ~= "none" and WC.QuestElite(id))) then return true end
     local reach, mine = WC.PlanReach(), UnitLevel and UnitLevel("player")
     return reach ~= nil and level ~= nil and mine ~= nil and level > mine + reach
 end
@@ -539,12 +567,19 @@ function WC.PanelSections(mapID, px, py)
     local mine = UnitLevel and UnitLevel("player")
     local function reach_later(id, level, name)
         local r = WC.PlanReach()
-        if not (id and id > 0 and level and mine and r and not seen[id] and not WC.QuestHidden(id)) then return end
+        if not (id and id > 0 and not seen[id] and not WC.QuestHidden(id)) then return end
         local st = WC.PlanQuestState(id)
         if (st ~= "active" and st ~= "ready") or not WC.QuestOutOfReach(id) then return end
+        local why
+        if not WC.Setting("planElite") and WC.QuestElite(id) then
+            why = L.LATER_ELITE
+        elseif level and mine and r then
+            why = string.format(L.LATER_REACH, r, math.floor(level))
+        else
+            return
+        end
         seen[id] = true
         local nm = (name and name ~= "") and name or WC.QuestTitle(id) or L.QUEST_UNKNOWN:format(id)
-        local why = string.format(L.LATER_REACH, r, math.floor(level))
         S.later[#S.later + 1] = { id = id, name = nm, text = WC.LevelTag(id) .. string.format(L.LATER_LINE, nm, why) }
     end
     for _, st in ipairs(p.steps) do

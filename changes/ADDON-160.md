@@ -1,0 +1,3 @@
+- The capture records which quest log entries are elite or group (elite, group).
+- Elite quests show their level as "[33+]" on the panel, NOW, HERE, LATER, TRIPS and the map.
+- "Include elite quests" off now moves elite quests in your log to LATER as "Elite: needs a group".

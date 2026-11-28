@@ -7959,6 +7959,57 @@ cases[#cases + 1] = { "reach: a log quest above the reach leaves NOW/HERE/map, s
     QUESTS[14] = nil
 end }
 
+-- ADDON-160: elite and group quests in the quest log.
+cases[#cases + 1] = { "capture: an elite or group log quest records elite (and group); a plain one and a missing API leave it out", function()
+    local WC, run = capture_client()
+    GetQuestLogTitle = function(i)
+        if i == 1 then return "Elite", 33, 5, false, false, 0, nil, 97985 end
+        if i == 2 then return "Plain", 9, 0, false, false, 0, nil, 21 end
+        return "Tagged", 30, nil, false, false, 0, nil, 5151
+    end
+    GetNumQuestLogEntries = function() return 3 end
+    GetQuestTagInfo = function(id) if id == 5151 then return { tagID = 1, isElite = true } end end
+    run()
+    local e = quests_of().quests.entries
+    assert(e[1].elite == true and e[1].group == 5, "suggestedGroup")
+    assert(e[2].elite == nil and e[2].group == nil, "a plain quest is unchanged")
+    assert(e[3].elite == true and e[3].group == nil, "the tag alone")
+    GetQuestTagInfo = nil
+    capture_clear()
+    WC, run = capture_client()
+    GetQuestLogTitle = function(i) return "Tagged", 30, nil, false, false, 0, nil, 5151 end
+    GetNumQuestLogEntries = function() return 1 end
+    run()
+    e = quests_of().quests.entries
+    assert(e[1].elite == nil and e[1].group == nil, "no API, no field")
+    capture_clear()
+end }
+
+cases[#cases + 1] = { "elite: a log quest shows [34+]; the switch off moves it from NOW and HERE to LATER, on keeps it", function()
+    local WC = levels_client()
+    QUESTS[12] = "active"
+    local key = "Testrealm:Thrall"
+    WC.db.characters[key].quests = { captured = true, entries = { { id = 12, level = 34, elite = true } } }
+    WC.SetSetting("planElite", true)
+    assert(WC.LevelTag(12) == "[34+] ", WC.LevelTag(12))
+    assert(WC.LevelTag(14) == "[44] ", "a non-elite quest is unchanged")
+    local S = WC.PanelSections(7001, 50, 50)
+    local r = row_with(WC, S, "Quest 12")
+    assert(r and r.text:find("^%[34%+%] "), r and r.text)
+    assert(badge_quests(WC)[12], "stays on the map when on")
+    WC.SetSetting("planElite", false)
+    assert(not badge_quests(WC)[12], "gone from the map when off")
+    S = WC.PanelSections(7001, 50, 50)
+    for _, st in ipairs(S.here.stops) do for _, s in ipairs(st.group.steps) do assert(s.questID ~= 12, "gone from HERE") end end
+    assert(not (S.now and S.now.step and S.now.step.questID == 12), "gone from NOW")
+    local later
+    for _, q in ipairs(S.later) do if q.id == 12 then later = q end end
+    assert(later and later.text:find("Elite: needs a group", 1, true) and later.text:find("[34+]", 1, true), later and later.text)
+    WC.db.characters[key].quests = nil
+    assert(WC.LevelTag(12) == "[34] " and badge_quests(WC)[12], "unknown to the addon: unchanged")
+    QUESTS[12] = nil
+end }
+
 cases[#cases + 1] = { "reach: a quest with no level is kept; numbering stays dense and the panel matches the map", function()
     local WC = levels_client()
     QUESTS[14] = "active"
