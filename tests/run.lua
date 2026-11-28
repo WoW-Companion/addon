@@ -7691,6 +7691,50 @@ cases[#cases + 1] = { "panel plan: when every HERE step is done the zone-done li
     assert(lines[2] == "Go: Take the boat > Walk north", lines[2])
 end }
 
+cases[#cases + 1] = { "panel plan: NOW follows HERE when the plan's NOW is on another map, with the map badge's number", function()
+    local WC = panel_client()
+    QUESTS[20] = "ready"
+    local S = WC.PanelSections(7002, 50, 50)
+    assert(S.now and S.now.step.map == 7002 and not S.now.travel, "NOW is HERE's first row")
+    local groups = WC.MapBadgeGroups(7002, 50, 50)
+    local first = groups[1]
+    local badge = WC.PinLabel(first.steps)
+    assert(S.now.plabel == (badge:match("^%d") and badge or ""), tostring(S.now.plabel) .. " vs badge " .. badge)
+    assert(S.now.where:find("yd", 1, true), "distance and direction: " .. tostring(S.now.where))
+    for _, stop in ipairs(S.here.stops) do assert(stop.step ~= S.now.step, "never listed twice") end
+    local rows = WC.PanelSectionRows(S, 7002, 50, 50)
+    assert(rows[2].text:find("Quest 20", 1, true) or rows[2].text:find("Travel to Otherisle", 1, true), rows[2].text)
+    assert(not (rows[2].text or ""):find("Nothing left", 1, true))
+end }
+
+cases[#cases + 1] = { "panel plan: NOW says nothing left only when HERE and TRIPS are empty; NOW and HERE empty names the first trip's travel", function()
+    local WC = panel_client()
+    for n = 1, 6 do WC.plan.done[n] = true end
+    local S = WC.PanelSections(7001, 50, 50)
+    assert(S.now and S.now.travel and S.now.text == "Take the boat > Walk north", S.now and S.now.text)
+    WC.plan.trips = nil
+    WC.plan.exit = nil
+    S = WC.PanelSections(7001, 50, 50)
+    assert(S.now == nil)
+end }
+
+cases[#cases + 1] = { "panel plan: an exit and a trip's travel into the zone the player is in are hidden", function()
+    local WC = panel_client()
+    WC.plan.exit.label = "Boat from Booty Bay to Ratchet, then ride to The Barrens"
+    local S = WC.PanelSections(7001, 50, 50)
+    assert(S.here.exit, "an exit elsewhere shows")
+    WC.plan.exit.label = "Boat from Booty Bay to Ratchet, then ride to " .. S.here.zone
+    S = WC.PanelSections(7001, 50, 50)
+    assert(S.here.exit == nil, "the exit into this zone is hidden")
+    WC.Refresh()
+    assert(count_of(panel_lines(WC), "Then:") == 0)
+    for n = 1, 4 do WC.plan.done[n] = true end
+    for _, t in ipairs(WC.plan.trips) do if t.zone == "Otherisle" then t.map = 7001 end end
+    S = WC.PanelSections(7001, 50, 50)
+    for _, t in ipairs(S.trips) do if t.map == 7001 then assert(#t.travel == 0, "no travel line into this zone") end end
+    assert(S.now and (not S.now.travel or S.now.text == "Fly to Farisle"), "the next trip's travel leads instead")
+end }
+
 cases[#cases + 1] = { "panel plan: collapsed shows NOW and the next 2 HERE rows under the title", function()
     local WC = panel_client()
     WC.SetPanelCollapsed(true)
