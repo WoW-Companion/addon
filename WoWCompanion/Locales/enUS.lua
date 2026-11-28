@@ -722,6 +722,12 @@ local L = {
     WHATS_NEW_0_6_73_1 = "The character capture now records Hearthstone readiness next to the bind location.",
     WHATS_NEW_0_6_73_2 = "New fields: hearthHave, hearthReadyIn (seconds, 0 when ready) and hearthCooldown.",
     WHATS_NEW_0_6_73_3 = "Re-read on bag cooldown changes; read-only APIs only.",
+    WHATS_NEW_0_6_74_1 = "Level reach now applies to quests already in the log, as the app parks them.",
+    WHATS_NEW_0_6_74_2 = "A log quest above your reach shows under LATER with its level, never abandoned.",
+    WHATS_NEW_0_6_74_3 = "Plan page note reads \"Shown now. The route's order catches up after your next /reload.\"",
+    WHATS_NEW_0_6_74_4 = "NOW leads with HERE's first row when the plan is a save behind; never \"Nothing left\".",
+    WHATS_NEW_0_6_74_5 = "An exit or trip travel line into the zone you are already in is hidden.",
+    WHATS_NEW_0_6_74_6 = "Both apply live on every refresh, with no reload.",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
