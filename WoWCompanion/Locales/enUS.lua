@@ -729,6 +729,9 @@ local L = {
     WHATS_NEW_0_6_74_4 = "NOW leads with HERE's first row when the plan is a save behind; never \"Nothing left\".",
     WHATS_NEW_0_6_74_5 = "An exit or trip travel line into the zone you are already in is hidden.",
     WHATS_NEW_0_6_74_6 = "Both apply live on every refresh, with no reload.",
+    WHATS_NEW_0_6_75_1 = "The capture records which quest log entries are elite or group (elite, group).",
+    WHATS_NEW_0_6_75_2 = "Elite quests show their level as \"[33+]\" on the panel, NOW, HERE, LATER, TRIPS and the map.",
+    WHATS_NEW_0_6_75_3 = "\"Include elite quests\" off now moves elite quests in your log to LATER as \"Elite: needs a group\".",
 }
 
 WC.L = setmetatable(L, { __index = function(_, key) return key end })
