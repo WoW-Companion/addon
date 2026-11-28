@@ -1,0 +1,3 @@
+- NOW leads with HERE's first row when the plan is a save behind; never "Nothing left".
+- An exit or trip travel line into the zone you are already in is hidden.
+- Both apply live on every refresh, with no reload.

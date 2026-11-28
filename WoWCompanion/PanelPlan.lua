@@ -334,6 +334,14 @@ local function leg_text(a, b)
 end
 WC.LegText = leg_text
 
+-- True when an exit's label ends "... to <zone>" and <zone> is the zone the player is in.
+local function exit_into(exit, zone)
+    local label = exit and exit.label
+    if not (label and zone and zone ~= "") then return false end
+    local tail = label:match(".* to (.-)[%.%s]*$")
+    return tail ~= nil and tail:lower() == zone:lower()
+end
+
 -- The sections for the player at mapID, px, py. nil when there is no plan. Pure over live state: call it any time.
 --  now   = { text, label, step, travel = true when it is a promoted trip leg }
 --  here  = { zone, stops = { {label, text, step, yards} }, yards, exit, done }
@@ -435,6 +443,26 @@ function WC.PanelSections(mapID, px, py)
     local nowOnHere = false
     for _, g in ipairs(groups) do if g.isNext or is_now(g) then nowOnHere = true end end
     S.here.done = #S.here.stops == 0 and not nowOnHere
+    -- NOW follows HERE: a NOW that is gone, or on another map, gives way to HERE's first live row, numbered as its badge.
+    local nowAway = not S.now or (cur and not cur.unplaced and cur.map and cur.map ~= 0 and cur.map ~= hereMap)
+    if nowAway and #S.here.stops > 0 and hereMap then
+        local stop = table.remove(S.here.stops, 1)
+        if cur then -- the old NOW is no longer shown: let a trip or LATER list its quest
+            local keep = {}
+            for _, st in ipairs(stop.group and stop.group.steps or { stop.step }) do
+                for _, id in ipairs(ids_of(st)) do keep[id] = true end
+            end
+            for _, id in ipairs(ids_of(cur)) do if not keep[id] then seen[id] = nil end end
+        end
+        local where = ""
+        if stop.x and px and not stop.step.unplaced then
+            local d, dir = WC.PlanDistance(px, py, stop.x, stop.y, WC.MapYards(hereMap))
+            where = string.format(L.PLAN_DISTANCE, math.floor(d + 0.5), dir)
+        end
+        S.here.yards = math.max(0, S.here.yards - (stop.yards or 0))
+        S.now = { label = stop.label, plabel = stop.plabel, text = stop.text, where = where, step = stop.step,
+            steps = stop.group and stop.group.steps or { stop.step } }
+    end
 
     -- FIND: quests that are a hunt, each with the plan's hint. Never unplanned; each quest has this one home.
     S.find = {}
@@ -451,7 +479,7 @@ function WC.PanelSections(mapID, px, py)
     end
 
     -- TRIPS: each quest once, ready counted from the live log when the plan lists the quests.
-    local firstTrip
+    local firstTrip, travelTrip
     for i, t in ipairs(p.trips or {}) do
         local quests, ready = {}, 0
         for _, id in ipairs(t.questIDs or {}) do
@@ -476,20 +504,26 @@ function WC.PanelSections(mapID, px, py)
             if ready > 0 then head = head .. string.format(L.TRIP_HEAD_READY, ready) end
             local trip = { key = (t.map or zone) .. ":" .. i, zone = zone, map = t.map, head = head, reason = t.reason,
                 quests = quests, travel = t.travel or {}, instance = t.instance }
+            if hereMap and t.map == hereMap then trip.travel = {} end -- a trip into this very zone needs no travel line
             S.trips[#S.trips + 1] = trip
             firstTrip = firstTrip or trip
+            if #trip.travel > 0 then travelTrip = travelTrip or trip end
         end
     end
 
+    -- An exit into the zone the player is already in is stale (the plan is a save behind): never shown.
+    local exitHere = exit_into(p.exit, S.here.zone)
+    if exitHere then S.here.exit = nil end
+
     -- Zone done: the first trip's travel legs become NOW.
-    if S.here.done and not S.now and p.exit and p.exit.label and p.exit.label ~= "" and (firstTrip or #p.steps == 0) then
+    if S.here.done and not S.now and p.exit and p.exit.label and p.exit.label ~= "" and not exitHere and (firstTrip or #p.steps == 0) then
         S.now = { label = "", text = p.exit.label, where = "", travel = true }
     end
     if S.here.done and firstTrip then
         S.here.next = firstTrip.zone
         local nowHere = S.now and S.now.step and S.now.step.unplaced and (S.now.step.map == hereMap or S.now.step.map == 0)
-        if #firstTrip.travel > 0 and not nowHere then
-            S.now = { label = "", text = table.concat(firstTrip.travel, " > "), where = "", travel = true, step = S.now and S.now.step }
+        if travelTrip and not nowHere then
+            S.now = { label = "", text = table.concat(travelTrip.travel, " > "), where = "", travel = true, step = S.now and S.now.step }
         end
     end
 
